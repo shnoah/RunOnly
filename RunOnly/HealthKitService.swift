@@ -178,7 +178,8 @@ final class HealthKitService {
         async let routeTask = fetchRoute(for: runningWorkout.workout)
         async let heartRateTask = fetchHeartRates(for: runningWorkout.workout)
 
-        let route = try await routeTask
+        let rawRoute = try await routeTask
+        let route = normalizeRouteDistances(rawRoute, targetDistance: runningWorkout.distanceInMeters)
         let heartRates = mapHeartRatesToRoute(try await heartRateTask, route: route)
 
         return RunDetail(
@@ -287,15 +288,15 @@ final class HealthKitService {
         guard route.count > 1 else { return [] }
 
         var samples: [PaceSample] = []
-        var lastIncludedDate = route[0].timestamp.addingTimeInterval(-15)
+        var lastIncludedDate = route[0].timestamp.addingTimeInterval(-10)
 
         for index in 1..<route.count {
             let currentPoint = route[index]
-            guard currentPoint.timestamp.timeIntervalSince(lastIncludedDate) >= 5 else { continue }
+            guard currentPoint.timestamp.timeIntervalSince(lastIncludedDate) >= 1 else { continue }
 
             var lookbackIndex = index - 1
             while lookbackIndex > 0,
-                  currentPoint.timestamp.timeIntervalSince(route[lookbackIndex].timestamp) < 15 {
+                  currentPoint.timestamp.timeIntervalSince(route[lookbackIndex].timestamp) < 10 {
                 lookbackIndex -= 1
             }
 
@@ -303,7 +304,7 @@ final class HealthKitService {
 
             let distanceWindow = currentPoint.distanceMeters - startPoint.distanceMeters
             let durationWindow = currentPoint.timestamp.timeIntervalSince(startPoint.timestamp)
-            guard distanceWindow >= 20, durationWindow >= 10 else { continue }
+            guard distanceWindow >= 10, durationWindow >= 5 else { continue }
 
             let secondsPerKilometer = durationWindow / (distanceWindow / 1_000)
             guard secondsPerKilometer.isFinite, (150...900).contains(secondsPerKilometer) else { continue }
@@ -325,7 +326,6 @@ final class HealthKitService {
         guard route.count > 1 else { return [] }
 
         var splits: [RunSplit] = []
-        var accumulatedDistance: Double = 0
         var nextSplitDistance: Double = 1_000
         let runStartTime = route[0].timestamp
         var splitStartTime = runStartTime
@@ -333,12 +333,11 @@ final class HealthKitService {
         for index in 1..<route.count {
             let previous = route[index - 1]
             let current = route[index]
-            let segmentDistance = distance(from: previous, to: current)
+            let segmentStartDistance = previous.distanceMeters
+            let accumulatedDistance = current.distanceMeters
+            let segmentDistance = accumulatedDistance - segmentStartDistance
             let segmentDuration = current.timestamp.timeIntervalSince(previous.timestamp)
             guard segmentDistance > 0, segmentDuration > 0 else { continue }
-
-            let segmentStartDistance = accumulatedDistance
-            accumulatedDistance += segmentDistance
 
             while accumulatedDistance >= nextSplitDistance {
                 let distanceIntoSegment = nextSplitDistance - segmentStartDistance
@@ -359,8 +358,9 @@ final class HealthKitService {
             }
         }
 
-        let remainderDistance = accumulatedDistance - Double(splits.count) * 1_000
-        if remainderDistance >= 100, let lastPoint = route.last {
+        let totalDistance = route.last?.distanceMeters ?? 0
+        let remainderDistance = totalDistance - Double(splits.count) * 1_000
+        if remainderDistance > 0.5, let lastPoint = route.last {
             splits.append(
                 RunSplit(
                     index: splits.count + 1,
@@ -411,6 +411,27 @@ final class HealthKitService {
         }
 
         return builtPoints
+    }
+
+    private func normalizeRouteDistances(_ route: [RunRoutePoint], targetDistance: Double) -> [RunRoutePoint] {
+        guard route.count > 1,
+              targetDistance > 0,
+              let recordedDistance = route.last?.distanceMeters,
+              recordedDistance > 0 else {
+            return route
+        }
+
+        let scale = targetDistance / recordedDistance
+        guard scale.isFinite, scale > 0 else { return route }
+
+        return route.map { point in
+            RunRoutePoint(
+                latitude: point.latitude,
+                longitude: point.longitude,
+                timestamp: point.timestamp,
+                distanceMeters: point.distanceMeters * scale
+            )
+        }
     }
 
     private func mapHeartRatesToRoute(_ heartRates: [HeartRateSample], route: [RunRoutePoint]) -> [HeartRateSample] {

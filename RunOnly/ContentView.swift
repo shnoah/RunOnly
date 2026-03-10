@@ -601,7 +601,7 @@ private struct RunDetailView: View {
 
                 case .loaded(let detail):
                     RunRouteSection(detail: detail)
-                    PerformanceChartSection(detail: detail)
+                    PerformanceChartSection(run: run, detail: detail)
                     RunSplitSection(detail: detail)
                     RunInsightSection(run: run, detail: detail)
                 }
@@ -644,6 +644,7 @@ private struct RunRouteSection: View {
 }
 
 private struct PerformanceChartSection: View {
+    let run: RunningWorkout
     let detail: RunDetail
     @State private var selectedDistance: Double?
 
@@ -773,22 +774,9 @@ private struct PerformanceChartSection: View {
         )
     }
 
-    private var requestedDistanceKilometers: Double? {
-        selectedDistance
-            ?? paceSeries.first?.distanceKilometers
-            ?? heartSeries.first?.distanceKilometers
-    }
-
     private var snappedDistanceKilometers: Double? {
-        guard let requestedDistanceKilometers else { return nil }
-        let nearestPaceDistance = paceSeries.min(by: {
-            abs($0.distanceKilometers - requestedDistanceKilometers) < abs($1.distanceKilometers - requestedDistanceKilometers)
-        })?.distanceKilometers
-        let nearestHeartDistance = heartSeries.min(by: {
-            abs($0.distanceKilometers - requestedDistanceKilometers) < abs($1.distanceKilometers - requestedDistanceKilometers)
-        })?.distanceKilometers
-
-        return nearestPaceDistance ?? nearestHeartDistance ?? requestedDistanceKilometers
+        guard let selectedDistance else { return nil }
+        return min(max(selectedDistance, 0), maxDistance)
     }
 
     private var selectedPacePoint: PaceChartPoint? {
@@ -831,11 +819,17 @@ private struct PerformanceChartSection: View {
         }
 
         let count = Int(ceil(maxDistance / stride))
-        return Array(0...count).map { Double($0) * stride }
+        var values = Array(0...count).map { Double($0) * stride }
+        if let last = values.last, abs(last - maxDistance) > 0.001 {
+            values.append(maxDistance)
+        }
+        return values
     }
 
     private var maxDistance: Double {
         max(
+            run.distanceInKilometers,
+            (detail.route.last?.distanceMeters ?? 0) / 1_000,
             paceSeries.last?.distanceKilometers ?? 0,
             heartSeries.last?.distanceKilometers ?? 0
         )
@@ -956,7 +950,7 @@ private struct HeartRateChartPlot: View {
                     .foregroundStyle(.white.opacity(0.4))
                 AxisValueLabel {
                     if let distance = value.as(Double.self) {
-                        Text(distance.formatted(.number.precision(.fractionLength(strideValues.count > 8 ? 0 : 1))))
+                        Text(formatAxisDistance(distance))
                             .foregroundStyle(.white.opacity(0.7))
                     }
                 }
@@ -964,6 +958,12 @@ private struct HeartRateChartPlot: View {
         }
         .chartYAxis(.hidden)
     }
+}
+
+private func formatAxisDistance(_ distance: Double) -> String {
+    let hasFraction = abs(distance.rounded() - distance) > 0.001
+    let fractionLength = hasFraction ? 2 : 1
+    return distance.formatted(.number.precision(.fractionLength(fractionLength)))
 }
 
 private struct RunSplitSection: View {
@@ -1140,18 +1140,11 @@ private struct PaceChartPoint: Identifiable {
     }
 
     static func build(from samples: [PaceSample]) -> [PaceChartPoint] {
-        let bucketSize: Double = 200
-        let grouped = Dictionary(grouping: samples) { Int($0.distanceMeters / bucketSize) }
-
-        var results: [PaceChartPoint] = []
-        for bucket in grouped.keys.sorted() {
-            guard let bucketSamples = grouped[bucket], !bucketSamples.isEmpty else { continue }
-            let distance = bucketSamples[bucketSamples.count / 2].distanceMeters
-            let averagePace = bucketSamples.map(\.secondsPerKilometer).reduce(0, +) / Double(bucketSamples.count)
-            results.append(PaceChartPoint(distanceMeters: distance, secondsPerKilometer: averagePace))
+        let sorted = samples.sorted { $0.distanceMeters < $1.distanceMeters }
+        let points = sorted.map {
+            PaceChartPoint(distanceMeters: $0.distanceMeters, secondsPerKilometer: $0.secondsPerKilometer)
         }
-
-        return movingAverage(points: results, radius: 1)
+        return movingAverage(points: points, radius: 2)
     }
 
     private static func movingAverage(points: [PaceChartPoint], radius: Int) -> [PaceChartPoint] {
@@ -1181,22 +1174,12 @@ private struct HeartRateChartPoint: Identifiable {
     }
 
     static func build(from samples: [HeartRateSample]) -> [HeartRateChartPoint] {
-        let bucketSize: Double = 200
         let normalized = samples.compactMap { sample -> HeartRateChartPoint? in
             guard let distanceMeters = sample.distanceMeters else { return nil }
             return HeartRateChartPoint(distanceMeters: distanceMeters, bpm: sample.bpm)
         }
-        let grouped = Dictionary(grouping: normalized) { Int($0.distanceMeters / bucketSize) }
-
-        var results: [HeartRateChartPoint] = []
-        for bucket in grouped.keys.sorted() {
-            guard let bucketSamples = grouped[bucket], !bucketSamples.isEmpty else { continue }
-            let distance = bucketSamples[bucketSamples.count / 2].distanceMeters
-            let averageHeartRate = bucketSamples.map(\.bpm).reduce(0, +) / Double(bucketSamples.count)
-            results.append(HeartRateChartPoint(distanceMeters: distance, bpm: averageHeartRate))
-        }
-
-        return movingAverage(points: results, radius: 1)
+        let sorted = normalized.sorted { $0.distanceMeters < $1.distanceMeters }
+        return movingAverage(points: sorted, radius: 1)
     }
 
     private static func movingAverage(points: [HeartRateChartPoint], radius: Int) -> [HeartRateChartPoint] {
@@ -1262,7 +1245,7 @@ private struct SelectedMetrics {
     }
 
     var distanceText: String {
-        distanceKilometers.formatted(.number.precision(.fractionLength(distanceKilometers < 10 ? 1 : 2))) + " km"
+        distanceKilometers.formatted(.number.precision(.fractionLength(2))) + " km"
     }
 
     var elapsedText: String {
