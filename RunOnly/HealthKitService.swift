@@ -24,6 +24,7 @@ final class HealthKitService {
         let workoutType = HKObjectType.workoutType()
         let vo2MaxType = HKObjectType.quantityType(forIdentifier: .vo2Max)
         let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate)
+        let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)
         let workoutRouteType = HKSeriesType.workoutRoute()
 
         var readTypes: Set<HKObjectType> = [workoutType, workoutRouteType]
@@ -32,6 +33,9 @@ final class HealthKitService {
         }
         if let heartRateType {
             readTypes.insert(heartRateType)
+        }
+        if let distanceType {
+            readTypes.insert(distanceType)
         }
 
         try await healthStore.requestAuthorization(toShare: [], read: readTypes)
@@ -177,16 +181,34 @@ final class HealthKitService {
     func fetchRunDetail(for runningWorkout: RunningWorkout) async throws -> RunDetail {
         async let routeTask = fetchRoute(for: runningWorkout.workout)
         async let heartRateTask = fetchHeartRates(for: runningWorkout.workout)
+        async let distanceTask = fetchDistanceSamples(for: runningWorkout.workout)
 
-        let rawRoute = try await routeTask
-        let route = normalizeRouteDistances(rawRoute, targetDistance: runningWorkout.distanceInMeters)
-        let heartRates = mapHeartRatesToRoute(try await heartRateTask, route: route)
+        let activeIntervals = buildActiveIntervals(for: runningWorkout.workout)
+        let route = try await routeTask
+        let distanceTimeline = buildDistanceTimeline(
+            from: try await distanceTask,
+            route: route,
+            activeIntervals: activeIntervals,
+            targetDistance: runningWorkout.distanceInMeters,
+            totalDuration: runningWorkout.duration
+        )
+        let heartRates = mapHeartRatesToDistanceTimeline(
+            try await heartRateTask,
+            timeline: distanceTimeline,
+            activeIntervals: activeIntervals
+        )
 
         return RunDetail(
             route: route,
+            distanceTimeline: distanceTimeline,
             heartRates: heartRates,
-            paceSamples: buildPaceSamples(from: route),
-            splits: buildSplits(from: route)
+            paceSamples: buildPaceSamples(from: distanceTimeline),
+            splits: buildSplits(
+                from: distanceTimeline,
+                heartRates: heartRates,
+                totalDistance: runningWorkout.distanceInMeters,
+                totalDuration: runningWorkout.duration
+            )
         )
     }
 
@@ -273,7 +295,8 @@ final class HealthKitService {
                     HeartRateSample(
                         date: $0.startDate,
                         bpm: $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())),
-                        distanceMeters: nil
+                        distanceMeters: nil,
+                        segmentIndex: nil
                     )
                 }
 
@@ -284,26 +307,67 @@ final class HealthKitService {
         }
     }
 
-    private func buildPaceSamples(from route: [RunRoutePoint]) -> [PaceSample] {
-        guard route.count > 1 else { return [] }
+    private func fetchDistanceSamples(for workout: HKWorkout) async throws -> [RawDistanceSample] {
+        guard let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForObjects(from: workout)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: distanceType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let distanceSamples = ((samples as? [HKQuantitySample]) ?? []).compactMap { sample -> RawDistanceSample? in
+                    let distanceMeters = sample.quantity.doubleValue(for: .meter())
+                    guard distanceMeters > 0, sample.endDate > sample.startDate else { return nil }
+                    return RawDistanceSample(
+                        startDate: sample.startDate,
+                        endDate: sample.endDate,
+                        distanceMeters: distanceMeters
+                    )
+                }
+
+                continuation.resume(returning: distanceSamples)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    private func buildPaceSamples(from timeline: [DistanceTimelinePoint]) -> [PaceSample] {
+        guard timeline.count > 1 else { return [] }
 
         var samples: [PaceSample] = []
-        var lastIncludedDate = route[0].timestamp.addingTimeInterval(-10)
+        var lastIncludedElapsed = timeline[0].elapsed - 10
 
-        for index in 1..<route.count {
-            let currentPoint = route[index]
-            guard currentPoint.timestamp.timeIntervalSince(lastIncludedDate) >= 1 else { continue }
+        for index in 1..<timeline.count {
+            let currentPoint = timeline[index]
+            guard currentPoint.elapsed - lastIncludedElapsed >= 1 else { continue }
+
+            let segmentStartIndex = timeline[..<index].lastIndex(where: {
+                $0.segmentIndex != currentPoint.segmentIndex
+            }).map { $0 + 1 } ?? 0
 
             var lookbackIndex = index - 1
-            while lookbackIndex > 0,
-                  currentPoint.timestamp.timeIntervalSince(route[lookbackIndex].timestamp) < 10 {
+            while lookbackIndex > segmentStartIndex,
+                  currentPoint.elapsed - timeline[lookbackIndex].elapsed < 10 {
                 lookbackIndex -= 1
             }
 
-            let startPoint = route[lookbackIndex]
+            let startPoint = timeline[lookbackIndex]
 
             let distanceWindow = currentPoint.distanceMeters - startPoint.distanceMeters
-            let durationWindow = currentPoint.timestamp.timeIntervalSince(startPoint.timestamp)
+            let durationWindow = currentPoint.elapsed - startPoint.elapsed
             guard distanceWindow >= 10, durationWindow >= 5 else { continue }
 
             let secondsPerKilometer = durationWindow / (distanceWindow / 1_000)
@@ -311,61 +375,73 @@ final class HealthKitService {
 
             samples.append(
                 PaceSample(
-                    date: currentPoint.timestamp,
+                    date: currentPoint.date,
                     distanceMeters: currentPoint.distanceMeters,
-                    secondsPerKilometer: secondsPerKilometer
+                    secondsPerKilometer: secondsPerKilometer,
+                    segmentIndex: currentPoint.segmentIndex
                 )
             )
-            lastIncludedDate = currentPoint.timestamp
+            lastIncludedElapsed = currentPoint.elapsed
         }
 
         return samples
     }
 
-    private func buildSplits(from route: [RunRoutePoint]) -> [RunSplit] {
-        guard route.count > 1 else { return [] }
+    private func buildSplits(
+        from timeline: [DistanceTimelinePoint],
+        heartRates: [HeartRateSample],
+        totalDistance: Double,
+        totalDuration: TimeInterval
+    ) -> [RunSplit] {
+        guard timeline.count > 1, totalDistance > 0 else { return [] }
 
         var splits: [RunSplit] = []
         var nextSplitDistance: Double = 1_000
-        let runStartTime = route[0].timestamp
-        var splitStartTime = runStartTime
+        var splitStartElapsed: TimeInterval = 0
 
-        for index in 1..<route.count {
-            let previous = route[index - 1]
-            let current = route[index]
+        for index in 1..<timeline.count {
+            let previous = timeline[index - 1]
+            let current = timeline[index]
             let segmentStartDistance = previous.distanceMeters
             let accumulatedDistance = current.distanceMeters
             let segmentDistance = accumulatedDistance - segmentStartDistance
-            let segmentDuration = current.timestamp.timeIntervalSince(previous.timestamp)
+            let segmentDuration = current.elapsed - previous.elapsed
             guard segmentDistance > 0, segmentDuration > 0 else { continue }
 
             while accumulatedDistance >= nextSplitDistance {
                 let distanceIntoSegment = nextSplitDistance - segmentStartDistance
                 let ratio = distanceIntoSegment / segmentDistance
-                let splitTime = previous.timestamp.addingTimeInterval(segmentDuration * ratio)
-                let splitDuration = splitTime.timeIntervalSince(splitStartTime)
+                let splitElapsed = previous.elapsed + (segmentDuration * ratio)
+                let splitDuration = splitElapsed - splitStartElapsed
 
                 splits.append(
                     RunSplit(
                         index: splits.count + 1,
                         distanceMeters: 1_000,
-                        duration: splitDuration
+                        duration: splitDuration,
+                        averageHeartRate: averageHeartRate(
+                            from: heartRates,
+                            range: segmentStartDistance..<nextSplitDistance
+                        )
                     )
                 )
 
-                splitStartTime = splitTime
+                splitStartElapsed = splitElapsed
                 nextSplitDistance += 1_000
             }
         }
 
-        let totalDistance = route.last?.distanceMeters ?? 0
         let remainderDistance = totalDistance - Double(splits.count) * 1_000
-        if remainderDistance > 0.5, let lastPoint = route.last {
+        if remainderDistance > 0.5 {
             splits.append(
                 RunSplit(
                     index: splits.count + 1,
                     distanceMeters: remainderDistance,
-                    duration: lastPoint.timestamp.timeIntervalSince(splitStartTime)
+                    duration: max(totalDuration - splitStartElapsed, 0),
+                    averageHeartRate: averageHeartRate(
+                        from: heartRates,
+                        range: Double(splits.count) * 1_000..<totalDistance + 0.5
+                    )
                 )
             )
         }
@@ -413,37 +489,285 @@ final class HealthKitService {
         return builtPoints
     }
 
-    private func normalizeRouteDistances(_ route: [RunRoutePoint], targetDistance: Double) -> [RunRoutePoint] {
-        guard route.count > 1,
-              targetDistance > 0,
-              let recordedDistance = route.last?.distanceMeters,
-              recordedDistance > 0 else {
-            return route
+    private func buildDistanceTimeline(
+        from distanceSamples: [RawDistanceSample],
+        route: [RunRoutePoint],
+        activeIntervals: [ActiveInterval],
+        targetDistance: Double,
+        totalDuration: TimeInterval
+    ) -> [DistanceTimelinePoint] {
+        let timelineFromSamples = buildDistanceTimeline(from: distanceSamples, activeIntervals: activeIntervals)
+
+        if timelineFromSamples.count > 1 {
+            return finalizedDistanceTimeline(
+                timelineFromSamples,
+                activeIntervals: activeIntervals,
+                targetDistance: targetDistance,
+                totalDuration: totalDuration
+            )
         }
 
-        let scale = targetDistance / recordedDistance
-        guard scale.isFinite, scale > 0 else { return route }
+        let routeTimeline = buildDistanceTimeline(from: route, activeIntervals: activeIntervals)
+        return finalizedDistanceTimeline(
+            routeTimeline,
+            activeIntervals: activeIntervals,
+            targetDistance: targetDistance,
+            totalDuration: totalDuration
+        )
+    }
 
-        return route.map { point in
-            RunRoutePoint(
-                latitude: point.latitude,
-                longitude: point.longitude,
-                timestamp: point.timestamp,
-                distanceMeters: point.distanceMeters * scale
+    private func buildDistanceTimeline(
+        from samples: [RawDistanceSample],
+        activeIntervals: [ActiveInterval]
+    ) -> [DistanceTimelinePoint] {
+        guard !samples.isEmpty else { return [] }
+
+        var cumulativeDistance: Double = 0
+        var timeline: [DistanceTimelinePoint] = []
+
+        if let firstStartDate = activeIntervals.first?.startDate {
+            timeline.append(
+                DistanceTimelinePoint(
+                    date: firstStartDate,
+                    elapsed: 0,
+                    distanceMeters: 0,
+                    segmentIndex: activeIntervals.first?.index ?? 0
+                )
+            )
+        }
+
+        for sample in samples {
+            let sampleInterval = DateInterval(start: sample.startDate, end: sample.endDate)
+            let sampleDuration = sampleInterval.duration
+            guard sampleDuration > 0 else { continue }
+
+            let overlaps = activeIntervals.compactMap { interval -> (ActiveInterval, DateInterval)? in
+                guard let overlap = overlapInterval(between: sampleInterval, and: interval.dateInterval) else { return nil }
+                return (interval, overlap)
+            }
+
+            for (interval, overlap) in overlaps where overlap.duration > 0 {
+                let overlapRatio = overlap.duration / sampleDuration
+                cumulativeDistance += sample.distanceMeters * overlapRatio
+                timeline.append(
+                    DistanceTimelinePoint(
+                        date: overlap.end,
+                        elapsed: activeElapsed(at: overlap.end, activeIntervals: activeIntervals),
+                        distanceMeters: cumulativeDistance,
+                        segmentIndex: interval.index
+                    )
+                )
+            }
+        }
+
+        return monotonicDistanceTimeline(timeline)
+    }
+
+    private func buildDistanceTimeline(
+        from route: [RunRoutePoint],
+        activeIntervals: [ActiveInterval]
+    ) -> [DistanceTimelinePoint] {
+        guard !route.isEmpty else { return [] }
+
+        let filteredPoints = route.compactMap { point -> DistanceTimelinePoint? in
+            guard let interval = activeInterval(containing: point.timestamp, activeIntervals: activeIntervals) else { return nil }
+            return DistanceTimelinePoint(
+                date: point.timestamp,
+                elapsed: activeElapsed(at: point.timestamp, activeIntervals: activeIntervals),
+                distanceMeters: point.distanceMeters,
+                segmentIndex: interval.index
+            )
+        }
+
+        return monotonicDistanceTimeline(filteredPoints)
+    }
+
+    private func finalizedDistanceTimeline(
+        _ timeline: [DistanceTimelinePoint],
+        activeIntervals: [ActiveInterval],
+        targetDistance: Double,
+        totalDuration: TimeInterval
+    ) -> [DistanceTimelinePoint] {
+        guard !timeline.isEmpty else { return [] }
+
+        let recordedDistance = timeline.last?.distanceMeters ?? 0
+        let distanceScale = targetDistance > 0 && recordedDistance > 0 ? targetDistance / recordedDistance : 1
+        let normalized = timeline.map {
+            DistanceTimelinePoint(
+                date: $0.date,
+                elapsed: $0.elapsed,
+                distanceMeters: $0.distanceMeters * distanceScale,
+                segmentIndex: $0.segmentIndex
+            )
+        }
+
+        let endDate = activeIntervals.last?.endDate ?? normalized.last?.date ?? .now
+        let endPoint = DistanceTimelinePoint(
+            date: endDate,
+            elapsed: totalDuration,
+            distanceMeters: targetDistance,
+            segmentIndex: activeIntervals.last?.index ?? normalized.last?.segmentIndex ?? 0
+        )
+
+        if let last = normalized.last,
+           abs(last.elapsed - totalDuration) <= 0.5,
+           abs(last.distanceMeters - targetDistance) <= 0.5 {
+            return monotonicDistanceTimeline(Array(normalized.dropLast()) + [endPoint])
+        }
+
+        return monotonicDistanceTimeline(normalized + [endPoint])
+    }
+
+    private func monotonicDistanceTimeline(_ timeline: [DistanceTimelinePoint]) -> [DistanceTimelinePoint] {
+        guard !timeline.isEmpty else { return [] }
+
+        let sorted = timeline.sorted { lhs, rhs in
+            if lhs.elapsed == rhs.elapsed {
+                return lhs.distanceMeters < rhs.distanceMeters
+            }
+            return lhs.elapsed < rhs.elapsed
+        }
+
+        var result: [DistanceTimelinePoint] = []
+        for point in sorted {
+            guard point.elapsed.isFinite, point.distanceMeters.isFinite else { continue }
+
+            if let last = result.last {
+                let elapsed = max(point.elapsed, last.elapsed)
+                let distance = max(point.distanceMeters, last.distanceMeters)
+
+                if abs(elapsed - last.elapsed) <= 0.01 {
+                    result[result.count - 1] = DistanceTimelinePoint(
+                        date: point.date,
+                        elapsed: elapsed,
+                        distanceMeters: distance,
+                        segmentIndex: point.segmentIndex
+                    )
+                } else {
+                    result.append(
+                        DistanceTimelinePoint(
+                            date: point.date,
+                            elapsed: elapsed,
+                            distanceMeters: distance,
+                            segmentIndex: point.segmentIndex
+                        )
+                    )
+                }
+            } else {
+                result.append(
+                    DistanceTimelinePoint(
+                        date: point.date,
+                        elapsed: max(point.elapsed, 0),
+                        distanceMeters: max(point.distanceMeters, 0),
+                        segmentIndex: point.segmentIndex
+                    )
+                )
+            }
+        }
+
+        return result
+    }
+
+    private func buildActiveIntervals(for workout: HKWorkout) -> [ActiveInterval] {
+        let events = (workout.workoutEvents ?? []).sorted { $0.dateInterval.start < $1.dateInterval.start }
+        var intervals: [(Date, Date)] = []
+        var cursor = workout.startDate
+        var isPaused = false
+
+        for event in events {
+            let eventDate = min(max(event.dateInterval.start, workout.startDate), workout.endDate)
+
+            switch event.type {
+            case .pause, .motionPaused:
+                guard !isPaused else { continue }
+                if eventDate > cursor {
+                    intervals.append((cursor, eventDate))
+                }
+                isPaused = true
+            case .resume, .motionResumed:
+                guard isPaused else { continue }
+                cursor = eventDate
+                isPaused = false
+            default:
+                continue
+            }
+        }
+
+        if !isPaused, workout.endDate > cursor {
+            intervals.append((cursor, workout.endDate))
+        }
+
+        if intervals.isEmpty, workout.endDate > workout.startDate {
+            return [ActiveInterval(index: 0, startDate: workout.startDate, endDate: workout.endDate)]
+        }
+
+        return intervals.enumerated().map { index, interval in
+            ActiveInterval(index: index, startDate: interval.0, endDate: interval.1)
+        }
+    }
+
+    private func activeElapsed(at date: Date, activeIntervals: [ActiveInterval]) -> TimeInterval {
+        var elapsed: TimeInterval = 0
+
+        for interval in activeIntervals {
+            if date >= interval.endDate {
+                elapsed += interval.endDate.timeIntervalSince(interval.startDate)
+            } else if date > interval.startDate {
+                elapsed += date.timeIntervalSince(interval.startDate)
+                break
+            } else {
+                break
+            }
+        }
+
+        return elapsed
+    }
+
+    private func overlapInterval(between lhs: DateInterval, and rhs: DateInterval) -> DateInterval? {
+        let startDate = max(lhs.start, rhs.start)
+        let endDate = min(lhs.end, rhs.end)
+        guard endDate > startDate else { return nil }
+        return DateInterval(start: startDate, end: endDate)
+    }
+
+    private func activeInterval(containing date: Date, activeIntervals: [ActiveInterval]) -> ActiveInterval? {
+        activeIntervals.first { interval in
+            interval.dateInterval.contains(date) || date == interval.endDate
+        }
+    }
+
+    private func mapHeartRatesToDistanceTimeline(
+        _ heartRates: [HeartRateSample],
+        timeline: [DistanceTimelinePoint],
+        activeIntervals: [ActiveInterval]
+    ) -> [HeartRateSample] {
+        guard !timeline.isEmpty else { return heartRates }
+
+        return heartRates.compactMap { sample in
+            guard let interval = activeInterval(containing: sample.date, activeIntervals: activeIntervals) else { return nil }
+            let distancePoint = timeline
+                .filter { $0.segmentIndex == interval.index }
+                .min(by: {
+                    abs($0.date.timeIntervalSince(sample.date)) < abs($1.date.timeIntervalSince(sample.date))
+                })
+
+            return HeartRateSample(
+                date: sample.date,
+                bpm: sample.bpm,
+                distanceMeters: distancePoint?.distanceMeters,
+                segmentIndex: interval.index
             )
         }
     }
 
-    private func mapHeartRatesToRoute(_ heartRates: [HeartRateSample], route: [RunRoutePoint]) -> [HeartRateSample] {
-        guard !route.isEmpty else { return heartRates }
-
-        return heartRates.map { sample in
-            let distanceMeters = route.min(by: {
-                abs($0.timestamp.timeIntervalSince(sample.date)) < abs($1.timestamp.timeIntervalSince(sample.date))
-            })?.distanceMeters
-
-            return HeartRateSample(date: sample.date, bpm: sample.bpm, distanceMeters: distanceMeters)
+    private func averageHeartRate(from heartRates: [HeartRateSample], range: Range<Double>) -> Double? {
+        let values = heartRates.compactMap { sample -> Double? in
+            guard let distanceMeters = sample.distanceMeters, range.contains(distanceMeters) else { return nil }
+            return sample.bpm
         }
+
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
     }
 }
 
@@ -451,4 +775,20 @@ private struct RawRoutePoint {
     let latitude: Double
     let longitude: Double
     let timestamp: Date
+}
+
+private struct RawDistanceSample {
+    let startDate: Date
+    let endDate: Date
+    let distanceMeters: Double
+}
+
+private struct ActiveInterval {
+    let index: Int
+    let startDate: Date
+    let endDate: Date
+
+    var dateInterval: DateInterval {
+        DateInterval(start: startDate, end: endDate)
+    }
 }

@@ -733,9 +733,7 @@ private struct PerformanceChartSection: View {
     }
 
     private var averagePaceText: String {
-        guard !detail.paceSamples.isEmpty else { return "-" }
-        let avg = detail.paceSamples.map(\.secondsPerKilometer).reduce(0, +) / Double(detail.paceSamples.count)
-        return formatPace(avg)
+        run.paceText
     }
 
     private var heartSeries: [HeartRateChartPoint] {
@@ -750,25 +748,13 @@ private struct PerformanceChartSection: View {
         guard let resolvedDistanceKilometers = snappedDistanceKilometers else { return nil }
 
         let resolvedDistanceMeters = resolvedDistanceKilometers * 1_000
-        let routeStart = detail.route.first?.timestamp
-        let nearestRoutePoint = detail.route.min(by: {
+        let nearestDistancePoint = detail.distanceTimeline.min(by: {
             abs($0.distanceMeters - resolvedDistanceMeters) < abs($1.distanceMeters - resolvedDistanceMeters)
         })
 
-        let elapsed: TimeInterval
-        if let routeStart, let nearestRoutePoint {
-            elapsed = nearestRoutePoint.timestamp.timeIntervalSince(routeStart)
-        } else if let routeStart, let selectedPacePoint {
-            elapsed = detail.paceSamples.min(by: {
-                abs($0.distanceMeters - selectedPacePoint.distanceMeters) < abs($1.distanceMeters - selectedPacePoint.distanceMeters)
-            })?.date.timeIntervalSince(routeStart) ?? 0
-        } else {
-            elapsed = 0
-        }
-
         return SelectedMetrics(
             distanceMeters: resolvedDistanceMeters,
-            elapsed: elapsed,
+            elapsed: nearestDistancePoint?.elapsed ?? 0,
             paceSecondsPerKilometer: selectedPacePoint?.secondsPerKilometer,
             heartRate: selectedHeartPoint?.bpm
         )
@@ -829,7 +815,7 @@ private struct PerformanceChartSection: View {
     private var maxDistance: Double {
         max(
             run.distanceInKilometers,
-            (detail.route.last?.distanceMeters ?? 0) / 1_000,
+            (detail.distanceTimeline.last?.distanceMeters ?? 0) / 1_000,
             paceSeries.last?.distanceKilometers ?? 0,
             heartSeries.last?.distanceKilometers ?? 0
         )
@@ -858,7 +844,8 @@ private struct PaceChartPlot: View {
             ForEach(paceSeries) { sample in
                 LineMark(
                     x: .value("거리", sample.distanceKilometers),
-                    y: .value("페이스", displayedPace(sample.secondsPerKilometer))
+                    y: .value("페이스", displayedPace(sample.secondsPerKilometer)),
+                    series: .value("세그먼트", sample.segmentIndex)
                 )
                 .foregroundStyle(Color.orange.opacity(0.95))
                 .lineStyle(StrokeStyle(lineWidth: 2.1, lineCap: .round, lineJoin: .round))
@@ -914,7 +901,8 @@ private struct HeartRateChartPlot: View {
             ForEach(heartSeries) { sample in
                 LineMark(
                     x: .value("거리", sample.distanceKilometers),
-                    y: .value("심박", sample.bpm)
+                    y: .value("심박", sample.bpm),
+                    series: .value("세그먼트", sample.segmentIndex)
                 )
                 .foregroundStyle(Color(red: 0.45, green: 0.95, blue: 0.76))
                 .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
@@ -1061,7 +1049,7 @@ private struct SplitBarRow: View {
                 Text(split.paceText)
                     .font(.system(.subheadline, design: .rounded).weight(.bold))
                     .foregroundStyle(.white)
-                Text(split.durationText)
+                Text(split.heartRateText)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.55))
             }
@@ -1131,18 +1119,24 @@ private struct PaceChartPoint: Identifiable {
     let distanceMeters: Double
     let distanceKilometers: Double
     let secondsPerKilometer: Double
+    let segmentIndex: Int
 
-    init(distanceMeters: Double, secondsPerKilometer: Double) {
+    init(distanceMeters: Double, secondsPerKilometer: Double, segmentIndex: Int) {
         self.id = distanceMeters
         self.distanceMeters = distanceMeters
         self.distanceKilometers = distanceMeters / 1_000
         self.secondsPerKilometer = secondsPerKilometer
+        self.segmentIndex = segmentIndex
     }
 
     static func build(from samples: [PaceSample]) -> [PaceChartPoint] {
         let sorted = samples.sorted { $0.distanceMeters < $1.distanceMeters }
         let points = sorted.map {
-            PaceChartPoint(distanceMeters: $0.distanceMeters, secondsPerKilometer: $0.secondsPerKilometer)
+            PaceChartPoint(
+                distanceMeters: $0.distanceMeters,
+                secondsPerKilometer: $0.secondsPerKilometer,
+                segmentIndex: $0.segmentIndex
+            )
         }
         return movingAverage(points: points, radius: 2)
     }
@@ -1151,11 +1145,15 @@ private struct PaceChartPoint: Identifiable {
         guard !points.isEmpty else { return [] }
 
         return points.indices.map { index in
-            let start = max(0, index - radius)
-            let end = min(points.count - 1, index + radius)
-            let window = points[start...end]
+            let segmentIndex = points[index].segmentIndex
+            let window = points[max(0, index - radius)...min(points.count - 1, index + radius)]
+                .filter { $0.segmentIndex == segmentIndex }
             let averagePace = window.map(\.secondsPerKilometer).reduce(0, +) / Double(window.count)
-            return PaceChartPoint(distanceMeters: points[index].distanceMeters, secondsPerKilometer: averagePace)
+            return PaceChartPoint(
+                distanceMeters: points[index].distanceMeters,
+                secondsPerKilometer: averagePace,
+                segmentIndex: points[index].segmentIndex
+            )
         }
     }
 }
@@ -1165,18 +1163,20 @@ private struct HeartRateChartPoint: Identifiable {
     let distanceMeters: Double
     let distanceKilometers: Double
     let bpm: Double
+    let segmentIndex: Int
 
-    init(distanceMeters: Double, bpm: Double) {
+    init(distanceMeters: Double, bpm: Double, segmentIndex: Int) {
         self.id = distanceMeters
         self.distanceMeters = distanceMeters
         self.distanceKilometers = distanceMeters / 1_000
         self.bpm = bpm
+        self.segmentIndex = segmentIndex
     }
 
     static func build(from samples: [HeartRateSample]) -> [HeartRateChartPoint] {
         let normalized = samples.compactMap { sample -> HeartRateChartPoint? in
-            guard let distanceMeters = sample.distanceMeters else { return nil }
-            return HeartRateChartPoint(distanceMeters: distanceMeters, bpm: sample.bpm)
+            guard let distanceMeters = sample.distanceMeters, let segmentIndex = sample.segmentIndex else { return nil }
+            return HeartRateChartPoint(distanceMeters: distanceMeters, bpm: sample.bpm, segmentIndex: segmentIndex)
         }
         let sorted = normalized.sorted { $0.distanceMeters < $1.distanceMeters }
         return movingAverage(points: sorted, radius: 1)
@@ -1186,11 +1186,15 @@ private struct HeartRateChartPoint: Identifiable {
         guard !points.isEmpty else { return [] }
 
         return points.indices.map { index in
-            let start = max(0, index - radius)
-            let end = min(points.count - 1, index + radius)
-            let window = points[start...end]
+            let segmentIndex = points[index].segmentIndex
+            let window = points[max(0, index - radius)...min(points.count - 1, index + radius)]
+                .filter { $0.segmentIndex == segmentIndex }
             let averageHeartRate = window.map(\.bpm).reduce(0, +) / Double(window.count)
-            return HeartRateChartPoint(distanceMeters: points[index].distanceMeters, bpm: averageHeartRate)
+            return HeartRateChartPoint(
+                distanceMeters: points[index].distanceMeters,
+                bpm: averageHeartRate,
+                segmentIndex: points[index].segmentIndex
+            )
         }
     }
 }

@@ -92,15 +92,17 @@ struct HeartRateSample: Identifiable {
     let date: Date
     let bpm: Double
     let distanceMeters: Double?
+    let segmentIndex: Int?
 }
 
 struct RunDetail {
     let route: [RunRoutePoint]
+    let distanceTimeline: [DistanceTimelinePoint]
     let heartRates: [HeartRateSample]
     let paceSamples: [PaceSample]
     let splits: [RunSplit]
 
-    static let empty = RunDetail(route: [], heartRates: [], paceSamples: [], splits: [])
+    static let empty = RunDetail(route: [], distanceTimeline: [], heartRates: [], paceSamples: [], splits: [])
 }
 
 struct RunRoutePoint: Identifiable {
@@ -111,11 +113,28 @@ struct RunRoutePoint: Identifiable {
     let distanceMeters: Double
 }
 
+struct DistanceTimelinePoint: Identifiable {
+    let id: Double
+    let date: Date
+    let elapsed: TimeInterval
+    let distanceMeters: Double
+    let segmentIndex: Int
+
+    init(date: Date, elapsed: TimeInterval, distanceMeters: Double, segmentIndex: Int) {
+        self.id = elapsed
+        self.date = date
+        self.elapsed = elapsed
+        self.distanceMeters = distanceMeters
+        self.segmentIndex = segmentIndex
+    }
+}
+
 struct PaceSample: Identifiable {
     let id = UUID()
     let date: Date
     let distanceMeters: Double
     let secondsPerKilometer: Double
+    let segmentIndex: Int
 }
 
 struct RunSplit: Identifiable {
@@ -123,6 +142,7 @@ struct RunSplit: Identifiable {
     let index: Int
     let distanceMeters: Double
     let duration: TimeInterval
+    let averageHeartRate: Double?
 
     var paceSecondsPerKilometer: Double {
         duration / max(distanceMeters / 1_000, 0.001)
@@ -151,6 +171,11 @@ struct RunSplit: Identifiable {
         formatter.unitsStyle = .positional
         formatter.zeroFormattingBehavior = [.pad]
         return formatter.string(from: duration) ?? "-"
+    }
+
+    var heartRateText: String {
+        guard let averageHeartRate else { return "-" }
+        return averageHeartRate.formatted(.number.precision(.fractionLength(0))) + " bpm"
     }
 }
 
@@ -210,21 +235,27 @@ struct ShoeAssignmentRecord: Codable, Equatable {
 extension RunDetail {
     static let mockMissingRoute = RunDetail(
         route: [],
+        distanceTimeline: [
+            DistanceTimelinePoint(date: .now.addingTimeInterval(-900), elapsed: 0, distanceMeters: 0, segmentIndex: 0),
+            DistanceTimelinePoint(date: .now.addingTimeInterval(-600), elapsed: 300, distanceMeters: 1_200, segmentIndex: 0),
+            DistanceTimelinePoint(date: .now.addingTimeInterval(-300), elapsed: 600, distanceMeters: 2_300, segmentIndex: 0),
+            DistanceTimelinePoint(date: .now, elapsed: 900, distanceMeters: 3_100, segmentIndex: 0)
+        ],
         heartRates: [
-            HeartRateSample(date: .now.addingTimeInterval(-900), bpm: 138, distanceMeters: 0),
-            HeartRateSample(date: .now.addingTimeInterval(-600), bpm: 149, distanceMeters: 1_200),
-            HeartRateSample(date: .now.addingTimeInterval(-300), bpm: 156, distanceMeters: 2_300),
-            HeartRateSample(date: .now, bpm: 152, distanceMeters: 3_100)
+            HeartRateSample(date: .now.addingTimeInterval(-900), bpm: 138, distanceMeters: 0, segmentIndex: 0),
+            HeartRateSample(date: .now.addingTimeInterval(-600), bpm: 149, distanceMeters: 1_200, segmentIndex: 0),
+            HeartRateSample(date: .now.addingTimeInterval(-300), bpm: 156, distanceMeters: 2_300, segmentIndex: 0),
+            HeartRateSample(date: .now, bpm: 152, distanceMeters: 3_100, segmentIndex: 0)
         ],
         paceSamples: [
-            PaceSample(date: .now.addingTimeInterval(-900), distanceMeters: 0, secondsPerKilometer: 340),
-            PaceSample(date: .now.addingTimeInterval(-600), distanceMeters: 1_200, secondsPerKilometer: 330),
-            PaceSample(date: .now.addingTimeInterval(-300), distanceMeters: 2_300, secondsPerKilometer: 320),
-            PaceSample(date: .now, distanceMeters: 3_100, secondsPerKilometer: 325)
+            PaceSample(date: .now.addingTimeInterval(-900), distanceMeters: 0, secondsPerKilometer: 340, segmentIndex: 0),
+            PaceSample(date: .now.addingTimeInterval(-600), distanceMeters: 1_200, secondsPerKilometer: 330, segmentIndex: 0),
+            PaceSample(date: .now.addingTimeInterval(-300), distanceMeters: 2_300, secondsPerKilometer: 320, segmentIndex: 0),
+            PaceSample(date: .now, distanceMeters: 3_100, secondsPerKilometer: 325, segmentIndex: 0)
         ],
         splits: [
-            RunSplit(index: 1, distanceMeters: 1_000, duration: 340),
-            RunSplit(index: 2, distanceMeters: 1_000, duration: 330)
+            RunSplit(index: 1, distanceMeters: 1_000, duration: 340, averageHeartRate: 144),
+            RunSplit(index: 2, distanceMeters: 1_000, duration: 330, averageHeartRate: 153)
         ]
     )
 
@@ -236,16 +267,22 @@ extension RunDetail {
             RunRoutePoint(latitude: 37.5690, longitude: 126.9820, timestamp: .now.addingTimeInterval(-300), distanceMeters: 2_180),
             RunRoutePoint(latitude: 37.5698, longitude: 126.9831, timestamp: .now, distanceMeters: 2_940)
         ],
+        distanceTimeline: [
+            DistanceTimelinePoint(date: .now.addingTimeInterval(-900), elapsed: 0, distanceMeters: 0, segmentIndex: 0),
+            DistanceTimelinePoint(date: .now.addingTimeInterval(-600), elapsed: 300, distanceMeters: 950, segmentIndex: 0),
+            DistanceTimelinePoint(date: .now.addingTimeInterval(-300), elapsed: 600, distanceMeters: 1_960, segmentIndex: 0),
+            DistanceTimelinePoint(date: .now, elapsed: 900, distanceMeters: 2_940, segmentIndex: 0)
+        ],
         heartRates: [],
         paceSamples: [
-            PaceSample(date: .now.addingTimeInterval(-900), distanceMeters: 0, secondsPerKilometer: 360),
-            PaceSample(date: .now.addingTimeInterval(-600), distanceMeters: 950, secondsPerKilometer: 347),
-            PaceSample(date: .now.addingTimeInterval(-300), distanceMeters: 1_960, secondsPerKilometer: 332),
-            PaceSample(date: .now, distanceMeters: 2_940, secondsPerKilometer: 338)
+            PaceSample(date: .now.addingTimeInterval(-900), distanceMeters: 0, secondsPerKilometer: 360, segmentIndex: 0),
+            PaceSample(date: .now.addingTimeInterval(-600), distanceMeters: 950, secondsPerKilometer: 347, segmentIndex: 0),
+            PaceSample(date: .now.addingTimeInterval(-300), distanceMeters: 1_960, secondsPerKilometer: 332, segmentIndex: 0),
+            PaceSample(date: .now, distanceMeters: 2_940, secondsPerKilometer: 338, segmentIndex: 0)
         ],
         splits: [
-            RunSplit(index: 1, distanceMeters: 1_000, duration: 360),
-            RunSplit(index: 2, distanceMeters: 1_000, duration: 347)
+            RunSplit(index: 1, distanceMeters: 1_000, duration: 360, averageHeartRate: nil),
+            RunSplit(index: 2, distanceMeters: 1_000, duration: 347, averageHeartRate: nil)
         ]
     )
 }
