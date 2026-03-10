@@ -5,6 +5,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var viewModel = RunningWorkoutsViewModel()
     @StateObject private var shoeStore = ShoeStore()
+    @StateObject private var appSettings = AppSettingsStore()
 
     var body: some View {
         TabView {
@@ -25,8 +26,22 @@ struct ContentView: View {
                 .tabItem {
                     Label("신발", systemImage: "shoeprints.fill")
                 }
+
+            SettingsTabView()
+                .environmentObject(shoeStore)
+                .environmentObject(appSettings)
+                .tabItem {
+                    Label("설정", systemImage: "gearshape.fill")
+                }
         }
         .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+        .onAppear {
+            viewModel.showAppleWorkoutOnly = appSettings.defaultAppleOnlyFilter
+        }
+        .onChange(of: appSettings.defaultAppleOnlyFilter) {
+            viewModel.showAppleWorkoutOnly = appSettings.defaultAppleOnlyFilter
+            viewModel.applyFilter()
+        }
     }
 }
 
@@ -72,11 +87,11 @@ private struct HomeTabView: View {
                 case .loaded(let runs):
                     ScrollView {
                         VStack(alignment: .leading, spacing: 18) {
-                            Text("RNL / Runing Never Lies v0.1")
+                            Text("RunOnly v0.1")
                                 .font(.subheadline.weight(.bold))
                                 .foregroundStyle(.white)
                                 .tracking(0.2)
-                            .padding(.horizontal, 20)
+                                .padding(.horizontal, 20)
 
                             DashboardHeader(
                                 summary: viewModel.summary,
@@ -1684,6 +1699,141 @@ private struct ShoesTabView: View {
     }
 }
 
+private struct SettingsTabView: View {
+    @EnvironmentObject private var shoeStore: ShoeStore
+    @EnvironmentObject private var appSettings: AppSettingsStore
+    @State private var backupURL: URL?
+    @State private var backupErrorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    DetailSection(title: "표시") {
+                        VStack(spacing: 14) {
+                            Toggle(isOn: $appSettings.defaultAppleOnlyFilter) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Apple 운동 앱 기록만 보기 기본값")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                    Text("앱을 열었을 때 홈/기록 탭에서 기본으로 적용됩니다.")
+                                        .font(.caption)
+                                        .foregroundStyle(.white.opacity(0.58))
+                                }
+                            }
+                            .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+
+                            SettingInfoRow(title: "거리 단위", value: "km")
+                            SettingInfoRow(title: "페이스 단위", value: "/km")
+                        }
+                    }
+
+                    DetailSection(title: "신발 데이터") {
+                        VStack(spacing: 14) {
+                            SettingInfoRow(title: "저장 위치", value: "iPhone 내부(UserDefaults)")
+                            SettingInfoRow(title: "자동 백업", value: "iCloud/Finder 기기 백업에 포함될 수 있음")
+                            SettingInfoRow(title: "기기 간 자동 동기화", value: "현재 지원 안 함")
+
+                            Text("현재 신발 데이터는 앱 내부에 JSON 형태로 저장됩니다. iPhone의 일반 백업에는 포함될 수 있지만, iCloud 동기화처럼 다른 기기로 자동 전파되지는 않습니다.")
+                                .font(.footnote)
+                                .foregroundStyle(.white.opacity(0.62))
+
+                            Button {
+                                do {
+                                    backupURL = try shoeStore.exportBackupFile()
+                                    backupErrorMessage = nil
+                                } catch {
+                                    backupErrorMessage = error.localizedDescription
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "square.and.arrow.up")
+                                    Text("신발 데이터 백업 파일 준비")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(Color.white.opacity(0.08))
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            if let backupURL {
+                                ShareLink(item: backupURL) {
+                                    HStack {
+                                        Image(systemName: "paperplane")
+                                        Text("백업 파일 공유")
+                                    }
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                }
+                            }
+
+                            if let backupErrorMessage {
+                                Text(backupErrorMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+
+                    DetailSection(title: "데이터 및 권한") {
+                        VStack(spacing: 14) {
+                            SettingInfoRow(title: "읽는 데이터", value: "러닝 workout / 심박 / VO2 Max / 경로")
+                            Text("이 앱은 Apple 건강 데이터 중 러닝과 관련된 항목만 읽습니다. 현재는 서버 업로드 없이 기기 안에서만 표시합니다.")
+                                .font(.footnote)
+                                .foregroundStyle(.white.opacity(0.62))
+                        }
+                    }
+
+                    DetailSection(title: "고지") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("이 앱은 러닝 기록을 보기 쉽게 정리하는 용도이며, 의료적 판단이나 진단을 위한 앱이 아닙니다.")
+                            Text("VO2 Max, 예상 기록, 트레이닝 상태는 참고용 추정치이며 실제 경기력과 다를 수 있습니다.")
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.66))
+                    }
+
+                    DetailSection(title: "앱 정보") {
+                        VStack(spacing: 14) {
+                            SettingInfoRow(title: "앱 이름", value: "RunOnly")
+                            SettingInfoRow(title: "버전", value: "RunOnly v0.1")
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .background(AppBackground())
+            .navigationTitle("설정")
+            .navigationBarTitleDisplayMode(.large)
+        }
+    }
+}
+
+private struct SettingInfoRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.72))
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+}
+
 private struct ShoeSummaryCard: View {
     let shoe: RunningShoe
     let distanceKilometers: Double
@@ -1939,6 +2089,21 @@ final class ShoeStore: ObservableObject {
         return runs.filter { runIDs.contains($0.id) }.sorted(by: { $0.startDate > $1.startDate })
     }
 
+    func exportBackupFile() throws -> URL {
+        let payload = ShoeBackupPayload(exportedAt: .now, shoes: shoes, assignments: assignments)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+
+        let data = try encoder.encode(payload)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmm"
+        let filename = "RunOnly-ShoeBackup-\(formatter.string(from: .now)).json"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
     private func load() {
         let decoder = JSONDecoder()
         if let data = UserDefaults.standard.data(forKey: shoesKey),
@@ -1960,6 +2125,30 @@ final class ShoeStore: ObservableObject {
         if let data = try? encoder.encode(assignments) {
             UserDefaults.standard.set(data, forKey: assignmentsKey)
         }
+    }
+}
+
+private struct ShoeBackupPayload: Codable {
+    let exportedAt: Date
+    let shoes: [RunningShoe]
+    let assignments: [ShoeAssignmentRecord]
+}
+
+@MainActor
+final class AppSettingsStore: ObservableObject {
+    @Published var defaultAppleOnlyFilter: Bool {
+        didSet {
+            UserDefaults.standard.set(defaultAppleOnlyFilter, forKey: defaultAppleOnlyFilterKey)
+        }
+    }
+
+    private let defaultAppleOnlyFilterKey = "runonly.settings.defaultAppleOnlyFilter"
+
+    init() {
+        if UserDefaults.standard.object(forKey: defaultAppleOnlyFilterKey) == nil {
+            UserDefaults.standard.set(true, forKey: defaultAppleOnlyFilterKey)
+        }
+        self.defaultAppleOnlyFilter = UserDefaults.standard.bool(forKey: defaultAppleOnlyFilterKey)
     }
 }
 

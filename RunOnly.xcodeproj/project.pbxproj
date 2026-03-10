@@ -17,7 +17,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0010000000000000000000F0 /* RNL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RNL.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0010000000000000000000F0 /* RunOnly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RunOnly.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		001000000000000000000101 /* RunOnlyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunOnlyApp.swift; sourceTree = "<group>"; };
 		001000000000000000000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		001000000000000000000103 /* RunningWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningWorkout.swift; sourceTree = "<group>"; };
@@ -67,7 +67,7 @@
 		0010000000000000000000A2 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				0010000000000000000000F0 /* RNL.app */,
+				0010000000000000000000F0 /* RunOnly.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -88,8 +88,8 @@
 			dependencies = (
 			);
 			name = RunOnly;
-			productName = RNL;
-			productReference = 0010000000000000000000F0 /* RNL.app */;
+			productName = RunOnly;
+			productReference = 0010000000000000000000F0 /* RunOnly.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -173,7 +173,7 @@
 				);
 				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shnoah.RunOnly;
-				PRODUCT_NAME = RNL;
+				PRODUCT_NAME = RunOnly;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -202,7 +202,7 @@
 				);
 				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shnoah.RunOnly;
-				PRODUCT_NAME = RNL;
+				PRODUCT_NAME = RunOnly;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
