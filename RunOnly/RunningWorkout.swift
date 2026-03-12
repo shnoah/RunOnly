@@ -51,9 +51,60 @@ struct RunningWorkout: Identifiable {
         sourceBundleIdentifier.lowercased().hasPrefix("com.apple.health")
     }
 
-    var titleText: String {
-        startDate.formatted(date: .abbreviated, time: .shortened)
+    var isIndoorWorkout: Bool? {
+        guard let value = workout.metadata?[HKMetadataKeyIndoorWorkout] as? NSNumber else {
+            return nil
+        }
+        return value.boolValue
     }
+
+    var environmentText: String {
+        switch isIndoorWorkout {
+        case true:
+            return "인도어"
+        case false:
+            return "아웃도어"
+        case nil:
+            return "구분 없음"
+        }
+    }
+
+    var environmentShortText: String {
+        switch isIndoorWorkout {
+        case true:
+            return "실내"
+        case false:
+            return "실외"
+        case nil:
+            return "미확인"
+        }
+    }
+
+    var recordDateText: String {
+        Self.recordDateFormatter.string(from: startDate)
+    }
+
+    var detailDateText: String {
+        Self.detailDateFormatter.string(from: startDate)
+    }
+
+    var titleText: String {
+        recordDateText
+    }
+
+    private static let recordDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "M월 d일 (E) a h:mm"
+        return formatter
+    }()
+
+    private static let detailDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "yyyy년 M월 d일 (E) a h:mm"
+        return formatter
+    }()
 }
 
 struct RunningSummary {
@@ -123,6 +174,44 @@ struct RunningMetrics {
     )
 }
 
+enum HeartRateZoneMethod: String {
+    case heartRateReserve
+    case maximumHeartRate
+    case observedWorkoutMaximum
+
+    var descriptionText: String {
+        switch self {
+        case .heartRateReserve:
+            return "심박 예비량(HRR) 기준"
+        case .maximumHeartRate:
+            return "최근 최대심박 기준"
+        case .observedWorkoutMaximum:
+            return "이번 러닝 관측 최고심박 기준"
+        }
+    }
+}
+
+struct HeartRateZoneProfile {
+    let method: HeartRateZoneMethod
+    let restingHeartRateBPM: Double?
+    let maximumHeartRateBPM: Double
+
+    func bpmRange(lowerFraction: Double, upperFraction: Double) -> ClosedRange<Int> {
+        switch method {
+        case .heartRateReserve:
+            let resting = restingHeartRateBPM ?? 0
+            let reserve = max(maximumHeartRateBPM - resting, 1)
+            let lower = Int((resting + reserve * lowerFraction).rounded())
+            let upper = Int((resting + reserve * upperFraction).rounded())
+            return lower...max(lower, upper)
+        case .maximumHeartRate, .observedWorkoutMaximum:
+            let lower = Int((maximumHeartRateBPM * lowerFraction).rounded())
+            let upper = Int((maximumHeartRateBPM * upperFraction).rounded())
+            return lower...max(lower, upper)
+        }
+    }
+}
+
 struct RunDetail {
     let route: [RunRoutePoint]
     let distanceTimeline: [DistanceTimelinePoint]
@@ -130,6 +219,28 @@ struct RunDetail {
     let runningMetrics: RunningMetrics
     let paceSamples: [PaceSample]
     let splits: [RunSplit]
+    let activeDuration: TimeInterval
+    let heartRateZoneProfile: HeartRateZoneProfile?
+
+    init(
+        route: [RunRoutePoint],
+        distanceTimeline: [DistanceTimelinePoint],
+        heartRates: [HeartRateSample],
+        runningMetrics: RunningMetrics,
+        paceSamples: [PaceSample],
+        splits: [RunSplit],
+        activeDuration: TimeInterval? = nil,
+        heartRateZoneProfile: HeartRateZoneProfile? = nil
+    ) {
+        self.route = route
+        self.distanceTimeline = distanceTimeline
+        self.heartRates = heartRates
+        self.runningMetrics = runningMetrics
+        self.paceSamples = paceSamples
+        self.splits = splits
+        self.activeDuration = activeDuration ?? distanceTimeline.last?.elapsed ?? 0
+        self.heartRateZoneProfile = heartRateZoneProfile
+    }
 
     static let empty = RunDetail(
         route: [],
@@ -137,7 +248,9 @@ struct RunDetail {
         heartRates: [],
         runningMetrics: .empty,
         paceSamples: [],
-        splits: []
+        splits: [],
+        activeDuration: 0,
+        heartRateZoneProfile: nil
     )
 }
 
@@ -147,6 +260,21 @@ struct RunRoutePoint: Identifiable {
     let longitude: Double
     let timestamp: Date
     let distanceMeters: Double
+    let altitudeMeters: Double?
+
+    init(
+        latitude: Double,
+        longitude: Double,
+        timestamp: Date,
+        distanceMeters: Double,
+        altitudeMeters: Double? = nil
+    ) {
+        self.latitude = latitude
+        self.longitude = longitude
+        self.timestamp = timestamp
+        self.distanceMeters = distanceMeters
+        self.altitudeMeters = altitudeMeters
+    }
 }
 
 struct DistanceTimelinePoint: Identifiable {

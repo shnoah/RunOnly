@@ -24,6 +24,7 @@ final class HealthKitService {
         let workoutType = HKObjectType.workoutType()
         let vo2MaxType = HKObjectType.quantityType(forIdentifier: .vo2Max)
         let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate)
+        let restingHeartRateType = HKObjectType.quantityType(forIdentifier: .restingHeartRate)
         let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)
         let stepCountType = HKObjectType.quantityType(forIdentifier: .stepCount)
         let runningPowerType = HKObjectType.quantityType(forIdentifier: .runningPower)
@@ -39,6 +40,9 @@ final class HealthKitService {
         }
         if let heartRateType {
             readTypes.insert(heartRateType)
+        }
+        if let restingHeartRateType {
+            readTypes.insert(restingHeartRateType)
         }
         if let distanceType {
             readTypes.insert(distanceType)
@@ -258,6 +262,11 @@ final class HealthKitService {
             timeline: distanceTimeline,
             activeIntervals: activeIntervals
         )
+        let observedMaximumHeartRate = heartRates.map(\.bpm).max()
+        let heartRateZoneProfile = try? await fetchHeartRateZoneProfile(
+            referenceDate: runningWorkout.startDate,
+            observedMaximumHeartRate: observedMaximumHeartRate
+        )
 
         return RunDetail(
             route: route,
@@ -272,8 +281,115 @@ final class HealthKitService {
                 activeIntervals: activeIntervals,
                 totalDistance: runningWorkout.distanceInMeters,
                 totalDuration: runningWorkout.duration
-            )
+            ),
+            activeDuration: activeIntervals.reduce(0) { partialResult, interval in
+                partialResult + interval.endDate.timeIntervalSince(interval.startDate)
+            },
+            heartRateZoneProfile: heartRateZoneProfile
         )
+    }
+
+    private func fetchHeartRateZoneProfile(
+        referenceDate: Date,
+        observedMaximumHeartRate: Double?
+    ) async throws -> HeartRateZoneProfile? {
+        async let restingHeartRateTask = fetchLatestRestingHeartRate(before: referenceDate)
+        async let recentMaximumHeartRateTask = fetchRecentMaximumHeartRate(before: referenceDate)
+
+        let restingHeartRate = try await restingHeartRateTask
+        let recentMaximumHeartRate = try await recentMaximumHeartRateTask
+
+        if let recentMaximumHeartRate,
+           let restingHeartRate,
+           recentMaximumHeartRate > restingHeartRate + 20 {
+            return HeartRateZoneProfile(
+                method: .heartRateReserve,
+                restingHeartRateBPM: restingHeartRate,
+                maximumHeartRateBPM: recentMaximumHeartRate
+            )
+        }
+
+        if let recentMaximumHeartRate {
+            return HeartRateZoneProfile(
+                method: .maximumHeartRate,
+                restingHeartRateBPM: restingHeartRate,
+                maximumHeartRateBPM: recentMaximumHeartRate
+            )
+        }
+
+        if let observedMaximumHeartRate {
+            return HeartRateZoneProfile(
+                method: .observedWorkoutMaximum,
+                restingHeartRateBPM: nil,
+                maximumHeartRateBPM: observedMaximumHeartRate
+            )
+        }
+
+        return nil
+    }
+
+    private func fetchLatestRestingHeartRate(before referenceDate: Date) async throws -> Double? {
+        guard let restingHeartRateType = HKObjectType.quantityType(forIdentifier: .restingHeartRate) else {
+            return nil
+        }
+
+        let startDate = Calendar.current.date(byAdding: .month, value: -6, to: referenceDate) ?? .distantPast
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: referenceDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: restingHeartRateType,
+                predicate: predicate,
+                limit: 1,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                guard let sample = (samples as? [HKQuantitySample])?.first else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                continuation.resume(
+                    returning: sample.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
+                )
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    private func fetchRecentMaximumHeartRate(before referenceDate: Date) async throws -> Double? {
+        guard let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) else {
+            return nil
+        }
+
+        let startDate = Calendar.current.date(byAdding: .year, value: -1, to: referenceDate) ?? .distantPast
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: referenceDate, options: .strictEndDate)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKStatisticsQuery(
+                quantityType: heartRateType,
+                quantitySamplePredicate: predicate,
+                options: .discreteMax
+            ) { _, statistics, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let maximumHeartRate = statistics?
+                    .maximumQuantity()?
+                    .doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
+                continuation.resume(returning: maximumHeartRate)
+            }
+
+            healthStore.execute(query)
+        }
     }
 
     private func fetchRoute(for workout: HKWorkout) async throws -> [RunRoutePoint] {
@@ -321,7 +437,8 @@ final class HealthKitService {
                         RawRoutePoint(
                             latitude: $0.coordinate.latitude,
                             longitude: $0.coordinate.longitude,
-                            timestamp: $0.timestamp
+                            timestamp: $0.timestamp,
+                            altitudeMeters: $0.verticalAccuracy >= 0 ? $0.altitude : nil
                         )
                     })
                 }
@@ -619,7 +736,8 @@ final class HealthKitService {
                 latitude: first.latitude,
                 longitude: first.longitude,
                 timestamp: first.timestamp,
-                distanceMeters: 0
+                distanceMeters: 0,
+                altitudeMeters: first.altitudeMeters
             )
         ]
 
@@ -627,8 +745,20 @@ final class HealthKitService {
             let previous = rawPoints[index - 1]
             let current = rawPoints[index]
             cumulativeDistance += distance(
-                from: RunRoutePoint(latitude: previous.latitude, longitude: previous.longitude, timestamp: previous.timestamp, distanceMeters: cumulativeDistance),
-                to: RunRoutePoint(latitude: current.latitude, longitude: current.longitude, timestamp: current.timestamp, distanceMeters: cumulativeDistance)
+                from: RunRoutePoint(
+                    latitude: previous.latitude,
+                    longitude: previous.longitude,
+                    timestamp: previous.timestamp,
+                    distanceMeters: cumulativeDistance,
+                    altitudeMeters: previous.altitudeMeters
+                ),
+                to: RunRoutePoint(
+                    latitude: current.latitude,
+                    longitude: current.longitude,
+                    timestamp: current.timestamp,
+                    distanceMeters: cumulativeDistance,
+                    altitudeMeters: current.altitudeMeters
+                )
             )
 
             builtPoints.append(
@@ -636,7 +766,8 @@ final class HealthKitService {
                     latitude: current.latitude,
                     longitude: current.longitude,
                     timestamp: current.timestamp,
-                    distanceMeters: cumulativeDistance
+                    distanceMeters: cumulativeDistance,
+                    altitudeMeters: current.altitudeMeters
                 )
             )
         }
@@ -1146,6 +1277,7 @@ private struct RawRoutePoint {
     let latitude: Double
     let longitude: Double
     let timestamp: Date
+    let altitudeMeters: Double?
 }
 
 private struct RawDistanceSample {

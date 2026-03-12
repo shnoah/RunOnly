@@ -1,6 +1,15 @@
 import Combine
 import Foundation
 
+struct RecordMonthSummary {
+    let monthStart: Date
+    let runCount: Int
+    let totalDistanceKilometers: Double
+    let totalDuration: TimeInterval
+    let runningDays: Int
+    let weeklyRunFrequency: Double
+}
+
 @MainActor
 final class RunningWorkoutsViewModel: ObservableObject {
     enum State {
@@ -23,6 +32,8 @@ final class RunningWorkoutsViewModel: ObservableObject {
     @Published private(set) var pendingPersonalRecordCandidates: [PersonalRecordCandidate]
     @Published private(set) var isRefreshingPersonalRecords = false
     @Published private(set) var personalRecordProgress: Double?
+    @Published private(set) var selectedRecordMonth: Date
+    @Published private(set) var selectedRecordDate: Date?
 
     private(set) var allRuns: [RunningWorkout] = []
     private var latestVO2Max: VO2MaxSample?
@@ -38,6 +49,8 @@ final class RunningWorkoutsViewModel: ObservableObject {
         personalRecordSnapshot = snapshot
         personalRecords = snapshot.records
         pendingPersonalRecordCandidates = snapshot.pendingCandidates
+        selectedRecordMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
+        selectedRecordDate = nil
     }
 
     func load() async {
@@ -60,6 +73,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
             oldestRunningWorkoutDate = try await oldestDateTask
             allRuns = deduplicatedAndSorted(runs)
             nextHistoryMonthStart = calendar.date(byAdding: .month, value: -1, to: startOfYear)
+            selectedRecordMonth = startOfMonth(selectedRecordMonth)
             if let nextHistoryMonthStart, let oldestRunningWorkoutDate {
                 hasMoreHistory = startOfMonth(nextHistoryMonthStart) >= startOfMonth(oldestRunningWorkoutDate)
             } else {
@@ -114,6 +128,98 @@ final class RunningWorkoutsViewModel: ObservableObject {
         } catch {
             state = .failed(error.localizedDescription)
         }
+    }
+
+    var recordRuns: [RunningWorkout] {
+        let monthRuns = filteredAllRuns.filter {
+            Calendar.current.isDate($0.startDate, equalTo: selectedRecordMonth, toGranularity: .month)
+        }
+
+        guard let selectedRecordDate else {
+            return monthRuns
+        }
+
+        return monthRuns.filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedRecordDate) }
+    }
+
+    var selectedMonthRuns: [RunningWorkout] {
+        filteredAllRuns.filter {
+            Calendar.current.isDate($0.startDate, equalTo: selectedRecordMonth, toGranularity: .month)
+        }
+    }
+
+    var selectedMonthSummary: RecordMonthSummary {
+        let monthRuns = selectedMonthRuns
+        let totalDistanceKilometers = monthRuns.reduce(0) { $0 + $1.distanceInKilometers }
+        let totalDuration = monthRuns.reduce(0) { $0 + $1.duration }
+        let runningDays = Set(monthRuns.map { Calendar.current.startOfDay(for: $0.startDate) }).count
+        let weeksInMonth = Double(max(Calendar.current.range(of: .weekOfMonth, in: .month, for: selectedRecordMonth)?.count ?? 1, 1))
+
+        return RecordMonthSummary(
+            monthStart: selectedRecordMonth,
+            runCount: monthRuns.count,
+            totalDistanceKilometers: totalDistanceKilometers,
+            totalDuration: totalDuration,
+            runningDays: runningDays,
+            weeklyRunFrequency: Double(monthRuns.count) / weeksInMonth
+        )
+    }
+
+    var selectedMonthLabelText: String {
+        selectedRecordMonth.formatted(
+            .dateTime
+                .locale(Locale(identifier: "ko_KR"))
+                .year()
+                .month(.wide)
+        )
+    }
+
+    var selectedDateLabelText: String? {
+        guard let selectedRecordDate else { return nil }
+        return selectedRecordDate.formatted(
+            .dateTime
+                .locale(Locale(identifier: "ko_KR"))
+                .month(.wide)
+                .day()
+                .weekday(.abbreviated)
+        )
+    }
+
+    var canMoveToNextRecordMonth: Bool {
+        selectedRecordMonth < startOfMonth(Date())
+    }
+
+    func moveRecordMonth(by offset: Int) async {
+        guard offset != 0 else { return }
+        let targetMonth = Calendar.current.date(byAdding: .month, value: offset, to: selectedRecordMonth) ?? selectedRecordMonth
+        await selectRecordMonth(targetMonth)
+    }
+
+    func selectRecordMonth(_ date: Date) async {
+        let currentMonthStart = startOfMonth(Date())
+        let targetMonth = min(startOfMonth(date), currentMonthStart)
+        selectedRecordMonth = targetMonth
+        selectedRecordDate = nil
+        await ensureRecordMonthAvailable(targetMonth)
+    }
+
+    func selectRecordDate(_ date: Date?) {
+        guard let date else {
+            selectedRecordDate = nil
+            return
+        }
+
+        if Calendar.current.isDate(date, equalTo: selectedRecordMonth, toGranularity: .month) {
+            selectedRecordDate = Calendar.current.startOfDay(for: date)
+        }
+    }
+
+    func runs(on date: Date) -> [RunningWorkout] {
+        selectedMonthRuns.filter { Calendar.current.isDate($0.startDate, inSameDayAs: date) }
+    }
+
+    func clearRecordDateSelection() {
+        selectedRecordDate = nil
     }
 
     func refreshPersonalRecordsIfNeeded() async {
@@ -305,6 +411,23 @@ final class RunningWorkoutsViewModel: ObservableObject {
     private func deduplicatedAndSorted(_ runs: [RunningWorkout]) -> [RunningWorkout] {
         let unique = Dictionary(runs.map { ($0.id, $0) }, uniquingKeysWith: { current, _ in current })
         return unique.values.sorted(by: { $0.startDate > $1.startDate })
+    }
+
+    private var filteredAllRuns: [RunningWorkout] {
+        showAppleWorkoutOnly ? allRuns.filter(\.isAppleWorkout) : allRuns
+    }
+
+    private func ensureRecordMonthAvailable(_ monthStart: Date) async {
+        while !isRecordMonthLoaded(monthStart) && hasMoreHistory {
+            await loadMoreHistory()
+        }
+    }
+
+    private func isRecordMonthLoaded(_ monthStart: Date) -> Bool {
+        guard let nextHistoryMonthStart else {
+            return true
+        }
+        return monthStart > nextHistoryMonthStart
     }
 
     private func updatePersonalRecords(

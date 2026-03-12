@@ -127,6 +127,7 @@ private struct HomeTabView: View {
 
 private struct RecordTabView: View {
     @ObservedObject var viewModel: RunningWorkoutsViewModel
+    @State private var showingCalendar = false
 
     var body: some View {
         NavigationStack {
@@ -158,44 +159,65 @@ private struct RecordTabView: View {
                             await viewModel.load()
                         }
                     }
-                case .loaded(let runs):
+                case .loaded:
                     ScrollView {
                         VStack(alignment: .leading, spacing: 18) {
-                            VStack(spacing: 14) {
-                                ForEach(runs) { run in
-                                    NavigationLink {
-                                        RunDetailView(run: run)
-                                    } label: {
-                                        RunRowCard(run: run)
+                            RecordMonthHeader(
+                                monthText: viewModel.selectedMonthLabelText,
+                                selectedDateText: viewModel.selectedDateLabelText,
+                                canMoveNext: viewModel.canMoveToNextRecordMonth,
+                                isLoading: viewModel.isLoadingMoreHistory,
+                                onPreviousMonth: {
+                                    Task {
+                                        await viewModel.moveRecordMonth(by: -1)
                                     }
-                                    .buttonStyle(.plain)
+                                },
+                                onNextMonth: {
+                                    Task {
+                                        await viewModel.moveRecordMonth(by: 1)
+                                    }
+                                },
+                                onOpenCalendar: {
+                                    showingCalendar = true
+                                },
+                                onClearDate: {
+                                    viewModel.clearRecordDateSelection()
+                                }
+                            )
+                            .padding(.horizontal, 16)
+
+                            RecordMonthSummaryCard(summary: viewModel.selectedMonthSummary)
+                                .padding(.horizontal, 16)
+
+                            Group {
+                                if viewModel.recordRuns.isEmpty {
+                                    DetailSection(title: emptyRecordTitle) {
+                                        Text(emptyRecordMessage)
+                                            .foregroundStyle(.white.opacity(0.72))
+                                    }
+                                } else {
+                                    VStack(spacing: 14) {
+                                        ForEach(viewModel.recordRuns) { run in
+                                            NavigationLink {
+                                                RunDetailView(run: run)
+                                            } label: {
+                                                RunRowCard(run: run)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
                                 }
                             }
                             .padding(.horizontal, 16)
 
-                            if viewModel.hasMoreHistory {
-                                Button {
-                                    Task {
-                                        await viewModel.loadMoreHistory()
-                                    }
-                                } label: {
-                                    HStack {
-                                        if viewModel.isLoadingMoreHistory {
-                                            ProgressView()
-                                                .tint(.white)
-                                        }
-                                        Text(viewModel.isLoadingMoreHistory ? "이전 달 불러오는 중" : "이전 달 더 불러오기")
-                                            .font(.subheadline.weight(.semibold))
-                                    }
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .fill(Color.white.opacity(0.08))
-                                    )
+                            if viewModel.isLoadingMoreHistory, viewModel.selectedMonthRuns.isEmpty {
+                                HStack(spacing: 10) {
+                                    ProgressView()
+                                        .tint(.white)
+                                    Text("이전 기록을 불러오는 중")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.white.opacity(0.82))
                                 }
-                                .buttonStyle(.plain)
                                 .padding(.horizontal, 16)
                             }
                         }
@@ -203,6 +225,9 @@ private struct RecordTabView: View {
                     }
                     .refreshable {
                         await viewModel.load()
+                    }
+                    .sheet(isPresented: $showingCalendar) {
+                        RecordCalendarSheet(viewModel: viewModel)
                     }
                 }
             }
@@ -212,6 +237,300 @@ private struct RecordTabView: View {
         .task {
             await viewModel.load()
         }
+    }
+
+    private var emptyRecordTitle: String {
+        viewModel.selectedRecordDate != nil ? "선택한 날짜에 러닝이 없습니다" : "선택한 달에 러닝이 없습니다"
+    }
+
+    private var emptyRecordMessage: String {
+        if let selectedDateText = viewModel.selectedDateLabelText {
+            return "\(selectedDateText)에 기록된 러닝이 없습니다."
+        }
+        return "\(viewModel.selectedMonthLabelText)에 기록된 러닝이 없습니다."
+    }
+}
+
+private struct RecordMonthHeader: View {
+    let monthText: String
+    let selectedDateText: String?
+    let canMoveNext: Bool
+    let isLoading: Bool
+    let onPreviousMonth: () -> Void
+    let onNextMonth: () -> Void
+    let onOpenCalendar: () -> Void
+    let onClearDate: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Button(action: onPreviousMonth) {
+                    Image(systemName: "chevron.left")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(Color.white.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+                .disabled(isLoading)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("선택 월")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.55))
+                    Text(monthText)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
+                }
+
+                Spacer()
+
+                Button(action: onOpenCalendar) {
+                    Label("달력", systemImage: "calendar")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(Color.white.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onNextMonth) {
+                    Image(systemName: "chevron.right")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(canMoveNext ? .white : .white.opacity(0.3))
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(Color.white.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canMoveNext || isLoading)
+            }
+
+            if let selectedDateText {
+                HStack(spacing: 8) {
+                    Label("\(selectedDateText)만 보기", systemImage: "line.3.horizontal.decrease.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                    Spacer()
+                    Button("전체 보기", action: onClearDate)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct RecordMonthSummaryCard: View {
+    let summary: RecordMonthSummary
+
+    var body: some View {
+        HStack(spacing: 12) {
+            CompactMetricChip(
+                title: "이번 달 거리",
+                value: formatKilometers(summary.totalDistanceKilometers),
+                detail: "\(summary.runCount)회 러닝"
+            )
+            CompactMetricChip(
+                title: "러닝 빈도",
+                value: "\(summary.runningDays)일",
+                detail: "주 평균 \(summary.weeklyRunFrequency.formatted(.number.precision(.fractionLength(1))))회"
+            )
+            CompactMetricChip(
+                title: "총 시간",
+                value: formatDuration(summary.totalDuration),
+                detail: "월간 누적 시간"
+            )
+        }
+    }
+}
+
+private struct RecordCalendarSheet: View {
+    @ObservedObject var viewModel: RunningWorkoutsViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
+    private let weekdaySymbols = ["일", "월", "화", "수", "목", "금", "토"]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack {
+                        Button {
+                            Task {
+                                await viewModel.moveRecordMonth(by: -1)
+                            }
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 38, height: 38)
+                                .background(Circle().fill(Color.white.opacity(0.08)))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isLoadingMoreHistory)
+
+                        Spacer()
+
+                        Text(viewModel.selectedMonthLabelText)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(.white)
+
+                        Spacer()
+
+                        Button {
+                            Task {
+                                await viewModel.moveRecordMonth(by: 1)
+                            }
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(viewModel.canMoveToNextRecordMonth ? .white : .white.opacity(0.3))
+                                .frame(width: 38, height: 38)
+                                .background(Circle().fill(Color.white.opacity(0.08)))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!viewModel.canMoveToNextRecordMonth || viewModel.isLoadingMoreHistory)
+                    }
+
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        ForEach(weekdaySymbols, id: \.self) { symbol in
+                            Text(symbol)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.5))
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        ForEach(Array(calendarSlots.enumerated()), id: \.offset) { _, date in
+                            if let date {
+                                RecordCalendarDayCell(
+                                    day: Calendar.current.component(.day, from: date),
+                                    isSelected: isSelected(date),
+                                    isToday: Calendar.current.isDateInToday(date),
+                                    runCount: viewModel.runs(on: date).count
+                                ) {
+                                    viewModel.selectRecordDate(date)
+                                    dismiss()
+                                }
+                            } else {
+                                Color.clear
+                                    .frame(height: 48)
+                            }
+                        }
+                    }
+
+                    DetailSection(title: "월간 체크") {
+                        HStack(spacing: 12) {
+                            CompactMetricChip(
+                                title: "러닝한 날",
+                                value: "\(viewModel.selectedMonthSummary.runningDays)일",
+                                detail: "뛴 날 / 안 뛴 날 확인"
+                            )
+                            CompactMetricChip(
+                                title: "총 러닝",
+                                value: "\(viewModel.selectedMonthSummary.runCount)회",
+                                detail: "선택 월 기준"
+                            )
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .background(AppBackground())
+            .navigationTitle("러닝 달력")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("전체 보기") {
+                        viewModel.clearRecordDateSelection()
+                        dismiss()
+                    }
+                    .foregroundStyle(.white)
+                }
+            }
+        }
+    }
+
+    private var calendarSlots: [Date?] {
+        let calendar = Calendar.current
+        let monthStart = viewModel.selectedRecordMonth
+        let dayRange = calendar.range(of: .day, in: .month, for: monthStart) ?? 1..<2
+        let firstWeekday = calendar.component(.weekday, from: monthStart)
+        let leadingEmptyDays = (firstWeekday - calendar.firstWeekday + 7) % 7
+
+        var slots = Array(repeating: Optional<Date>.none, count: leadingEmptyDays)
+        slots.append(contentsOf: dayRange.compactMap { day in
+            calendar.date(byAdding: .day, value: day - 1, to: monthStart)
+        })
+        return slots
+    }
+
+    private func isSelected(_ date: Date) -> Bool {
+        guard let selectedRecordDate = viewModel.selectedRecordDate else { return false }
+        return Calendar.current.isDate(date, inSameDayAs: selectedRecordDate)
+    }
+}
+
+private struct RecordCalendarDayCell: View {
+    let day: Int
+    let isSelected: Bool
+    let isToday: Bool
+    let runCount: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Text("\(day)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(foregroundColor)
+
+                if runCount > 0 {
+                    HStack(spacing: 3) {
+                        Circle()
+                            .fill(Color(red: 0.29, green: 0.88, blue: 0.63))
+                            .frame(width: 6, height: 6)
+                        if runCount > 1 {
+                            Text("\(runCount)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                        }
+                    }
+                } else {
+                    Circle()
+                        .fill(Color.clear)
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(backgroundColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(borderColor, lineWidth: isToday ? 1 : 0)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var foregroundColor: Color {
+        isSelected ? .black : .white
+    }
+
+    private var backgroundColor: Color {
+        if isSelected {
+            return Color(red: 0.29, green: 0.88, blue: 0.63)
+        }
+        return runCount > 0 ? Color.white.opacity(0.09) : Color.white.opacity(0.04)
+    }
+
+    private var borderColor: Color {
+        isSelected ? .clear : .white.opacity(0.28)
     }
 }
 
@@ -389,10 +708,16 @@ private struct CompactSelectionRow: View {
     let metrics: SelectedMetrics
 
     var body: some View {
-        HStack(spacing: 10) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             CompactMetricChip(title: "거리", value: metrics.distanceText, detail: metrics.elapsedText)
             CompactMetricChip(title: "페이스", value: metrics.paceText, detail: "선택 구간")
             CompactMetricChip(title: "심박", value: metrics.heartRateText, detail: "선택 시점")
+            if let cadenceText = metrics.cadenceText {
+                CompactMetricChip(title: "케이던스", value: cadenceText, detail: "선택 시점")
+            }
+            if let altitudeText = metrics.altitudeText {
+                CompactMetricChip(title: "고도", value: altitudeText, detail: "선택 지점")
+            }
         }
     }
 }
@@ -400,11 +725,15 @@ private struct CompactSelectionRow: View {
 private struct CompactAverageRow: View {
     let averagePaceText: String
     let averageHeartRateText: String
+    let averageCadenceText: String?
 
     var body: some View {
-        HStack(spacing: 10) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             CompactMetricChip(title: "평균 페이스", value: averagePaceText, detail: "러닝 전체")
             CompactMetricChip(title: "평균 심박", value: averageHeartRateText, detail: "러닝 전체")
+            if let averageCadenceText {
+                CompactMetricChip(title: "평균 케이던스", value: averageCadenceText, detail: "러닝 전체")
+            }
         }
     }
 }
@@ -683,10 +1012,19 @@ private struct RunRowCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text(run.titleText)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(run.recordDateText)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                    HStack(spacing: 8) {
+                        RunEnvironmentBadge(text: run.environmentShortText)
+                        Text(run.sourceName)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.5))
+                            .lineLimit(1)
+                    }
+                }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.bold))
@@ -698,10 +1036,6 @@ private struct RunRowCard: View {
                 RunMetricPill(title: "시간", value: run.durationText)
                 RunMetricPill(title: "페이스", value: run.paceText)
             }
-
-            Text(run.sourceName)
-                .font(.footnote)
-                .foregroundStyle(.white.opacity(0.5))
 
             if let shoe = shoeStore.shoe(for: run.id) {
                 Label(shoe.displayName, systemImage: "shoeprints.fill")
@@ -718,6 +1052,22 @@ private struct RunRowCard: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
+    }
+}
+
+private struct RunEnvironmentBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.14))
+            )
     }
 }
 
@@ -757,27 +1107,18 @@ private struct RunDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(run.titleText)
+                    Text(run.detailDateText)
                         .font(.title2.weight(.bold))
                         .foregroundStyle(.white)
-                    Text(run.sourceName)
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.6))
+                    HStack(spacing: 8) {
+                        RunEnvironmentBadge(text: run.environmentText)
+                        Text(run.sourceName)
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
                 }
 
                 DebugScenarioPanel(viewModel: viewModel)
-
-                HStack(spacing: 12) {
-                    SummaryCard(title: "거리", value: run.distanceText, detail: "이번 러닝 총 거리")
-                    SummaryCard(title: "시간", value: run.durationText, detail: "총 운동 시간")
-                }
-
-                HStack(spacing: 12) {
-                    SummaryCard(title: "평균 페이스", value: run.paceText, detail: "러닝 전체 평균")
-                    SummaryCard(title: "데이터 소스", value: run.sourceName, detail: run.sourceBundleIdentifier)
-                }
-
-                RunGearSection(run: run)
 
                 switch viewModel.state {
                 case .idle, .loading:
@@ -802,10 +1143,13 @@ private struct RunDetailView: View {
                     }
 
                 case .loaded(let detail):
-                    RunRouteSection(detail: detail)
-                    PerformanceChartSection(run: run, detail: detail)
+                    RunOverviewMetricsSection(run: run, detail: detail)
                     RunSplitSection(detail: detail)
-                    RunInsightSection(run: run, detail: detail)
+                    PerformanceChartSection(run: run, detail: detail)
+                    HeartRateZoneSection(detail: detail)
+                    RunGearSection(run: run)
+                    RunRouteSection(detail: detail)
+                    RunDataSourceSection(run: run)
                 }
             }
             .padding(16)
@@ -851,8 +1195,8 @@ private struct PerformanceChartSection: View {
     @State private var selectedDistance: Double?
 
     var body: some View {
-        DetailSection(title: "심박 & 페이스") {
-            if heartSeries.isEmpty && paceSeries.isEmpty {
+        DetailSection(title: "퍼포먼스 차트") {
+            if heartSeries.isEmpty && paceSeries.isEmpty && cadenceSeries.isEmpty && altitudeSeries.isEmpty {
                 Text("그래프를 그릴 경로 또는 심박 데이터가 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
             } else {
@@ -862,66 +1206,94 @@ private struct PerformanceChartSection: View {
                     } else {
                         CompactAverageRow(
                             averagePaceText: averagePaceText,
-                            averageHeartRateText: averageHeartRateText
+                            averageHeartRateText: averageHeartRateText,
+                            averageCadenceText: averageCadenceText
                         )
                     }
 
                     VStack(spacing: 0) {
-                        HStack {
-                            Label("페이스", systemImage: "speedometer")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.orange)
-                            Spacer()
+                        if !paceSeries.isEmpty {
+                            metricHeader(title: "페이스", systemImage: "speedometer", tint: .orange)
+                                .padding(.bottom, 6)
+
+                            PaceChartPlot(
+                                selectedMetrics: selectedMetrics,
+                                selectedPacePoint: selectedPacePoint,
+                                selectedDistance: $selectedDistance,
+                                paceSeries: paceSeries,
+                                paceRange: paceRange,
+                                strideValues: strideValues,
+                                maxDistance: maxDistance,
+                                showsXAxis: false
+                            )
+                            .frame(height: 144)
                         }
-                        .padding(.bottom, 6)
 
-                        PaceChartPlot(
-                            selectedMetrics: selectedMetrics,
-                            selectedPacePoint: selectedPacePoint,
-                            selectedDistance: $selectedDistance,
-                            paceSeries: paceSeries,
-                            paceRange: paceRange,
-                            strideValues: strideValues,
-                            maxDistance: maxDistance
-                        )
-                        .frame(height: 144)
+                        if !heartSeries.isEmpty {
+                            sectionDivider
+                            metricHeader(
+                                title: "심박",
+                                systemImage: "heart.fill",
+                                tint: Color(red: 0.45, green: 0.95, blue: 0.76)
+                            )
+                            .padding(.bottom, 6)
 
-                        Divider()
-                            .overlay(Color.white.opacity(0.08))
-                            .padding(.vertical, 10)
-
-                        HStack {
-                            Label("심박", systemImage: "heart.fill")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color(red: 0.45, green: 0.95, blue: 0.76))
-                            Spacer()
+                            HeartRateChartPlot(
+                                selectedMetrics: selectedMetrics,
+                                selectedHeartPoint: selectedHeartPoint,
+                                selectedDistance: $selectedDistance,
+                                heartSeries: heartSeries,
+                                heartRateRange: heartRateRange,
+                                strideValues: strideValues,
+                                maxDistance: maxDistance,
+                                showsXAxis: cadenceSeries.isEmpty && altitudeSeries.isEmpty
+                            )
+                            .frame(height: 144)
                         }
-                        .padding(.bottom, 6)
 
-                        HeartRateChartPlot(
-                            selectedMetrics: selectedMetrics,
-                            selectedHeartPoint: selectedHeartPoint,
-                            selectedDistance: $selectedDistance,
-                            heartSeries: heartSeries,
-                            heartRateRange: heartRateRange,
-                            strideValues: strideValues,
-                            maxDistance: maxDistance
-                        )
-                        .frame(height: 144)
-                    }
+                        if !cadenceSeries.isEmpty {
+                            sectionDivider
+                            metricHeader(
+                                title: "케이던스",
+                                systemImage: "metronome",
+                                tint: Color(red: 0.42, green: 0.76, blue: 1.0)
+                            )
+                            .padding(.bottom, 6)
 
-                    HStack {
-                        Label("페이스", systemImage: "speedometer")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.orange)
-                        Spacer()
-                        Text("거리 (km)")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.45))
-                        Spacer()
-                        Label("심박", systemImage: "heart.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color(red: 0.45, green: 0.95, blue: 0.76))
+                            SyncedMetricChartPlot(
+                                selectedDistance: $selectedDistance,
+                                selectedPoint: selectedCadencePoint,
+                                points: cadenceSeries,
+                                valueRange: cadenceRange,
+                                strideValues: strideValues,
+                                maxDistance: maxDistance,
+                                tint: Color(red: 0.42, green: 0.76, blue: 1.0),
+                                showsXAxis: altitudeSeries.isEmpty
+                            )
+                            .frame(height: 144)
+                        }
+
+                        if !altitudeSeries.isEmpty {
+                            sectionDivider
+                            metricHeader(
+                                title: "고도",
+                                systemImage: "mountain.2.fill",
+                                tint: Color(red: 0.68, green: 0.60, blue: 0.96)
+                            )
+                            .padding(.bottom, 6)
+
+                            SyncedMetricChartPlot(
+                                selectedDistance: $selectedDistance,
+                                selectedPoint: selectedAltitudePoint,
+                                points: altitudeSeries,
+                                valueRange: altitudeRange,
+                                strideValues: strideValues,
+                                maxDistance: maxDistance,
+                                tint: Color(red: 0.68, green: 0.60, blue: 0.96),
+                                showsXAxis: true
+                            )
+                            .frame(height: 144)
+                        }
                     }
                 }
             }
@@ -938,12 +1310,51 @@ private struct PerformanceChartSection: View {
         run.paceText
     }
 
+    private var averageCadenceText: String? {
+        let weightedCadence = detail.splits.reduce(into: (weighted: 0.0, duration: 0.0)) { partial, split in
+            guard let cadence = split.averageCadence else { return }
+            partial.weighted += cadence * split.duration
+            partial.duration += split.duration
+        }
+
+        if weightedCadence.duration > 0 {
+            let average = weightedCadence.weighted / weightedCadence.duration
+            return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+        }
+
+        guard !detail.runningMetrics.cadence.isEmpty else { return nil }
+        let average = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
+        return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+    }
+
     private var heartSeries: [HeartRateChartPoint] {
         HeartRateChartPoint.build(from: detail.heartRates)
     }
 
     private var paceSeries: [PaceChartPoint] {
         PaceChartPoint.build(from: detail.paceSamples)
+    }
+
+    private var cadenceSeries: [SimpleMetricChartPoint] {
+        detail.runningMetrics.cadence.compactMap { sample in
+            guard let distanceMeters = sample.distanceMeters else { return nil }
+            return SimpleMetricChartPoint(
+                distanceKilometers: distanceMeters / 1_000,
+                value: sample.value,
+                segmentIndex: sample.segmentIndex
+            )
+        }
+    }
+
+    private var altitudeSeries: [SimpleMetricChartPoint] {
+        detail.route.map { point in
+            SimpleMetricChartPoint(
+                distanceKilometers: point.distanceMeters / 1_000,
+                value: point.altitudeMeters ?? .nan,
+                segmentIndex: nil
+            )
+        }
+        .filter { $0.value.isFinite }
     }
 
     private var selectedMetrics: SelectedMetrics? {
@@ -958,7 +1369,9 @@ private struct PerformanceChartSection: View {
             distanceMeters: resolvedDistanceMeters,
             elapsed: nearestDistancePoint?.elapsed ?? 0,
             paceSecondsPerKilometer: selectedPacePoint?.secondsPerKilometer,
-            heartRate: selectedHeartPoint?.bpm
+            heartRate: selectedHeartPoint?.bpm,
+            cadence: selectedCadencePoint?.value,
+            altitudeMeters: selectedAltitudePoint?.value
         )
     }
 
@@ -981,6 +1394,20 @@ private struct PerformanceChartSection: View {
         })
     }
 
+    private var selectedCadencePoint: SimpleMetricChartPoint? {
+        guard let snappedDistanceKilometers else { return nil }
+        return cadenceSeries.min(by: {
+            abs($0.distanceKilometers - snappedDistanceKilometers) < abs($1.distanceKilometers - snappedDistanceKilometers)
+        })
+    }
+
+    private var selectedAltitudePoint: SimpleMetricChartPoint? {
+        guard let snappedDistanceKilometers else { return nil }
+        return altitudeSeries.min(by: {
+            abs($0.distanceKilometers - snappedDistanceKilometers) < abs($1.distanceKilometers - snappedDistanceKilometers)
+        })
+    }
+
     private var heartRateRange: ClosedRange<Double> {
         let values = heartSeries.map(\.bpm)
         let minValue = max((values.min() ?? 110) - 12, 60)
@@ -993,6 +1420,14 @@ private struct PerformanceChartSection: View {
         let minValue = values.min() ?? 300
         let maxValue = max(values.max() ?? 420, minValue + 1)
         return minValue...max(maxValue, minValue + 1)
+    }
+
+    private var cadenceRange: ClosedRange<Double> {
+        metricRange(for: cadenceSeries.map(\.value), minimumPadding: 6)
+    }
+
+    private var altitudeRange: ClosedRange<Double> {
+        metricRange(for: altitudeSeries.map(\.value), minimumPadding: 4)
     }
 
     private var strideValues: [Double] {
@@ -1030,6 +1465,28 @@ private struct PerformanceChartSection: View {
         formatter.zeroFormattingBehavior = [.pad]
         return (formatter.string(from: seconds) ?? "-") + "/km"
     }
+
+    private func metricHeader(title: String, systemImage: String, tint: Color) -> some View {
+        HStack {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+            Spacer()
+        }
+    }
+
+    private var sectionDivider: some View {
+        Divider()
+            .overlay(Color.white.opacity(0.08))
+            .padding(.vertical, 10)
+    }
+
+    private func metricRange(for values: [Double], minimumPadding: Double) -> ClosedRange<Double> {
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? minValue + minimumPadding
+        let padding = max((maxValue - minValue) * 0.12, minimumPadding)
+        return (minValue - padding)...(maxValue + padding)
+    }
 }
 
 private struct PaceChartPlot: View {
@@ -1040,6 +1497,7 @@ private struct PaceChartPlot: View {
     let paceRange: ClosedRange<Double>
     let strideValues: [Double]
     let maxDistance: Double
+    let showsXAxis: Bool
 
     var body: some View {
         Chart {
@@ -1076,9 +1534,19 @@ private struct PaceChartPlot: View {
             plotArea.background(.clear)
         }
         .chartXAxis {
-            AxisMarks(values: strideValues) { value in
+            AxisMarks(values: showsXAxis ? strideValues : []) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                     .foregroundStyle(.white.opacity(0.12))
+                if showsXAxis {
+                    AxisTick()
+                        .foregroundStyle(.white.opacity(0.4))
+                    AxisValueLabel {
+                        if let distance = value.as(Double.self) {
+                            Text(formatAxisDistance(distance))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                    }
+                }
             }
         }
         .chartYAxis(.hidden)
@@ -1097,6 +1565,7 @@ private struct HeartRateChartPlot: View {
     let heartRateRange: ClosedRange<Double>
     let strideValues: [Double]
     let maxDistance: Double
+    let showsXAxis: Bool
 
     var body: some View {
         Chart {
@@ -1133,15 +1602,17 @@ private struct HeartRateChartPlot: View {
             plotArea.background(.clear)
         }
         .chartXAxis {
-            AxisMarks(values: strideValues) { value in
+            AxisMarks(values: showsXAxis ? strideValues : []) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                     .foregroundStyle(.white.opacity(0.12))
-                AxisTick()
-                    .foregroundStyle(.white.opacity(0.4))
-                AxisValueLabel {
-                    if let distance = value.as(Double.self) {
-                        Text(formatAxisDistance(distance))
-                            .foregroundStyle(.white.opacity(0.7))
+                if showsXAxis {
+                    AxisTick()
+                        .foregroundStyle(.white.opacity(0.4))
+                    AxisValueLabel {
+                        if let distance = value.as(Double.self) {
+                            Text(formatAxisDistance(distance))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
                     }
                 }
             }
@@ -1182,29 +1653,326 @@ private struct RunSplitSection: View {
     }
 }
 
-private struct RunInsightSection: View {
+private struct RunOverviewMetricsSection: View {
     let run: RunningWorkout
     let detail: RunDetail
 
     var body: some View {
-        DetailSection(title: "러닝 인사이트") {
-            HStack(spacing: 12) {
-                SummaryCard(
-                    title: "km당 효율",
-                    value: efficiencyText,
-                    detail: "1km 기준 소요 시간"
-                )
-                SummaryCard(
-                    title: "경로 포인트",
-                    value: "\(detail.route.count)",
-                    detail: "지도에 표시된 위치 수"
-                )
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            CompactMetricChip(title: "거리", value: run.distanceText, detail: "총 거리")
+            CompactMetricChip(title: "시간", value: run.durationText, detail: "총 운동 시간")
+            CompactMetricChip(title: "평균 페이스", value: run.paceText, detail: "러닝 전체")
+            CompactMetricChip(title: "평균 심박", value: averageHeartRateText, detail: "러닝 전체")
+            CompactMetricChip(title: "평균 케이던스", value: averageCadenceText, detail: "러닝 전체")
+        }
+    }
+
+    private var averageHeartRateText: String {
+        guard !detail.heartRates.isEmpty else { return "-" }
+        let avg = detail.heartRates.map(\.bpm).reduce(0, +) / Double(detail.heartRates.count)
+        return avg.formatted(.number.precision(.fractionLength(0))) + " bpm"
+    }
+
+    private var averageCadenceText: String {
+        let weightedCadence = detail.splits.reduce(into: (weighted: 0.0, duration: 0.0)) { partial, split in
+            guard let cadence = split.averageCadence else { return }
+            partial.weighted += cadence * split.duration
+            partial.duration += split.duration
+        }
+
+        if weightedCadence.duration > 0 {
+            let average = weightedCadence.weighted / weightedCadence.duration
+            return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+        }
+
+        guard !detail.runningMetrics.cadence.isEmpty else { return "-" }
+        let avg = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
+        return avg.formatted(.number.precision(.fractionLength(0))) + " spm"
+    }
+}
+
+private struct HeartRateZoneSection: View {
+    let detail: RunDetail
+
+    var body: some View {
+        DetailSection(title: "심박 존 1-5") {
+            if zoneRows.isEmpty {
+                Text("심박 데이터가 부족해 존 분포를 계산할 수 없습니다.")
+                    .foregroundStyle(.white.opacity(0.72))
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(detail.heartRateZoneProfile?.method.descriptionText ?? "심박 존 기준 없음")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.5))
+
+                    ForEach(zoneRows) { zone in
+                        HeartRateZoneRow(zone: zone)
+                    }
+                }
             }
         }
     }
 
-    private var efficiencyText: String {
-        run.paceText
+    private var zoneRows: [HeartRateZoneRowModel] {
+        guard detail.heartRates.count >= 2 else { return [] }
+        guard let zoneProfile = detail.heartRateZoneProfile else { return [] }
+
+        let boundaries: [(label: String, lower: Double, upper: Double, color: Color)] = [
+            ("존 1", 0.50, 0.60, Color.blue),
+            ("존 2", 0.60, 0.70, Color.green),
+            ("존 3", 0.70, 0.80, Color.yellow),
+            ("존 4", 0.80, 0.90, Color.orange),
+            ("존 5", 0.90, 1.01, Color.red)
+        ]
+
+        let sortedHeartRates = detail.heartRates.sorted {
+            ($0.elapsed ?? .greatestFiniteMagnitude) < ($1.elapsed ?? .greatestFiniteMagnitude)
+        }
+        let totalDuration = max(detail.activeDuration, 1)
+        var durations = Array(repeating: 0.0, count: boundaries.count)
+
+        for index in sortedHeartRates.indices {
+            let current = sortedHeartRates[index]
+            guard let currentElapsed = current.elapsed else { continue }
+            let nextElapsed = sortedHeartRates.indices.contains(index + 1)
+                ? (sortedHeartRates[index + 1].elapsed ?? detail.activeDuration)
+                : detail.activeDuration
+            let sampleDuration = max(nextElapsed - currentElapsed, 0)
+            guard sampleDuration > 0 else { continue }
+
+            if let zoneIndex = boundaries.firstIndex(where: {
+                let bpmRange = zoneProfile.bpmRange(lowerFraction: $0.lower, upperFraction: min($0.upper, 1.0))
+                return current.bpm >= Double(bpmRange.lowerBound) && current.bpm < Double(bpmRange.upperBound + 1)
+            }) {
+                durations[zoneIndex] += sampleDuration
+            }
+        }
+
+        return boundaries.enumerated().map { index, boundary in
+            let bpmRange = zoneProfile.bpmRange(
+                lowerFraction: boundary.lower,
+                upperFraction: min(boundary.upper, 1.0)
+            )
+            return HeartRateZoneRowModel(
+                title: boundary.label,
+                rangeText: "\(bpmRange.lowerBound)-\(bpmRange.upperBound) bpm",
+                intensityText: "\(Int(boundary.lower * 100))-\(Int(min(boundary.upper, 1.0) * 100))%",
+                duration: durations[index],
+                percentage: durations[index] / totalDuration,
+                color: boundary.color
+            )
+        }
+    }
+}
+
+private struct RunDataSourceSection: View {
+    let run: RunningWorkout
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("데이터 소스")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.5))
+            Text(run.sourceName)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.8))
+            Text(run.sourceBundleIdentifier)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.42))
+                .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 6)
+    }
+}
+
+private struct HeartRateZoneRowModel: Identifiable {
+    let id = UUID()
+    let title: String
+    let rangeText: String
+    let intensityText: String
+    let duration: TimeInterval
+    let percentage: Double
+    let color: Color
+}
+
+private struct HeartRateZoneRow: View {
+    let zone: HeartRateZoneRowModel
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(zone.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(zone.rangeText)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.45))
+                Text(zone.intensityText)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.35))
+            }
+            .frame(width: 64, alignment: .leading)
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                    Capsule()
+                        .fill(zone.color)
+                        .frame(width: max(proxy.size.width * max(zone.percentage, 0.02), zone.duration > 0 ? 10 : 0))
+                }
+            }
+            .frame(height: 14)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(formatDuration(zone.duration))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+                Text("\((zone.percentage * 100).formatted(.number.precision(.fractionLength(0))))%")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.45))
+                    .monospacedDigit()
+            }
+            .frame(width: 64, alignment: .trailing)
+        }
+    }
+}
+
+private struct SimpleMetricChartPoint: Identifiable {
+    let id: String
+    let distanceKilometers: Double
+    let value: Double
+    let segmentIndex: Int?
+
+    init(distanceKilometers: Double, value: Double, segmentIndex: Int?) {
+        self.id = "\(distanceKilometers)-\(segmentIndex ?? -1)"
+        self.distanceKilometers = distanceKilometers
+        self.value = value
+        self.segmentIndex = segmentIndex
+    }
+}
+
+private struct SyncedMetricChartPlot: View {
+    @Binding var selectedDistance: Double?
+    let selectedPoint: SimpleMetricChartPoint?
+    let points: [SimpleMetricChartPoint]
+    let valueRange: ClosedRange<Double>
+    let strideValues: [Double]
+    let maxDistance: Double
+    let tint: Color
+    let showsXAxis: Bool
+
+    var body: some View {
+        Chart {
+            ForEach(points) { point in
+                LineMark(
+                    x: .value("거리", point.distanceKilometers),
+                    y: .value("값", point.value),
+                    series: .value("세그먼트", point.segmentIndex ?? -1)
+                )
+                .foregroundStyle(tint)
+                .lineStyle(StrokeStyle(lineWidth: 2.1, lineCap: .round, lineJoin: .round))
+                .interpolationMethod(.linear)
+            }
+
+            if let selectedPoint {
+                RuleMark(x: .value("선택", selectedPoint.distanceKilometers))
+                    .foregroundStyle(.white.opacity(0.35))
+                    .lineStyle(StrokeStyle(lineWidth: 1.2))
+
+                PointMark(
+                    x: .value("선택값", selectedPoint.distanceKilometers),
+                    y: .value("선택값Y", selectedPoint.value)
+                )
+                .foregroundStyle(tint)
+                .symbolSize(24)
+            }
+        }
+        .chartXSelection(value: $selectedDistance)
+        .chartXScale(domain: 0...max(maxDistance, 0.1))
+        .chartYScale(domain: valueRange.lowerBound...valueRange.upperBound)
+        .chartPlotStyle { plotArea in
+            plotArea.background(.clear)
+        }
+        .chartXAxis {
+            AxisMarks(values: showsXAxis ? strideValues : []) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(.white.opacity(0.12))
+                if showsXAxis {
+                    AxisTick()
+                        .foregroundStyle(.white.opacity(0.35))
+                    AxisValueLabel {
+                        if let distance = value.as(Double.self) {
+                            Text(formatAxisDistance(distance))
+                                .foregroundStyle(.white.opacity(0.68))
+                        }
+                    }
+                }
+            }
+        }
+        .chartYAxis(.hidden)
+    }
+}
+
+private struct AdditionalMetricChart: View {
+    let title: String
+    let tint: Color
+    let yLabel: String
+    let points: [SimpleMetricChartPoint]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                Text(yLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+
+            Chart(points) { point in
+                LineMark(
+                    x: .value("거리", point.distanceKilometers),
+                    y: .value(title, point.value)
+                )
+                .foregroundStyle(tint)
+                .lineStyle(StrokeStyle(lineWidth: 2.1, lineCap: .round, lineJoin: .round))
+            }
+            .frame(height: 140)
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(.white.opacity(0.12))
+                    AxisTick()
+                        .foregroundStyle(.white.opacity(0.35))
+                    AxisValueLabel {
+                        if let distance = value.as(Double.self) {
+                            Text(formatAxisDistance(distance))
+                                .foregroundStyle(.white.opacity(0.68))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(.white.opacity(0.08))
+                    AxisValueLabel {
+                        if let raw = value.as(Double.self) {
+                            Text(raw.formatted(.number.precision(.fractionLength(0))))
+                                .foregroundStyle(.white.opacity(0.45))
+                        }
+                    }
+                }
+            }
+            .chartPlotStyle { plotArea in
+                plotArea.background(.clear)
+            }
+        }
     }
 }
 
@@ -1230,11 +1998,11 @@ private struct DetailSection<Content: View>: View {
 
 private struct SplitTableHeader: View {
     var body: some View {
-        HStack(spacing: 12) {
-            splitColumnTitle("거리", width: 62, alignment: .leading)
-            splitColumnTitle("페이스", width: 92, alignment: .trailing)
-            splitColumnTitle("심박", width: 68, alignment: .trailing)
-            splitColumnTitle("케이던스", width: 76, alignment: .trailing)
+        HStack(spacing: SplitColumnLayout.spacing) {
+            splitColumnTitle("거리", width: SplitColumnLayout.distanceWidth, alignment: .leading)
+            splitColumnTitle("페이스", width: SplitColumnLayout.paceWidth, alignment: .trailing)
+            splitColumnTitle("심박", width: SplitColumnLayout.heartWidth, alignment: .trailing)
+            splitColumnTitle("케이던스", width: SplitColumnLayout.cadenceWidth, alignment: .trailing)
         }
         .padding(.horizontal, 4)
         .padding(.bottom, 10)
@@ -1252,34 +2020,42 @@ private struct SplitTableRow: View {
     let split: RunSplit
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: SplitColumnLayout.spacing) {
             Text(split.titleText)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(.white)
-                .frame(width: 62, alignment: .leading)
+                .frame(width: SplitColumnLayout.distanceWidth, alignment: .leading)
 
             Text(split.paceText)
                 .font(.system(.subheadline, design: .rounded).weight(.bold))
                 .foregroundStyle(.white)
-                .frame(width: 92, alignment: .trailing)
+                .frame(width: SplitColumnLayout.paceWidth, alignment: .trailing)
                 .monospacedDigit()
 
             Text(split.heartRateText)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(split.averageHeartRate == nil ? .white.opacity(0.45) : .white.opacity(0.78))
-                .frame(width: 68, alignment: .trailing)
+                .frame(width: SplitColumnLayout.heartWidth, alignment: .trailing)
                 .monospacedDigit()
 
             Text(split.cadenceText)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(split.averageCadence == nil ? .white.opacity(0.45) : .white.opacity(0.78))
-                .frame(width: 76, alignment: .trailing)
+                .frame(width: SplitColumnLayout.cadenceWidth, alignment: .trailing)
                 .monospacedDigit()
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+private enum SplitColumnLayout {
+    static let spacing: CGFloat = 10
+    static let distanceWidth: CGFloat = 68
+    static let paceWidth: CGFloat = 88
+    static let heartWidth: CGFloat = 72
+    static let cadenceWidth: CGFloat = 82
 }
 
 private struct RouteMapView: View {
@@ -1475,6 +2251,8 @@ private struct SelectedMetrics {
     let elapsed: TimeInterval
     let paceSecondsPerKilometer: Double?
     let heartRate: Double?
+    let cadence: Double?
+    let altitudeMeters: Double?
 
     var distanceKilometers: Double {
         distanceMeters / 1_000
@@ -1504,6 +2282,16 @@ private struct SelectedMetrics {
     var heartRateText: String {
         guard let heartRate else { return "-" }
         return heartRate.formatted(.number.precision(.fractionLength(0))) + " bpm"
+    }
+
+    var cadenceText: String? {
+        guard let cadence else { return nil }
+        return cadence.formatted(.number.precision(.fractionLength(0))) + " spm"
+    }
+
+    var altitudeText: String? {
+        guard let altitudeMeters else { return nil }
+        return altitudeMeters.formatted(.number.precision(.fractionLength(0))) + " m"
     }
 
     func paceScaledForChart(heartRateRange: ClosedRange<Double>, paceRange: ClosedRange<Double>) -> Double? {
@@ -2465,6 +3253,8 @@ private func formatSignedDuration(_ seconds: Double) -> String {
     return sign + formatDuration(abs(seconds))
 }
 
-#Preview {
-    ContentView()
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
 }
