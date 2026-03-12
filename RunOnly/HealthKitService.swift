@@ -25,6 +25,12 @@ final class HealthKitService {
         let vo2MaxType = HKObjectType.quantityType(forIdentifier: .vo2Max)
         let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate)
         let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)
+        let stepCountType = HKObjectType.quantityType(forIdentifier: .stepCount)
+        let runningPowerType = HKObjectType.quantityType(forIdentifier: .runningPower)
+        let runningSpeedType = HKObjectType.quantityType(forIdentifier: .runningSpeed)
+        let strideLengthType = HKObjectType.quantityType(forIdentifier: .runningStrideLength)
+        let verticalOscillationType = HKObjectType.quantityType(forIdentifier: .runningVerticalOscillation)
+        let groundContactTimeType = HKObjectType.quantityType(forIdentifier: .runningGroundContactTime)
         let workoutRouteType = HKSeriesType.workoutRoute()
 
         var readTypes: Set<HKObjectType> = [workoutType, workoutRouteType]
@@ -36,6 +42,24 @@ final class HealthKitService {
         }
         if let distanceType {
             readTypes.insert(distanceType)
+        }
+        if let stepCountType {
+            readTypes.insert(stepCountType)
+        }
+        if let runningPowerType {
+            readTypes.insert(runningPowerType)
+        }
+        if let runningSpeedType {
+            readTypes.insert(runningSpeedType)
+        }
+        if let strideLengthType {
+            readTypes.insert(strideLengthType)
+        }
+        if let verticalOscillationType {
+            readTypes.insert(verticalOscillationType)
+        }
+        if let groundContactTimeType {
+            readTypes.insert(groundContactTimeType)
         }
 
         try await healthStore.requestAuthorization(toShare: [], read: readTypes)
@@ -182,6 +206,32 @@ final class HealthKitService {
         async let routeTask = fetchRoute(for: runningWorkout.workout)
         async let heartRateTask = fetchHeartRates(for: runningWorkout.workout)
         async let distanceTask = fetchDistanceSamples(for: runningWorkout.workout)
+        async let stepCountTask = fetchStepCountSamples(for: runningWorkout.workout)
+        async let runningPowerTask = fetchQuantitySamples(
+            for: runningWorkout.workout,
+            identifier: .runningPower,
+            unit: .watt()
+        )
+        async let runningSpeedTask = fetchQuantitySamples(
+            for: runningWorkout.workout,
+            identifier: .runningSpeed,
+            unit: HKUnit.meter().unitDivided(by: .second())
+        )
+        async let strideLengthTask = fetchQuantitySamples(
+            for: runningWorkout.workout,
+            identifier: .runningStrideLength,
+            unit: .meter()
+        )
+        async let verticalOscillationTask = fetchQuantitySamples(
+            for: runningWorkout.workout,
+            identifier: .runningVerticalOscillation,
+            unit: HKUnit.meterUnit(with: .centi)
+        )
+        async let groundContactTimeTask = fetchQuantitySamples(
+            for: runningWorkout.workout,
+            identifier: .runningGroundContactTime,
+            unit: HKUnit.secondUnit(with: .milli)
+        )
 
         let activeIntervals = buildActiveIntervals(for: runningWorkout.workout)
         let route = try await routeTask
@@ -197,15 +247,29 @@ final class HealthKitService {
             timeline: distanceTimeline,
             activeIntervals: activeIntervals
         )
+        let stepSamples = try await stepCountTask
+        let runningMetrics = buildRunningMetrics(
+            stepSamples: stepSamples,
+            powerSamples: try await runningPowerTask,
+            speedSamples: try await runningSpeedTask,
+            strideLengthSamples: try await strideLengthTask,
+            verticalOscillationSamples: try await verticalOscillationTask,
+            groundContactTimeSamples: try await groundContactTimeTask,
+            timeline: distanceTimeline,
+            activeIntervals: activeIntervals
+        )
 
         return RunDetail(
             route: route,
             distanceTimeline: distanceTimeline,
             heartRates: heartRates,
+            runningMetrics: runningMetrics,
             paceSamples: buildPaceSamples(from: distanceTimeline),
             splits: buildSplits(
                 from: distanceTimeline,
                 heartRates: heartRates,
+                stepSamples: stepSamples,
+                activeIntervals: activeIntervals,
                 totalDistance: runningWorkout.distanceInMeters,
                 totalDuration: runningWorkout.duration
             )
@@ -295,6 +359,7 @@ final class HealthKitService {
                     HeartRateSample(
                         date: $0.startDate,
                         bpm: $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())),
+                        elapsed: nil,
                         distanceMeters: nil,
                         segmentIndex: nil
                     )
@@ -338,6 +403,84 @@ final class HealthKitService {
                 }
 
                 continuation.resume(returning: distanceSamples)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    private func fetchStepCountSamples(for workout: HKWorkout) async throws -> [RawStepSample] {
+        guard let stepCountType = HKObjectType.quantityType(forIdentifier: .stepCount) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForObjects(from: workout)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: stepCountType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let stepSamples = ((samples as? [HKQuantitySample]) ?? []).compactMap { sample -> RawStepSample? in
+                    let stepCount = sample.quantity.doubleValue(for: .count())
+                    guard stepCount > 0, sample.endDate > sample.startDate else { return nil }
+                    return RawStepSample(
+                        startDate: sample.startDate,
+                        endDate: sample.endDate,
+                        count: stepCount
+                    )
+                }
+
+                continuation.resume(returning: stepSamples)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    private func fetchQuantitySamples(
+        for workout: HKWorkout,
+        identifier: HKQuantityTypeIdentifier,
+        unit: HKUnit
+    ) async throws -> [RawQuantitySample] {
+        guard let quantityType = HKObjectType.quantityType(forIdentifier: identifier) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForObjects(from: workout)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: quantityType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let quantitySamples = ((samples as? [HKQuantitySample]) ?? []).compactMap { sample -> RawQuantitySample? in
+                    let value = sample.quantity.doubleValue(for: unit)
+                    guard value.isFinite, sample.endDate > sample.startDate else { return nil }
+                    return RawQuantitySample(
+                        startDate: sample.startDate,
+                        endDate: sample.endDate,
+                        value: value
+                    )
+                }
+
+                continuation.resume(returning: quantitySamples)
             }
 
             healthStore.execute(query)
@@ -390,6 +533,8 @@ final class HealthKitService {
     private func buildSplits(
         from timeline: [DistanceTimelinePoint],
         heartRates: [HeartRateSample],
+        stepSamples: [RawStepSample],
+        activeIntervals: [ActiveInterval],
         totalDistance: Double,
         totalDuration: TimeInterval
     ) -> [RunSplit] {
@@ -421,7 +566,12 @@ final class HealthKitService {
                         duration: splitDuration,
                         averageHeartRate: averageHeartRate(
                             from: heartRates,
-                            range: segmentStartDistance..<nextSplitDistance
+                            elapsedRange: splitStartElapsed..<splitElapsed
+                        ),
+                        averageCadence: averageCadence(
+                            from: stepSamples,
+                            activeIntervals: activeIntervals,
+                            elapsedRange: splitStartElapsed..<splitElapsed
                         )
                     )
                 )
@@ -440,7 +590,12 @@ final class HealthKitService {
                     duration: max(totalDuration - splitStartElapsed, 0),
                     averageHeartRate: averageHeartRate(
                         from: heartRates,
-                        range: Double(splits.count) * 1_000..<totalDistance + 0.5
+                        elapsedRange: splitStartElapsed..<totalDuration + 0.5
+                    ),
+                    averageCadence: averageCadence(
+                        from: stepSamples,
+                        activeIntervals: activeIntervals,
+                        elapsedRange: splitStartElapsed..<totalDuration + 0.5
                     )
                 )
             )
@@ -745,29 +900,245 @@ final class HealthKitService {
 
         return heartRates.compactMap { sample in
             guard let interval = activeInterval(containing: sample.date, activeIntervals: activeIntervals) else { return nil }
-            let distancePoint = timeline
-                .filter { $0.segmentIndex == interval.index }
-                .min(by: {
-                    abs($0.date.timeIntervalSince(sample.date)) < abs($1.date.timeIntervalSince(sample.date))
-                })
+            let distancePoint = nearestTimelinePoint(
+                to: sample.date,
+                segmentIndex: interval.index,
+                timeline: timeline
+            )
 
             return HeartRateSample(
                 date: sample.date,
                 bpm: sample.bpm,
+                elapsed: activeElapsed(at: sample.date, activeIntervals: activeIntervals),
                 distanceMeters: distancePoint?.distanceMeters,
                 segmentIndex: interval.index
             )
         }
     }
 
-    private func averageHeartRate(from heartRates: [HeartRateSample], range: Range<Double>) -> Double? {
+    private func buildRunningMetrics(
+        stepSamples: [RawStepSample],
+        powerSamples: [RawQuantitySample],
+        speedSamples: [RawQuantitySample],
+        strideLengthSamples: [RawQuantitySample],
+        verticalOscillationSamples: [RawQuantitySample],
+        groundContactTimeSamples: [RawQuantitySample],
+        timeline: [DistanceTimelinePoint],
+        activeIntervals: [ActiveInterval]
+    ) -> RunningMetrics {
+        RunningMetrics(
+            cadence: buildCadenceSamples(
+                from: stepSamples,
+                timeline: timeline,
+                activeIntervals: activeIntervals
+            ),
+            power: mapRunningMetricSamples(
+                powerSamples,
+                timeline: timeline,
+                activeIntervals: activeIntervals
+            ),
+            speed: mapRunningMetricSamples(
+                speedSamples,
+                timeline: timeline,
+                activeIntervals: activeIntervals
+            ),
+            strideLength: mapRunningMetricSamples(
+                strideLengthSamples,
+                timeline: timeline,
+                activeIntervals: activeIntervals
+            ),
+            verticalOscillation: mapRunningMetricSamples(
+                verticalOscillationSamples,
+                timeline: timeline,
+                activeIntervals: activeIntervals
+            ),
+            groundContactTime: mapRunningMetricSamples(
+                groundContactTimeSamples,
+                timeline: timeline,
+                activeIntervals: activeIntervals
+            )
+        )
+    }
+
+    private func buildCadenceSamples(
+        from stepSamples: [RawStepSample],
+        timeline: [DistanceTimelinePoint],
+        activeIntervals: [ActiveInterval]
+    ) -> [RunningMetricSample] {
+        guard !timeline.isEmpty else { return [] }
+
+        var samples: [RunningMetricSample] = []
+
+        for stepSample in stepSamples {
+            let stepInterval = DateInterval(start: stepSample.startDate, end: stepSample.endDate)
+            let sampleDuration = stepInterval.duration
+            guard sampleDuration > 0 else { continue }
+
+            let overlaps = activeIntervals.compactMap { interval -> (ActiveInterval, DateInterval)? in
+                guard let overlap = overlapInterval(between: stepInterval, and: interval.dateInterval) else { return nil }
+                return (interval, overlap)
+            }
+
+            for (interval, overlap) in overlaps where overlap.duration > 0 {
+                let cadence = (stepSample.count * (overlap.duration / sampleDuration)) / (overlap.duration / 60)
+                guard cadence.isFinite, cadence > 0 else { continue }
+                let distancePoint = nearestTimelinePoint(
+                    to: overlap.end,
+                    segmentIndex: interval.index,
+                    timeline: timeline
+                )
+
+                samples.append(
+                    RunningMetricSample(
+                        date: overlap.end,
+                        value: cadence,
+                        elapsed: activeElapsed(at: overlap.end, activeIntervals: activeIntervals),
+                        distanceMeters: distancePoint?.distanceMeters,
+                        segmentIndex: interval.index
+                    )
+                )
+            }
+        }
+
+        return normalizedRunningMetricSamples(samples)
+    }
+
+    private func mapRunningMetricSamples(
+        _ samples: [RawQuantitySample],
+        timeline: [DistanceTimelinePoint],
+        activeIntervals: [ActiveInterval]
+    ) -> [RunningMetricSample] {
+        guard !timeline.isEmpty else { return [] }
+
+        var mappedSamples: [RunningMetricSample] = []
+
+        for sample in samples {
+            let sampleInterval = DateInterval(start: sample.startDate, end: sample.endDate)
+            let overlaps = activeIntervals.compactMap { interval -> (ActiveInterval, DateInterval)? in
+                guard let overlap = overlapInterval(between: sampleInterval, and: interval.dateInterval) else { return nil }
+                return (interval, overlap)
+            }
+
+            for (interval, overlap) in overlaps where overlap.duration > 0 {
+                let distancePoint = nearestTimelinePoint(
+                    to: overlap.end,
+                    segmentIndex: interval.index,
+                    timeline: timeline
+                )
+
+                mappedSamples.append(
+                    RunningMetricSample(
+                        date: overlap.end,
+                        value: sample.value,
+                        elapsed: activeElapsed(at: overlap.end, activeIntervals: activeIntervals),
+                        distanceMeters: distancePoint?.distanceMeters,
+                        segmentIndex: interval.index
+                    )
+                )
+            }
+        }
+
+        return normalizedRunningMetricSamples(mappedSamples)
+    }
+
+    private func normalizedRunningMetricSamples(_ samples: [RunningMetricSample]) -> [RunningMetricSample] {
+        samples.sorted { lhs, rhs in
+            if lhs.elapsed == rhs.elapsed {
+                return lhs.date < rhs.date
+            }
+            return (lhs.elapsed ?? .greatestFiniteMagnitude) < (rhs.elapsed ?? .greatestFiniteMagnitude)
+        }
+    }
+
+    private func nearestTimelinePoint(
+        to date: Date,
+        segmentIndex: Int,
+        timeline: [DistanceTimelinePoint]
+    ) -> DistanceTimelinePoint? {
+        timeline
+            .filter { $0.segmentIndex == segmentIndex }
+            .min(by: {
+                abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+            })
+    }
+
+    private func averageHeartRate(from heartRates: [HeartRateSample], elapsedRange: Range<TimeInterval>) -> Double? {
         let values = heartRates.compactMap { sample -> Double? in
-            guard let distanceMeters = sample.distanceMeters, range.contains(distanceMeters) else { return nil }
+            guard let elapsed = sample.elapsed, elapsedRange.contains(elapsed) else { return nil }
             return sample.bpm
         }
 
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +) / Double(values.count)
+    }
+
+    private func averageCadence(
+        from stepSamples: [RawStepSample],
+        activeIntervals: [ActiveInterval],
+        elapsedRange: Range<TimeInterval>
+    ) -> Double? {
+        let dateIntervals = dateIntervals(for: elapsedRange, activeIntervals: activeIntervals)
+        guard !dateIntervals.isEmpty else { return nil }
+
+        var overlappedStepCount: Double = 0
+        var overlappedDuration: TimeInterval = 0
+
+        for stepSample in stepSamples {
+            let stepInterval = DateInterval(start: stepSample.startDate, end: stepSample.endDate)
+            let sampleDuration = stepInterval.duration
+            guard sampleDuration > 0 else { continue }
+
+            for dateInterval in dateIntervals {
+                guard let overlap = overlapInterval(between: stepInterval, and: dateInterval) else { continue }
+                let overlapRatio = overlap.duration / sampleDuration
+                overlappedStepCount += stepSample.count * overlapRatio
+                overlappedDuration += overlap.duration
+            }
+        }
+
+        guard overlappedStepCount > 0, overlappedDuration > 0 else { return nil }
+        return overlappedStepCount / (overlappedDuration / 60)
+    }
+
+    private func dateIntervals(
+        for elapsedRange: Range<TimeInterval>,
+        activeIntervals: [ActiveInterval]
+    ) -> [DateInterval] {
+        guard elapsedRange.upperBound > elapsedRange.lowerBound else { return [] }
+
+        var intervals: [DateInterval] = []
+        var accumulatedElapsed: TimeInterval = 0
+
+        for activeInterval in activeIntervals {
+            let duration = activeInterval.endDate.timeIntervalSince(activeInterval.startDate)
+            let intervalElapsedRange = accumulatedElapsed..<(accumulatedElapsed + duration)
+
+            if let overlap = overlapRange(between: elapsedRange, and: intervalElapsedRange) {
+                intervals.append(
+                    DateInterval(
+                        start: activeInterval.startDate.addingTimeInterval(overlap.lowerBound - accumulatedElapsed),
+                        end: activeInterval.startDate.addingTimeInterval(overlap.upperBound - accumulatedElapsed)
+                    )
+                )
+            }
+
+            accumulatedElapsed += duration
+            if accumulatedElapsed >= elapsedRange.upperBound {
+                break
+            }
+        }
+
+        return intervals
+    }
+
+    private func overlapRange(
+        between lhs: Range<TimeInterval>,
+        and rhs: Range<TimeInterval>
+    ) -> Range<TimeInterval>? {
+        let lowerBound = max(lhs.lowerBound, rhs.lowerBound)
+        let upperBound = min(lhs.upperBound, rhs.upperBound)
+        guard upperBound > lowerBound else { return nil }
+        return lowerBound..<upperBound
     }
 }
 
@@ -781,6 +1152,18 @@ private struct RawDistanceSample {
     let startDate: Date
     let endDate: Date
     let distanceMeters: Double
+}
+
+private struct RawStepSample {
+    let startDate: Date
+    let endDate: Date
+    let count: Double
+}
+
+private struct RawQuantitySample {
+    let startDate: Date
+    let endDate: Date
+    let value: Double
 }
 
 private struct ActiveInterval {

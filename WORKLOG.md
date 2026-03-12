@@ -75,3 +75,47 @@
 ### 다음에 이어서 볼 작업
 - split 평균 심박 표기 버그 수정.
 - 필요하면 Apple Fitness와 상세 숫자 비교를 위한 검증용 디버그 출력 또는 개발자용 진단 화면 추가.
+
+## 2026-03-12
+
+### 상세 계산/표시 추가 수정
+- split 평균 심박 계산을 거리 기준이 아닌 active elapsed 구간 기준으로 변경.
+- 마지막 partial split 표기는 다시 `/km` 페이스 형식으로 원복.
+- km split UI를 막대형에서 표형으로 변경.
+- 이후 `시간` 열은 제거하고 `거리 / 페이스 / 심박 / 케이던스` 4열로 정리.
+
+### 개인 최고기록(PR) 기능 추가
+- 홈 화면에 `400m / 800m / 1K / 5K / 10K / 하프 / 풀` 2열 그리드 추가.
+- 첫 계산 시 전체 러닝을 스캔해 내부 구간 PR까지 계산하도록 구현.
+- 계산 진행률 퍼센티지 표시 추가.
+- 최근 3년 이내 기록은 자동 반영, 3년보다 오래된 더 빠른 기록은 `검토 대기`로 분리.
+- `검토 n건` 관리 화면에서 `유지 / 교체` 선택 가능하도록 구현.
+
+### HealthKit 러닝 메트릭 확장
+- 읽기 권한과 상세 로딩에 다음 항목 추가:
+  - `stepCount`
+  - `runningPower`
+  - `runningSpeed`
+  - `runningStrideLength`
+  - `runningVerticalOscillation`
+  - `runningGroundContactTime`
+- `RunDetail.runningMetrics` 모델 추가.
+- 케이던스는 전용 식별자가 없어 `stepCount` 샘플을 이용해 `spm`으로 계산.
+- split 행에는 평균 케이던스를 표기하도록 연결.
+
+### 디버그/목 데이터 강화
+- 기존 `빈 경로 / 빈 심박 / 빈 상세` 외에 다음 시나리오 추가:
+  - 정상 메트릭
+  - pause 포함
+  - 고급 메트릭 없음
+- 상세 화면의 `테스트 데이터` 메뉴에서 바로 전환 가능하게 구성.
+
+### 사용자 확인 상태
+- PR 카드와 `검토 n건` 동작 확인.
+- split 표 UI와 케이던스 표기 확인.
+- HealthKit 케이던스 수집 확인.
+
+### 검증 메모
+- CLI 빌드는 Swift 단계까지 진행되지만 여전히 simulator runtime 부재로 asset catalog 단계에서 실패.
+- 현재 관찰된 환경 에러:
+  - `No available simulator runtimes for platform iphonesimulator`

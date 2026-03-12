@@ -99,6 +99,12 @@ private struct HomeTabView: View {
                                 vo2MaxSamples: viewModel.vo2MaxSamples,
                                 monthlyMileage: viewModel.monthlyMileage,
                                 yearlyMileage: viewModel.yearlyMileage,
+                                personalRecords: viewModel.personalRecords,
+                                pendingCandidates: viewModel.pendingPersonalRecordCandidates,
+                                isRefreshingPersonalRecords: viewModel.isRefreshingPersonalRecords,
+                                personalRecordProgress: viewModel.personalRecordProgress,
+                                onApproveCandidate: viewModel.approvePersonalRecordCandidate,
+                                onDismissCandidate: viewModel.dismissPersonalRecordCandidate,
                                 showAppleWorkoutOnly: $viewModel.showAppleWorkoutOnly
                             ) {
                                 viewModel.applyFilter()
@@ -254,6 +260,12 @@ private struct DashboardHeader: View {
     let vo2MaxSamples: [VO2MaxSample]
     let monthlyMileage: [MileagePeriod]
     let yearlyMileage: [MileagePeriod]
+    let personalRecords: [PersonalRecordEntry]
+    let pendingCandidates: [PersonalRecordCandidate]
+    let isRefreshingPersonalRecords: Bool
+    let personalRecordProgress: Double?
+    let onApproveCandidate: (PersonalRecordDistance) -> Void
+    let onDismissCandidate: (PersonalRecordDistance) -> Void
     @Binding var showAppleWorkoutOnly: Bool
     let onToggle: () -> Void
 
@@ -304,6 +316,15 @@ private struct DashboardHeader: View {
                 )
             }
             .buttonStyle(.plain)
+
+            PersonalRecordsCard(
+                records: personalRecords,
+                pendingCandidates: pendingCandidates,
+                isRefreshing: isRefreshingPersonalRecords,
+                progress: personalRecordProgress,
+                onApproveCandidate: onApproveCandidate,
+                onDismissCandidate: onDismissCandidate
+            )
 
             Toggle(isOn: $showAppleWorkoutOnly) {
                 Text("Apple 운동 앱 기록만 보기")
@@ -470,6 +491,187 @@ private struct PredictionCell: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.black.opacity(0.18))
+        )
+    }
+}
+
+private struct PersonalRecordsCard: View {
+    let records: [PersonalRecordEntry]
+    let pendingCandidates: [PersonalRecordCandidate]
+    let isRefreshing: Bool
+    let progress: Double?
+    let onApproveCandidate: (PersonalRecordDistance) -> Void
+    let onDismissCandidate: (PersonalRecordDistance) -> Void
+
+    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("최고 기록")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+                Spacer()
+                if !pendingCandidates.isEmpty {
+                    NavigationLink {
+                        PersonalRecordsManagementView(
+                            currentRecords: records,
+                            pendingCandidates: pendingCandidates,
+                            onApproveCandidate: onApproveCandidate,
+                            onDismissCandidate: onDismissCandidate
+                        )
+                    } label: {
+                        Text("검토 \(pendingCandidates.count)건")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(statusText)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+            }
+
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(records) { record in
+                    PersonalRecordCell(record: record)
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+        )
+    }
+
+    private var statusText: String {
+        guard isRefreshing else { return "전체 러닝 기준" }
+        let percent = Int(((progress ?? 0) * 100).rounded())
+        return "계산 중 \(percent)%"
+    }
+}
+
+private struct PersonalRecordCell: View {
+    let record: PersonalRecordEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(record.distance.label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.5))
+            Text(record.valueText)
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(record.detailText)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.black.opacity(0.18))
+        )
+    }
+}
+
+private struct PersonalRecordsManagementView: View {
+    let currentRecords: [PersonalRecordEntry]
+    let pendingCandidates: [PersonalRecordCandidate]
+    let onApproveCandidate: (PersonalRecordDistance) -> Void
+    let onDismissCandidate: (PersonalRecordDistance) -> Void
+
+    private var currentRecordMap: [PersonalRecordDistance: PersonalRecordEntry] {
+        Dictionary(uniqueKeysWithValues: currentRecords.map { ($0.distance, $0) })
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if pendingCandidates.isEmpty {
+                    DetailSection(title: "검토 대기 없음") {
+                        Text("최근 3년보다 오래된 더 빠른 후보 기록이 없습니다.")
+                            .foregroundStyle(.white.opacity(0.72))
+                    }
+                } else {
+                    DetailSection(title: "검토 대기") {
+                        VStack(spacing: 12) {
+                            ForEach(pendingCandidates) { candidate in
+                                PersonalRecordCandidateRow(
+                                    currentRecord: currentRecordMap[candidate.distance],
+                                    candidate: candidate,
+                                    onApprove: { onApproveCandidate(candidate.distance) },
+                                    onDismiss: { onDismissCandidate(candidate.distance) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(AppBackground())
+        .navigationTitle("PR 검토")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct PersonalRecordCandidateRow: View {
+    let currentRecord: PersonalRecordEntry?
+    let candidate: PersonalRecordCandidate
+    let onApprove: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(candidate.distance.label)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                    Text("오래된 기록 후보")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                Spacer()
+                Text(candidate.valueText)
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+            }
+
+            HStack(spacing: 12) {
+                CompactMetricChip(
+                    title: "현재 PR",
+                    value: currentRecord?.valueText ?? "-",
+                    detail: currentRecord?.detailText ?? "기록 없음"
+                )
+                CompactMetricChip(
+                    title: "후보 기록",
+                    value: candidate.valueText,
+                    detail: candidate.detailText
+                )
+            }
+
+            HStack(spacing: 10) {
+                Button("현재 PR 유지", action: onDismiss)
+                    .buttonStyle(.bordered)
+                    .tint(.white.opacity(0.8))
+                Button("이 기록으로 교체", action: onApprove)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.black.opacity(0.18))
         )
     }
@@ -963,17 +1165,20 @@ private struct RunSplitSection: View {
                 Text("스플릿을 계산할 경로 데이터가 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
             } else {
-                VStack(spacing: 10) {
+                VStack(spacing: 0) {
+                    SplitTableHeader()
                     ForEach(detail.splits) { split in
-                        SplitBarRow(split: split, fastestPace: fastestPace)
+                        SplitTableRow(split: split)
+                        if split.id != detail.splits.last?.id {
+                            Divider()
+                                .overlay(Color.white.opacity(0.06))
+                                .padding(.leading, 4)
+                        }
                     }
                 }
+                .padding(.top, 4)
             }
         }
-    }
-
-    private var fastestPace: Double {
-        detail.splits.map(\.paceSecondsPerKilometer).min() ?? 1
     }
 }
 
@@ -1023,45 +1228,57 @@ private struct DetailSection<Content: View>: View {
     }
 }
 
-private struct SplitBarRow: View {
+private struct SplitTableHeader: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            splitColumnTitle("거리", width: 62, alignment: .leading)
+            splitColumnTitle("페이스", width: 92, alignment: .trailing)
+            splitColumnTitle("심박", width: 68, alignment: .trailing)
+            splitColumnTitle("케이던스", width: 76, alignment: .trailing)
+        }
+        .padding(.horizontal, 4)
+        .padding(.bottom, 10)
+    }
+
+    private func splitColumnTitle(_ title: String, width: CGFloat, alignment: Alignment) -> some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.45))
+            .frame(width: width, alignment: alignment)
+    }
+}
+
+private struct SplitTableRow: View {
     let split: RunSplit
-    let fastestPace: Double
 
     var body: some View {
         HStack(spacing: 12) {
             Text(split.titleText)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(.white)
-                .frame(width: 54, alignment: .leading)
+                .frame(width: 62, alignment: .leading)
 
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.06))
-                    Capsule()
-                        .fill(Color(red: 0.30, green: 0.58, blue: 0.95))
-                        .frame(width: barWidth(in: proxy.size.width))
-                }
-            }
-            .frame(height: 18)
+            Text(split.paceText)
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 92, alignment: .trailing)
+                .monospacedDigit()
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(split.paceText)
-                    .font(.system(.subheadline, design: .rounded).weight(.bold))
-                    .foregroundStyle(.white)
-                Text(split.heartRateText)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.55))
-            }
-            .frame(width: 86, alignment: .trailing)
-            .monospacedDigit()
+            Text(split.heartRateText)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(split.averageHeartRate == nil ? .white.opacity(0.45) : .white.opacity(0.78))
+                .frame(width: 68, alignment: .trailing)
+                .monospacedDigit()
+
+            Text(split.cadenceText)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(split.averageCadence == nil ? .white.opacity(0.45) : .white.opacity(0.78))
+                .frame(width: 76, alignment: .trailing)
+                .monospacedDigit()
         }
-    }
-
-    private func barWidth(in totalWidth: CGFloat) -> CGFloat {
-        let ratio = fastestPace / max(split.paceSecondsPerKilometer, fastestPace)
-        let adjusted = 0.28 + (ratio * 0.72)
-        return totalWidth * adjusted
+        .padding(.horizontal, 4)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -1209,6 +1426,16 @@ private struct DebugScenarioPanel: View {
                     await viewModel.applyDebugScenario(.live)
                 }
             }
+            Button("정상 메트릭") {
+                Task {
+                    await viewModel.applyDebugScenario(.completeMetrics)
+                }
+            }
+            Button("pause 포함") {
+                Task {
+                    await viewModel.applyDebugScenario(.pausedWorkout)
+                }
+            }
             Button("빈 경로") {
                 Task {
                     await viewModel.applyDebugScenario(.missingRoute)
@@ -1217,6 +1444,11 @@ private struct DebugScenarioPanel: View {
             Button("빈 심박") {
                 Task {
                     await viewModel.applyDebugScenario(.missingHeartRate)
+                }
+            }
+            Button("고급 메트릭 없음") {
+                Task {
+                    await viewModel.applyDebugScenario(.missingAdvancedMetrics)
                 }
             }
             Button("빈 상세") {

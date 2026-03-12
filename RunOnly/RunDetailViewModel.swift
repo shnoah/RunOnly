@@ -36,8 +36,11 @@ final class RunDetailViewModel: ObservableObject {
 
     enum DebugScenario {
         case live
+        case completeMetrics
+        case pausedWorkout
         case missingRoute
         case missingHeartRate
+        case missingAdvancedMetrics
         case empty
     }
 
@@ -45,10 +48,16 @@ final class RunDetailViewModel: ObservableObject {
         switch scenario {
         case .live:
             await load()
+        case .completeMetrics:
+            state = .loaded(.mockCompleteMetrics)
+        case .pausedWorkout:
+            state = .loaded(.mockPausedWorkout)
         case .missingRoute:
             state = .loaded(.mockMissingRoute)
         case .missingHeartRate:
             state = .loaded(.mockMissingHeartRate)
+        case .missingAdvancedMetrics:
+            state = .loaded(.mockMissingAdvancedMetrics)
         case .empty:
             state = .loaded(.empty)
         }
