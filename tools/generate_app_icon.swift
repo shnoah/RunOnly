@@ -1,6 +1,7 @@
 import AppKit
 
-let outputURL = URL(fileURLWithPath: "/Users/shnoah/Documents/New project/RunOnly/Assets.xcassets/AppIcon.appiconset/Icon-1024.png")
+let outputURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    .appendingPathComponent("RunOnly/Assets.xcassets/AppIcon.appiconset/Icon-1024.png")
 let size = CGSize(width: 1024, height: 1024)
 
 guard
