@@ -1,5 +1,6 @@
 import Charts
 import MapKit
+import Photos
 import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
@@ -3106,11 +3107,11 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
     var canvasSize: CGSize {
         switch self {
         case .sticker:
-            return CGSize(width: 1080, height: 1500)
+            return CGSize(width: 520, height: 860)
         case .square:
             return CGSize(width: 1080, height: 1080)
         case .story:
-            return CGSize(width: 1080, height: 1920)
+            return CGSize(width: 1080, height: 1680)
         }
     }
 
@@ -3127,6 +3128,17 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
 
     func previewHeight(for width: CGFloat) -> CGFloat {
         width * (canvasSize.height / canvasSize.width)
+    }
+
+    var composerPreviewWidth: CGFloat {
+        switch self {
+        case .sticker:
+            return 190
+        case .square:
+            return 208
+        case .story:
+            return 164
+        }
     }
 }
 
@@ -3198,13 +3210,16 @@ private struct RunShareMetric: Identifiable {
     var id: RunShareField { field }
 }
 
+private let runOnlyShareAccent = Color(red: 0.29, green: 0.88, blue: 0.63)
+private let runOnlyShareAccentDark = Color(red: 0.15, green: 0.71, blue: 0.49)
+
 private struct RunShareComposerView: View {
     let run: RunningWorkout
     let detail: RunDetail
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTemplate: RunShareTemplate = .sticker
-    @State private var enabledFields: Set<RunShareField> = [.route, .date, .distance, .duration, .pace, .heartRate]
+    @State private var enabledFields: Set<RunShareField> = [.route, .distance, .duration, .pace]
     @State private var shareItems: [Any] = []
     @State private var showingShareSheet = false
     @State private var exportStatusMessage: String?
@@ -3220,18 +3235,38 @@ private struct RunShareComposerView: View {
     }
 
     private var previewWidth: CGFloat {
-        min(UIScreen.main.bounds.width - 52, 360)
+        min(UIScreen.main.bounds.width - 32, selectedTemplate.composerPreviewWidth)
+    }
+
+    private var previewHeight: CGFloat {
+        selectedTemplate.previewHeight(for: previewWidth)
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    DetailSection(title: "미리보기") {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("미리보기")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                            Spacer()
+                            Text(selectedTemplate.label)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.white.opacity(0.62))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.white.opacity(0.08))
+                                )
+                        }
+
                         ZStack {
                             if selectedTemplate == .sticker {
                                 TransparentPreviewBackground()
-                                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                             }
 
                             RunShareArtworkView(
@@ -3247,15 +3282,25 @@ private struct RunShareComposerView: View {
                             .scaleEffect(previewWidth / selectedTemplate.canvasSize.width, anchor: .topLeading)
                             .frame(
                                 width: previewWidth,
-                                height: selectedTemplate.previewHeight(for: previewWidth),
+                                height: previewHeight,
                                 alignment: .topLeading
                             )
                         }
                         .frame(maxWidth: .infinity)
+                        .frame(height: previewHeight)
                     }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color.white.opacity(0.05))
+                    )
 
-                    DetailSection(title: "템플릿") {
-                        VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("템플릿")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+
                             Picker("공유 템플릿", selection: $selectedTemplate) {
                                 ForEach(RunShareTemplate.allCases) { template in
                                     Text(template.label).tag(template)
@@ -3264,62 +3309,80 @@ private struct RunShareComposerView: View {
                             .pickerStyle(.segmented)
 
                             Text(selectedTemplate.descriptionText)
-                                .font(.footnote)
+                                .font(.caption)
                                 .foregroundStyle(.white.opacity(0.62))
                         }
-                    }
 
-                    DetailSection(title: "포함할 데이터") {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 126), spacing: 10)], spacing: 10) {
-                            ForEach(availableFields) { field in
-                                Button {
-                                    toggleField(field)
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: field.systemImage)
-                                        Text(field.label)
-                                            .lineLimit(1)
-                                    }
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .fill(
-                                                effectiveFields.contains(field)
-                                                    ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.22)
-                                                    : Color.white.opacity(0.06)
-                                            )
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
+                        Divider()
+                            .overlay(Color.white.opacity(0.08))
 
-                    DetailSection(title: "내보내기") {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("투명 스티커는 PNG로 복사하거나 공유 시트로 내보낼 수 있습니다. 앱별로 투명도 처리가 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다.")
-                                .font(.footnote)
-                                .foregroundStyle(.white.opacity(0.72))
+                            Text("포함 데이터")
+                                .font(.headline)
+                                .foregroundStyle(.white)
 
-                            if let exportStatusMessage {
-                                Text(exportStatusMessage)
-                                    .font(.caption)
-                                    .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
-                            }
-
-                            if let exportErrorMessage {
-                                Text(exportErrorMessage)
-                                    .font(.caption)
-                                    .foregroundStyle(.orange)
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
+                                ForEach(availableFields) { field in
+                                    Button {
+                                        toggleField(field)
+                                    } label: {
+                                        HStack(spacing: 7) {
+                                            Image(systemName: field.systemImage)
+                                            Text(field.label)
+                                                .lineLimit(1)
+                                        }
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 10)
+                                        .padding(.horizontal, 10)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                .fill(
+                                                    effectiveFields.contains(field)
+                                                        ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.22)
+                                                        : Color.white.opacity(0.06)
+                                                )
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                .stroke(
+                                                    effectiveFields.contains(field)
+                                                        ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.32)
+                                                        : Color.white.opacity(0.08),
+                                                    lineWidth: 1
+                                                )
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                         }
+
+                        if let exportStatusMessage {
+                            Text(exportStatusMessage)
+                                .font(.caption)
+                                .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                        }
+
+                        if let exportErrorMessage {
+                            Text(exportErrorMessage)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+
+                        Text("투명 스티커는 앱마다 alpha 처리 방식이 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다.")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.58))
                     }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color.white.opacity(0.05))
+                    )
                 }
                 .padding(16)
-                .padding(.bottom, 88)
+                .padding(.bottom, 20)
             }
             .background(AppBackground())
             .navigationTitle("공유 이미지")
@@ -3332,34 +3395,42 @@ private struct RunShareComposerView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    Button {
+                        Task {
+                            await saveToPhotoLibrary()
+                        }
+                    } label: {
+                        shareActionLabel(
+                            title: "저장",
+                            systemImage: "square.and.arrow.down",
+                            foregroundColor: .white,
+                            backgroundColor: Color.white.opacity(0.08)
+                        )
+                    }
+                    .buttonStyle(.plain)
+
                     Button {
                         copyPNGToPasteboard()
                     } label: {
-                        Label("PNG 복사", systemImage: "doc.on.doc")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color.white.opacity(0.08))
-                            )
+                        shareActionLabel(
+                            title: "복사",
+                            systemImage: "doc.on.doc",
+                            foregroundColor: .white,
+                            backgroundColor: Color.white.opacity(0.08)
+                        )
                     }
                     .buttonStyle(.plain)
 
                     Button {
                         shareImage()
                     } label: {
-                        Label("공유", systemImage: "square.and.arrow.up")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.black)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color(red: 0.29, green: 0.88, blue: 0.63))
-                            )
+                        shareActionLabel(
+                            title: "공유",
+                            systemImage: "square.and.arrow.up",
+                            foregroundColor: .black,
+                            backgroundColor: Color(red: 0.29, green: 0.88, blue: 0.63)
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -3382,6 +3453,24 @@ private struct RunShareComposerView: View {
         }
     }
 
+    @ViewBuilder
+    private func shareActionLabel(
+        title: String,
+        systemImage: String,
+        foregroundColor: Color,
+        backgroundColor: Color
+    ) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(foregroundColor)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(backgroundColor)
+            )
+    }
+
     private func shareImage() {
         do {
             let url = try exportShareImageFile()
@@ -3390,6 +3479,7 @@ private struct RunShareComposerView: View {
             exportStatusMessage = "공유용 PNG를 준비했습니다."
             showingShareSheet = true
         } catch {
+            exportStatusMessage = nil
             exportErrorMessage = error.localizedDescription
         }
     }
@@ -3401,6 +3491,26 @@ private struct RunShareComposerView: View {
             exportErrorMessage = nil
             exportStatusMessage = "PNG를 클립보드에 복사했습니다."
         } catch {
+            exportStatusMessage = nil
+            exportErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func saveToPhotoLibrary() async {
+        do {
+            let data = try renderPNGData()
+            let authorizationStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            guard authorizationStatus == .authorized || authorizationStatus == .limited else {
+                exportStatusMessage = nil
+                exportErrorMessage = "사진 앱 저장 권한이 필요합니다."
+                return
+            }
+
+            try await PhotoLibraryPNGWriter.save(data)
+            exportErrorMessage = nil
+            exportStatusMessage = "카메라롤에 PNG를 저장했습니다."
+        } catch {
+            exportStatusMessage = nil
             exportErrorMessage = error.localizedDescription
         }
     }
@@ -3476,11 +3586,33 @@ private struct RunShareComposerView: View {
 
 private enum RunShareExportError: LocalizedError {
     case renderFailed
+    case photoSaveFailed
 
     var errorDescription: String? {
         switch self {
         case .renderFailed:
             return "공유 이미지를 렌더링하지 못했습니다."
+        case .photoSaveFailed:
+            return "사진 앱에 저장하지 못했습니다."
+        }
+    }
+}
+
+private enum PhotoLibraryPNGWriter {
+    static func save(_ data: Data) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetCreationRequest.forAsset()
+                request.addResource(with: .photo, data: data, options: nil)
+            }, completionHandler: { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if success {
+                    continuation.resume(returning: ())
+                } else {
+                    continuation.resume(throwing: RunShareExportError.photoSaveFailed)
+                }
+            })
         }
     }
 }
@@ -3513,110 +3645,110 @@ private struct RunShareArtworkView: View {
         return items
     }
 
-    private var primaryMetric: RunShareMetric? {
-        metrics.first
-    }
-
-    private var secondaryMetrics: [RunShareMetric] {
-        Array(metrics.dropFirst())
-    }
-
     private var routeHeight: CGFloat {
         switch template {
         case .sticker:
-            return 460
+            return 315
         case .square:
-            return 300
+            return 230
         case .story:
-            return 720
+            return 520
         }
     }
 
     private var contentPadding: CGFloat {
         switch template {
         case .sticker:
-            return 50
+            return 24
         case .square:
-            return 48
+            return 40
         case .story:
-            return 62
+            return 48
         }
     }
 
     private var headerBrandFontSize: CGFloat {
         switch template {
         case .sticker:
+            return 18
+        case .square:
             return 20
-        case .square:
-            return 22
         case .story:
-            return 28
+            return 24
         }
     }
 
-    private var headerSubtitleFont: Font {
+    private var metricColumns: [GridItem] {
+        let spacing: CGFloat = template == .sticker ? 8 : 12
+        return Array(repeating: GridItem(.flexible(), spacing: spacing, alignment: .leading), count: 3)
+    }
+
+    private var stickerRouteWidth: CGFloat {
+        472
+    }
+
+    private var metricSpacing: CGFloat {
         switch template {
         case .sticker:
-            return .system(size: 15, weight: .semibold, design: .rounded)
+            return 12
         case .square:
-            return .system(size: 16, weight: .semibold, design: .rounded)
+            return 12
         case .story:
-            return .system(size: 19, weight: .semibold, design: .rounded)
+            return 16
         }
     }
 
-    private var heroLabelFont: Font {
+    private var fallbackMetricFontSize: CGFloat {
         switch template {
         case .sticker:
-            return .system(size: 18, weight: .bold, design: .rounded)
+            return 36
         case .square:
-            return .system(size: 19, weight: .bold, design: .rounded)
+            return 34
         case .story:
-            return .system(size: 22, weight: .bold, design: .rounded)
-        }
-    }
-
-    private var heroValueFontSize: CGFloat {
-        switch template {
-        case .sticker:
-            return 64
-        case .square:
-            return 68
-        case .story:
-            return 84
-        }
-    }
-
-    private var fallbackHeroFontSize: CGFloat {
-        switch template {
-        case .sticker:
-            return 54
-        case .square:
-            return 58
-        case .story:
-            return 72
-        }
-    }
-
-    private var statColumns: [GridItem] {
-        switch template {
-        case .story:
-            return [GridItem(.flexible()), GridItem(.flexible())]
-        case .sticker, .square:
-            return [GridItem(.flexible())]
+            return 40
         }
     }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            if template != .sticker {
-                RunShareTemplateBackground(template: template)
-                    .clipShape(
-                        RoundedRectangle(cornerRadius: template.cornerRadius, style: .continuous)
-                    )
+        Group {
+            if template == .sticker {
+                stickerLayout
+            } else {
+                standardLayout
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
 
-            VStack(alignment: .leading, spacing: template == .story ? 24 : 18) {
+    @ViewBuilder
+    private var header: some View {
+        if template == .sticker {
+            Text("RUNONLY")
+                .font(.system(size: headerBrandFontSize, weight: .heavy, design: .rounded))
+                .foregroundStyle(runOnlyShareAccent)
+                .tracking(1.2)
+                .shadow(color: runOnlyShareAccent.opacity(0.26), radius: 10, y: 2)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            HStack {
+                Text("RUNONLY")
+                    .font(.system(size: headerBrandFontSize, weight: .heavy, design: .rounded))
+                    .foregroundStyle(runOnlyShareAccent)
+                    .tracking(0.8)
+                    .shadow(color: runOnlyShareAccent.opacity(0.26), radius: 10, y: 2)
+                Spacer()
+            }
+        }
+    }
+
+    private var standardLayout: some View {
+        ZStack(alignment: .topLeading) {
+            RunShareTemplateBackground(template: template)
+                .clipShape(
+                    RoundedRectangle(cornerRadius: template.cornerRadius, style: .continuous)
+                )
+
+            VStack(alignment: .leading, spacing: template == .story ? 20 : 14) {
                 header
 
                 if enabledFields.contains(.route) {
@@ -3625,12 +3757,10 @@ private struct RunShareArtworkView: View {
                         .frame(height: routeHeight)
                 }
 
-                heroSection
-
-                if !secondaryMetrics.isEmpty {
-                    LazyVGrid(columns: statColumns, spacing: 14) {
-                        ForEach(secondaryMetrics) { metric in
-                            RunShareStatChip(metric: metric, large: template != .sticker)
+                if !metrics.isEmpty {
+                    LazyVGrid(columns: metricColumns, alignment: .leading, spacing: metricSpacing) {
+                        ForEach(metrics) { metric in
+                            RunShareMetricTile(metric: metric, template: template, centered: false)
                         }
                     }
                 }
@@ -3638,7 +3768,7 @@ private struct RunShareArtworkView: View {
                 if !metaPills.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: template == .story ? 220 : 132), alignment: .leading)], spacing: 10) {
                         ForEach(metaPills, id: \.self) { item in
-                            ShareMetaPill(text: item)
+                            ShareMetaPill(text: item, centered: false)
                         }
                     }
                 }
@@ -3647,61 +3777,43 @@ private struct RunShareArtworkView: View {
             }
             .padding(contentPadding)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    @ViewBuilder
-    private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("RUNONLY")
-                    .font(.system(size: headerBrandFontSize, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Color(red: 1.0, green: 0.40, blue: 0.16))
-                    .tracking(0.8)
-                    .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
-                Text("Share Card")
-                    .font(headerSubtitleFont)
-                    .foregroundStyle(.white.opacity(0.58))
-                    .shadow(color: .black.opacity(0.24), radius: 4, y: 1)
-            }
-            Spacer()
-            if template != .sticker {
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: template == .story ? 24 : 20, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.82))
-            }
-        }
-    }
+    private var stickerLayout: some View {
+        VStack(spacing: 0) {
+            header
+                .padding(.top, 8)
+                .padding(.bottom, 6)
 
-    @ViewBuilder
-    private var heroSection: some View {
-        if let primaryMetric {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(primaryMetric.title.uppercased())
-                    .font(heroLabelFont)
-                    .foregroundStyle(.white.opacity(0.55))
-                    .shadow(color: .black.opacity(0.22), radius: 4, y: 1)
-                Text(primaryMetric.value)
-                    .font(
-                        .system(
-                            size: heroValueFontSize,
-                            weight: .heavy,
-                            design: .rounded
-                        )
-                    )
-                    .foregroundStyle(.white)
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(2)
-                    .shadow(color: .black.opacity(0.34), radius: 10, y: 3)
+            if enabledFields.contains(.route) {
+                RunShareRouteCanvas(route: detail.route)
+                    .frame(width: stickerRouteWidth, height: routeHeight)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.bottom, 18)
             }
-        } else {
-            Text("RUN SHARE")
-                .font(.system(size: fallbackHeroFontSize, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
-                .tracking(0.4)
-                .shadow(color: .black.opacity(0.34), radius: 10, y: 3)
+
+            if !metrics.isEmpty {
+                VStack(spacing: 4) {
+                    ForEach(metrics) { metric in
+                        RunShareMetricTile(metric: metric, template: template, centered: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.bottom, metaPills.isEmpty ? 0 : 10)
+            }
+
+            if !metaPills.isEmpty {
+                VStack(spacing: 4) {
+                    ForEach(metaPills, id: \.self) { item in
+                        ShareMetaPill(text: item, centered: true)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            Spacer(minLength: 0)
         }
+        .padding(contentPadding)
     }
 
     private var metaPills: [String] {
@@ -3754,7 +3866,7 @@ private struct RunShareTemplateBackground: View {
             )
 
             Circle()
-                .fill(Color(red: 1.0, green: 0.40, blue: 0.16).opacity(template == .story ? 0.22 : 0.14))
+                .fill(runOnlyShareAccent.opacity(template == .story ? 0.22 : 0.14))
                 .frame(width: template == .story ? 560 : 320)
                 .blur(radius: 24)
                 .offset(x: 180, y: -220)
@@ -3787,34 +3899,15 @@ private struct RunShareRouteCanvas: View {
                     .stroke(
                         LinearGradient(
                             colors: [
-                                Color(red: 1.0, green: 0.47, blue: 0.12),
-                                Color(red: 1.0, green: 0.34, blue: 0.09)
+                                runOnlyShareAccent,
+                                runOnlyShareAccentDark
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
                         style: StrokeStyle(lineWidth: 14, lineCap: .round, lineJoin: .round)
                     )
-                    .shadow(color: Color(red: 1.0, green: 0.43, blue: 0.16).opacity(0.32), radius: 18, y: 10)
-
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 26, height: 26)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.black.opacity(0.26), lineWidth: 5)
-                        )
-                        .position(projection.startPoint)
-
-                    Circle()
-                        .fill(Color.black)
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            Circle()
-                                .fill(Color(red: 1.0, green: 0.43, blue: 0.16))
-                                .frame(width: 14, height: 14)
-                        )
-                        .position(projection.endPoint)
+                    .shadow(color: runOnlyShareAccent.opacity(0.28), radius: 18, y: 10)
                 } else {
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(Color.white.opacity(0.04))
@@ -3881,54 +3974,44 @@ private struct RouteProjection {
     }
 }
 
-private struct RunShareStatChip: View {
+private struct RunShareMetricTile: View {
     let metric: RunShareMetric
-    let large: Bool
+    let template: RunShareTemplate
+    let centered: Bool
+
+    private var valueFontSize: CGFloat {
+        switch template {
+        case .sticker:
+            return 64
+        case .square:
+            return 38
+        case .story:
+            return 44
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(metric.title)
-                .font(.system(size: large ? 16 : 15, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.68))
-            Text(metric.value)
-                .font(.system(size: large ? 31 : 28, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
-                .monospacedDigit()
-                .minimumScaleFactor(0.8)
-                .lineLimit(2)
-                .shadow(color: .black.opacity(0.24), radius: 6, y: 2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(0.42))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
-                )
-        )
+        Text(metric.value)
+            .font(.system(size: valueFontSize, weight: .heavy, design: .rounded))
+            .foregroundStyle(.white)
+            .monospacedDigit()
+            .minimumScaleFactor(0.4)
+            .lineLimit(1)
+            .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
+        .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
     }
 }
 
 private struct ShareMetaPill: View {
     let text: String
+    let centered: Bool
 
     var body: some View {
         Text(text)
-            .font(.system(size: 16, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(0.86))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 11)
-            .background(
-                Capsule()
-                    .fill(Color.black.opacity(0.34))
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.white.opacity(0.14), lineWidth: 1)
-                    )
-            )
+            .font(.system(size: 14, weight: .semibold, design: .rounded))
+            .foregroundStyle(runOnlyShareAccent.opacity(0.94))
+            .shadow(color: .black.opacity(0.18), radius: 4, y: 1)
+            .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
     }
 }
 
