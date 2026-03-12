@@ -2,6 +2,7 @@ import Foundation
 import HealthKit
 import CoreLocation
 
+// HealthKit을 사용할 수 없는 기기에서 보여줄 공통 오류다.
 enum HealthKitServiceError: Equatable, LocalizedError {
     case notAvailable
 
@@ -13,9 +14,11 @@ enum HealthKitServiceError: Equatable, LocalizedError {
     }
 }
 
+// HealthKit 쿼리와 후처리를 한곳에 모아 ViewModel이 화면 상태 관리에만 집중하게 한다.
 final class HealthKitService {
     private let healthStore = HKHealthStore()
 
+    // 앱이 실제로 사용하는 모든 읽기 권한을 한 번에 요청한다.
     func requestReadAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else {
             throw HealthKitServiceError.notAvailable
@@ -69,6 +72,7 @@ final class HealthKitService {
         try await healthStore.requestAuthorization(toShare: [], read: readTypes)
     }
 
+    // 지정한 기간의 러닝 workout을 최신순으로 읽어 목록 화면에 넘긴다.
     func fetchRunningWorkouts(
         from startDate: Date,
         to endDate: Date,
@@ -104,6 +108,7 @@ final class HealthKitService {
         }
     }
 
+    // 가장 오래된 러닝 날짜는 과거 기록 로딩과 PR 재계산의 시작점이 된다.
     func fetchOldestRunningWorkoutDate() async throws -> Date? {
         guard HKHealthStore.isHealthDataAvailable() else {
             throw HealthKitServiceError.notAvailable
@@ -132,6 +137,7 @@ final class HealthKitService {
         }
     }
 
+    // 홈 화면에는 최신 VO2 Max 한 건만 보여주므로 가장 최근 샘플만 읽는다.
     func fetchLatestVO2Max() async throws -> VO2MaxSample? {
         guard HKHealthStore.isHealthDataAvailable() else {
             throw HealthKitServiceError.notAvailable
@@ -168,6 +174,7 @@ final class HealthKitService {
         }
     }
 
+    // 추세 차트용으로는 최근 2년의 VO2 Max 포인트를 시간순으로 읽는다.
     func fetchVO2MaxSamples(limit: Int = 60) async throws -> [VO2MaxSample] {
         guard HKHealthStore.isHealthDataAvailable() else {
             throw HealthKitServiceError.notAvailable
@@ -206,6 +213,7 @@ final class HealthKitService {
         }
     }
 
+    // 상세 화면은 여러 HealthKit 쿼리를 병렬 실행한 뒤 하나의 RunDetail로 합친다.
     func fetchRunDetail(for runningWorkout: RunningWorkout) async throws -> RunDetail {
         async let routeTask = fetchRoute(for: runningWorkout.workout)
         async let heartRateTask = fetchHeartRates(for: runningWorkout.workout)
@@ -289,6 +297,7 @@ final class HealthKitService {
         )
     }
 
+    // 심박 존 계산은 안정시 심박과 최근 최대 심박이 있으면 그 값을 우선 활용한다.
     private func fetchHeartRateZoneProfile(
         referenceDate: Date,
         observedMaximumHeartRate: Double?
@@ -328,6 +337,7 @@ final class HealthKitService {
         return nil
     }
 
+    // HRR 방식 계산을 위해 최근 안정시 심박 한 건을 가져온다.
     private func fetchLatestRestingHeartRate(before referenceDate: Date) async throws -> Double? {
         guard let restingHeartRateType = HKObjectType.quantityType(forIdentifier: .restingHeartRate) else {
             return nil
@@ -363,6 +373,7 @@ final class HealthKitService {
         }
     }
 
+    // 최근 1년 최대 심박을 구해 심박 존 상한값을 보다 현실적으로 잡는다.
     private func fetchRecentMaximumHeartRate(before referenceDate: Date) async throws -> Double? {
         guard let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) else {
             return nil
@@ -392,6 +403,7 @@ final class HealthKitService {
         }
     }
 
+    // 여러 workout route를 하나의 경로 배열로 모아 지도에 바로 쓸 수 있게 만든다.
     private func fetchRoute(for workout: HKWorkout) async throws -> [RunRoutePoint] {
         let predicate = HKQuery.predicateForObjects(from: workout)
 
@@ -423,6 +435,7 @@ final class HealthKitService {
         return buildRoutePoints(from: sortedPoints)
     }
 
+    // route query는 여러 번 콜백되므로 done 시점까지 좌표를 누적한다.
     private func fetchLocations(for route: HKWorkoutRoute) async throws -> [RawRoutePoint] {
         try await withCheckedThrowingContinuation { continuation in
             var collected: [RawRoutePoint] = []
@@ -452,6 +465,7 @@ final class HealthKitService {
         }
     }
 
+    // 심박은 우선 시간순 원본 배열로 가져온 뒤, 나중에 거리 타임라인에 맞춰 붙인다.
     private func fetchHeartRates(for workout: HKWorkout) async throws -> [HeartRateSample] {
         guard let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) else {
             return []
@@ -489,6 +503,7 @@ final class HealthKitService {
         }
     }
 
+    // 거리 샘플은 페이스/스플릿 계산의 가장 정확한 기준 데이터다.
     private func fetchDistanceSamples(for workout: HKWorkout) async throws -> [RawDistanceSample] {
         guard let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning) else {
             return []
@@ -526,6 +541,7 @@ final class HealthKitService {
         }
     }
 
+    // 걸음 수는 케이던스 계산용 보조 데이터로 사용한다.
     private func fetchStepCountSamples(for workout: HKWorkout) async throws -> [RawStepSample] {
         guard let stepCountType = HKObjectType.quantityType(forIdentifier: .stepCount) else {
             return []
@@ -563,6 +579,7 @@ final class HealthKitService {
         }
     }
 
+    // 파워, 속도, 보폭 등 추가 메트릭은 공통 쿼리 함수 하나로 읽는다.
     private func fetchQuantitySamples(
         for workout: HKWorkout,
         identifier: HKQuantityTypeIdentifier,
@@ -604,6 +621,7 @@ final class HealthKitService {
         }
     }
 
+    // 거리 타임라인에서 일정 간격의 페이스 샘플만 추려 차트 노이즈를 줄인다.
     private func buildPaceSamples(from timeline: [DistanceTimelinePoint]) -> [PaceSample] {
         guard timeline.count > 1 else { return [] }
 
@@ -647,6 +665,7 @@ final class HealthKitService {
         return samples
     }
 
+    // 거리/심박/걸음 수를 조합해 km 스플릿 테이블 데이터를 만든다.
     private func buildSplits(
         from timeline: [DistanceTimelinePoint],
         heartRates: [HeartRateSample],
@@ -721,12 +740,14 @@ final class HealthKitService {
         return splits
     }
 
+    // 지도 경로의 누적 거리는 CoreLocation 거리 계산을 그대로 사용한다.
     private func distance(from start: RunRoutePoint, to end: RunRoutePoint) -> Double {
         let startLocation = CLLocation(latitude: start.latitude, longitude: start.longitude)
         let endLocation = CLLocation(latitude: end.latitude, longitude: end.longitude)
         return startLocation.distance(from: endLocation)
     }
 
+    // 원시 route 포인트에 누적 거리와 고도를 붙여 앱 공용 모델로 정규화한다.
     private func buildRoutePoints(from rawPoints: [RawRoutePoint]) -> [RunRoutePoint] {
         guard let first = rawPoints.first else { return [] }
 
@@ -775,6 +796,7 @@ final class HealthKitService {
         return builtPoints
     }
 
+    // 거리 타임라인은 거리 샘플 우선, 없으면 route 기반 근사값으로 대체한다.
     private func buildDistanceTimeline(
         from distanceSamples: [RawDistanceSample],
         route: [RunRoutePoint],
@@ -802,6 +824,7 @@ final class HealthKitService {
         )
     }
 
+    // HealthKit 거리 샘플이 있을 때 가장 정확한 거리 타임라인을 만든다.
     private func buildDistanceTimeline(
         from samples: [RawDistanceSample],
         activeIntervals: [ActiveInterval]
@@ -849,6 +872,7 @@ final class HealthKitService {
         return monotonicDistanceTimeline(timeline)
     }
 
+    // 거리 샘플이 없을 때는 route 좌표를 시간순으로 사용해 근사 타임라인을 만든다.
     private func buildDistanceTimeline(
         from route: [RunRoutePoint],
         activeIntervals: [ActiveInterval]
@@ -868,6 +892,7 @@ final class HealthKitService {
         return monotonicDistanceTimeline(filteredPoints)
     }
 
+    // 마지막 포인트를 workout 요약 거리/시간과 맞춰 화면 표기값을 일관되게 만든다.
     private func finalizedDistanceTimeline(
         _ timeline: [DistanceTimelinePoint],
         activeIntervals: [ActiveInterval],
@@ -904,6 +929,7 @@ final class HealthKitService {
         return monotonicDistanceTimeline(normalized + [endPoint])
     }
 
+    // 일부 샘플 오차로 거리가 뒤로 가지 않도록 단조 증가 형태로 보정한다.
     private func monotonicDistanceTimeline(_ timeline: [DistanceTimelinePoint]) -> [DistanceTimelinePoint] {
         guard !timeline.isEmpty else { return [] }
 
@@ -954,6 +980,7 @@ final class HealthKitService {
         return result
     }
 
+    // pause/auto-pause가 있는 운동도 정확히 계산하기 위해 활성 구간을 분리한다.
     private func buildActiveIntervals(for workout: HKWorkout) -> [ActiveInterval] {
         let events = (workout.workoutEvents ?? []).sorted { $0.dateInterval.start < $1.dateInterval.start }
         var intervals: [(Date, Date)] = []
@@ -992,6 +1019,7 @@ final class HealthKitService {
         }
     }
 
+    // 특정 시점이 실제 러닝한 누적 시간에서 어디쯤인지 계산한다.
     private func activeElapsed(at date: Date, activeIntervals: [ActiveInterval]) -> TimeInterval {
         var elapsed: TimeInterval = 0
 
@@ -1022,6 +1050,7 @@ final class HealthKitService {
         }
     }
 
+    // 심박 샘플을 가장 가까운 거리 포인트에 붙여 거리 기반 차트에서 재사용한다.
     private func mapHeartRatesToDistanceTimeline(
         _ heartRates: [HeartRateSample],
         timeline: [DistanceTimelinePoint],
@@ -1047,6 +1076,7 @@ final class HealthKitService {
         }
     }
 
+    // 추가 러닝 메트릭도 모두 같은 거리 타임라인 기준으로 맞춘다.
     private func buildRunningMetrics(
         stepSamples: [RawStepSample],
         powerSamples: [RawQuantitySample],
@@ -1273,6 +1303,7 @@ final class HealthKitService {
     }
 }
 
+// Route query 원본 좌표를 잠시 담아두는 중간 구조다.
 private struct RawRoutePoint {
     let latitude: Double
     let longitude: Double
@@ -1280,24 +1311,28 @@ private struct RawRoutePoint {
     let altitudeMeters: Double?
 }
 
+// 거리 샘플 원본은 시작/종료 시점과 누적 거리 계산용 값만 가진다.
 private struct RawDistanceSample {
     let startDate: Date
     let endDate: Date
     let distanceMeters: Double
 }
 
+// 걸음 수 원본 샘플은 cadence 계산 전용 보조 구조다.
 private struct RawStepSample {
     let startDate: Date
     let endDate: Date
     let count: Double
 }
 
+// 추가 러닝 메트릭 원본은 공통 숫자 구조로 통일한다.
 private struct RawQuantitySample {
     let startDate: Date
     let endDate: Date
     let value: Double
 }
 
+// pause/resume를 반영한 실제 활동 구간 하나를 뜻한다.
 private struct ActiveInterval {
     let index: Int
     let startDate: Date

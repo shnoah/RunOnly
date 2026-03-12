@@ -1,5 +1,6 @@
 import Foundation
 
+// 앱에서 지원하는 PR 거리 구간을 한곳에서 정의한다.
 enum PersonalRecordDistance: String, CaseIterable, Codable, Identifiable {
     case meters400
     case meters800
@@ -36,6 +37,7 @@ enum PersonalRecordDistance: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+// 사용자에게 보여줄 확정 PR 한 건을 담는다.
 struct PersonalRecordEntry: Identifiable, Codable {
     let distance: PersonalRecordDistance
     var duration: TimeInterval?
@@ -61,6 +63,7 @@ struct PersonalRecordEntry: Identifiable, Codable {
     }
 }
 
+// 기존 PR을 대체할 수 있는 후보 기록을 담는다.
 struct PersonalRecordCandidate: Identifiable, Codable {
     let distance: PersonalRecordDistance
     var duration: TimeInterval
@@ -78,6 +81,7 @@ struct PersonalRecordCandidate: Identifiable, Codable {
     }
 }
 
+// PR 계산 결과와 처리 이력을 로컬에 저장하기 위한 스냅샷이다.
 struct PersonalRecordSnapshot: Codable {
     var version: Int
     var records: [PersonalRecordEntry]
@@ -96,19 +100,17 @@ struct PersonalRecordSnapshot: Codable {
     }
 }
 
+// HealthKit 파생 데이터는 백업 제외 저장소에 보관해 심사 리스크를 줄인다.
 final class PersonalRecordStore {
-    private let userDefaults: UserDefaults
-    private let snapshotKey = "RunOnly.personalRecords.snapshot"
+    private let snapshotFilename = "personal-records.json"
     let version = 2
 
-    init(userDefaults: UserDefaults = .standard) {
-        self.userDefaults = userDefaults
-    }
-
     func load() -> PersonalRecordSnapshot {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
         guard
-            let data = userDefaults.data(forKey: snapshotKey),
-            let snapshot = try? JSONDecoder().decode(PersonalRecordSnapshot.self, from: data),
+            let snapshot = try? AppStorage.load(PersonalRecordSnapshot.self, from: snapshotFilename, decoder: decoder),
             snapshot.version == version
         else {
             return .empty(version: version)
@@ -118,11 +120,13 @@ final class PersonalRecordStore {
     }
 
     func save(_ snapshot: PersonalRecordSnapshot) {
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        userDefaults.set(data, forKey: snapshotKey)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try? AppStorage.save(snapshot, to: snapshotFilename, encoder: encoder)
     }
 }
 
+// PR 표시는 앱 전반에서 같은 포맷을 쓰도록 공통 함수로 분리한다.
 func formatPersonalRecordDuration(_ duration: TimeInterval) -> String {
     let formatter = DateComponentsFormatter()
     formatter.allowedUnits = duration >= 3_600 ? [.hour, .minute, .second] : [.minute, .second]

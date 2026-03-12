@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 
+// HealthKit workout을 앱 UI에서 쓰기 쉬운 형태로 감싼 모델이다.
 struct RunningWorkout: Identifiable {
     let id: UUID
     let workout: HKWorkout
@@ -61,11 +62,11 @@ struct RunningWorkout: Identifiable {
     var environmentText: String {
         switch isIndoorWorkout {
         case true:
-            return "인도어"
+            return "실내"
         case false:
-            return "아웃도어"
+            return "실외"
         case nil:
-            return "구분 없음"
+            return "미확인"
         }
     }
 
@@ -107,6 +108,7 @@ struct RunningWorkout: Identifiable {
     }()
 }
 
+// 홈 대시보드에 표시할 핵심 요약 수치 묶음이다.
 struct RunningSummary {
     let monthDistanceText: String
     let yearDistanceText: String
@@ -133,11 +135,13 @@ struct RunningSummary {
     )
 }
 
+// VO2 Max 한 점은 값과 측정 날짜만 있으면 충분하다.
 struct VO2MaxSample {
     let value: Double
     let date: Date
 }
 
+// 심박 샘플은 상세 차트와 존 계산에서 함께 사용한다.
 struct HeartRateSample: Identifiable {
     let id = UUID()
     let date: Date
@@ -147,6 +151,7 @@ struct HeartRateSample: Identifiable {
     let segmentIndex: Int?
 }
 
+// 케이던스/파워 같은 러닝 메트릭은 공통 구조로 다룬다.
 struct RunningMetricSample: Identifiable {
     let id = UUID()
     let date: Date
@@ -156,6 +161,7 @@ struct RunningMetricSample: Identifiable {
     let segmentIndex: Int?
 }
 
+// 상세 화면에서 지원하는 러닝 메트릭 모음이다.
 struct RunningMetrics {
     let cadence: [RunningMetricSample]
     let power: [RunningMetricSample]
@@ -174,6 +180,7 @@ struct RunningMetrics {
     )
 }
 
+// 심박 존 계산 기준은 데이터 가용성에 따라 달라진다.
 enum HeartRateZoneMethod: String {
     case heartRateReserve
     case maximumHeartRate
@@ -191,6 +198,7 @@ enum HeartRateZoneMethod: String {
     }
 }
 
+// 심박 존 범위를 계산하기 위해 필요한 사용자 프로필 값이다.
 struct HeartRateZoneProfile {
     let method: HeartRateZoneMethod
     let restingHeartRateBPM: Double?
@@ -212,6 +220,7 @@ struct HeartRateZoneProfile {
     }
 }
 
+// 러닝 상세 화면에 필요한 모든 가공 데이터를 한 번에 묶는다.
 struct RunDetail {
     let route: [RunRoutePoint]
     let distanceTimeline: [DistanceTimelinePoint]
@@ -254,6 +263,7 @@ struct RunDetail {
     )
 }
 
+// 지도에 그릴 경로 포인트는 거리와 고도까지 함께 가진다.
 struct RunRoutePoint: Identifiable {
     let id = UUID()
     let latitude: Double
@@ -277,6 +287,7 @@ struct RunRoutePoint: Identifiable {
     }
 }
 
+// 거리 타임라인은 러닝 전체를 같은 축으로 연결하는 기준선이다.
 struct DistanceTimelinePoint: Identifiable {
     let id: Double
     let date: Date
@@ -293,6 +304,7 @@ struct DistanceTimelinePoint: Identifiable {
     }
 }
 
+// 페이스 샘플은 거리별 페이스 차트를 만들 때 사용한다.
 struct PaceSample: Identifiable {
     let id = UUID()
     let date: Date
@@ -301,6 +313,7 @@ struct PaceSample: Identifiable {
     let segmentIndex: Int
 }
 
+// 스플릿은 구간별 평균값을 테이블에 뿌리기 쉽게 가공한 결과다.
 struct RunSplit: Identifiable {
     let id = UUID()
     let index: Int
@@ -349,6 +362,7 @@ struct RunSplit: Identifiable {
     }
 }
 
+// 월/연 단위 누적 거리 카드 모델이다.
 struct MileagePeriod: Identifiable {
     let id: String
     let title: String
@@ -356,6 +370,7 @@ struct MileagePeriod: Identifiable {
     let distanceText: String
 }
 
+// 신발 정보는 사용자 입력 기반이므로 Codable로 저장한다.
 struct RunningShoe: Identifiable, Codable, Equatable {
     let id: UUID
     var nickname: String
@@ -397,11 +412,13 @@ struct RunningShoe: Identifiable, Codable, Equatable {
     }
 }
 
+// 러닝과 신발 연결 관계를 별도 레코드로 관리한다.
 struct ShoeAssignmentRecord: Codable, Equatable {
     var runID: UUID
     var shoeID: UUID
 }
 
+// 아래 mock 데이터는 개발 중 상세 화면 레이아웃을 점검할 때 사용한다.
 extension RunDetail {
     private static func mockRunningMetrics() -> RunningMetrics {
         RunningMetrics(

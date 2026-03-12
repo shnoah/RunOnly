@@ -196,3 +196,47 @@
 - 현재 CLI 빌드는 Swift 컴파일 단계까지는 통과하며, 최종 실패는 여전히 simulator runtime 부재로 인한 asset catalog 단계 문제.
 - 현재 관찰되는 환경 에러:
   - `No available simulator runtimes for platform iphonesimulator`
+
+## 2026-03-12 (표기 보강 / 훈련 추세 / 신발 백업)
+
+### 표기 일관성 보강
+- 인도어/아웃도어 표기를 화면별로 다르게 쓰던 문제를 정리.
+- 현재는 기록 화면과 상세 화면 모두 `실내 / 실외 / 미확인`으로 통일.
+- VO2 Max 업데이트 날짜도 한국식 짧은 표기(`3월 12일`)로 변경.
+
+### 훈련 추세 설명 화면 추가
+- 홈의 `훈련 추세` 카드를 탭하면 상세 화면으로 진입하도록 변경.
+- 현재 추세 계산은 다음의 단순 거리 기반 규칙을 사용:
+  - 최근 7일 거리
+  - 직전 7일 거리
+  - 최근 7일이 직전 주보다 20% 이상 많으면 `빌드업`
+  - 최근 7일 러닝이 있고 큰 차이가 없으면 `유지`
+  - 최근 7일 러닝이 거의 없으면 `회복`
+- 상세 화면에는 최근 주간 거리 바 차트와 계산 방식 설명을 함께 표시.
+
+### 신발 데이터 import/export 구현
+- 설정 탭의 `신발 데이터` 섹션에 수동 백업/복원 기능 추가.
+- export:
+  - JSON 파일 생성
+  - 포함 범위는 `신발 정보 + 러닝 UUID 연결`
+  - HealthKit 원본 데이터(심박, 경로, 페이스 등)는 제외
+- import:
+  - `병합 가져오기`
+  - `기존 데이터로 교체`
+  두 방식 중 선택 가능
+- 포맷 안정성을 위해 다음 메타데이터 추가:
+  - `schemaVersion`
+  - `appVersion`
+  - `assignmentReference`
+- 예전 단순 백업 JSON도 읽을 수 있도록 legacy decode fallback 추가.
+- 연결 정보는 `HealthKit workout UUID` 기준이라 같은 UUID가 있는 기기에서 가장 잘 복원되도록 안내 문구 추가.
+
+### 테스트 편의 기능
+- 설정 탭에 `기존 신발데이터 삭제` 버튼 추가.
+- 삭제 전 확인 다이얼로그를 띄우고, 삭제 대상이 `신발 정보 + 러닝 연결 정보`이며 HealthKit 원본 러닝은 삭제되지 않음을 명시.
+
+### 빌드/검증 메모
+- 신발 import/export 추가 후 Swift 컴파일 에러는 정리 완료.
+- 현재 CLI 기준 최종 실패는 계속 simulator runtime 부재에 따른 asset catalog 단계 문제.
+- 현재 관찰되는 환경 에러:
+  - `No available simulator runtimes for platform iphonesimulator`

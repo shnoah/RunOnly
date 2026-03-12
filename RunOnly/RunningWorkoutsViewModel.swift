@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 
+// 기록 탭에서 쓰는 월간 요약 정보다.
 struct RecordMonthSummary {
     let monthStart: Date
     let runCount: Int
@@ -10,8 +11,10 @@ struct RecordMonthSummary {
     let weeklyRunFrequency: Double
 }
 
+// 메인 목록과 대시보드에 필요한 러닝 데이터를 로드하고 가공한다.
 @MainActor
 final class RunningWorkoutsViewModel: ObservableObject {
+    // 홈/기록 탭은 이 상태 하나만 보고 화면을 분기한다.
     enum State {
         case idle
         case loading
@@ -53,6 +56,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         selectedRecordDate = nil
     }
 
+    // 최초 진입 시 올해 러닝과 요약 지표를 함께 읽어온다.
     func load() async {
         state = .loading
 
@@ -88,6 +92,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         }
     }
 
+    // 소스 필터가 바뀌면 목록/요약/마일리지를 한 번에 다시 계산한다.
     func applyFilter() {
         let filteredRuns = showAppleWorkoutOnly ? allRuns.filter(\.isAppleWorkout) : allRuns
         summary = Self.buildSummary(from: filteredRuns, vo2Max: latestVO2Max)
@@ -101,6 +106,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         }
     }
 
+    // 기록 탭에서 이전 달 데이터를 요청할 때 필요한 추가 로딩 경로다.
     func loadMoreHistory() async {
         guard !isLoadingMoreHistory, let monthStart = nextHistoryMonthStart else { return }
 
@@ -189,12 +195,14 @@ final class RunningWorkoutsViewModel: ObservableObject {
         selectedRecordMonth < startOfMonth(Date())
     }
 
+    // 달 이동 버튼은 결국 특정 월 선택 로직으로 합류한다.
     func moveRecordMonth(by offset: Int) async {
         guard offset != 0 else { return }
         let targetMonth = Calendar.current.date(byAdding: .month, value: offset, to: selectedRecordMonth) ?? selectedRecordMonth
         await selectRecordMonth(targetMonth)
     }
 
+    // 미래 월로는 이동하지 못하도록 현재 월 상한을 둔다.
     func selectRecordMonth(_ date: Date) async {
         let currentMonthStart = startOfMonth(Date())
         let targetMonth = min(startOfMonth(date), currentMonthStart)
@@ -203,6 +211,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         await ensureRecordMonthAvailable(targetMonth)
     }
 
+    // 날짜 필터는 선택된 월 안에 있을 때만 적용한다.
     func selectRecordDate(_ date: Date?) {
         guard let date else {
             selectedRecordDate = nil
@@ -222,6 +231,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         selectedRecordDate = nil
     }
 
+    // PR은 전체 러닝을 기준으로 계산하되, 이미 처리한 기록은 다시 돌리지 않는다.
     func refreshPersonalRecordsIfNeeded() async {
         guard !isRefreshingPersonalRecords else { return }
         isRefreshingPersonalRecords = true
@@ -267,6 +277,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         }
     }
 
+    // 사용자가 후보 기록을 승인하면 현재 PR 스냅샷을 즉시 갱신한다.
     func approvePersonalRecordCandidate(for distance: PersonalRecordDistance) {
         guard let candidate = pendingPersonalRecordCandidates.first(where: { $0.distance == distance }) else { return }
 
@@ -289,6 +300,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         personalRecordStore.save(personalRecordSnapshot)
     }
 
+    // 후보를 유지하지 않기로 했을 때도 스냅샷에 처리 사실을 남긴다.
     func dismissPersonalRecordCandidate(for distance: PersonalRecordDistance) {
         personalRecordSnapshot.pendingCandidates.removeAll { $0.distance == distance }
         personalRecordSnapshot.updatedAt = .now
@@ -296,6 +308,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         personalRecordStore.save(personalRecordSnapshot)
     }
 
+    // 대시보드의 핵심 숫자와 텍스트 요약을 한 번에 만든다.
     static private func buildSummary(from runs: [RunningWorkout], vo2Max: VO2MaxSample?) -> RunningSummary {
         guard !runs.isEmpty else { return .empty }
 
@@ -341,7 +354,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
             trainingStatus: trainingStatus.0,
             trainingStatusDetail: trainingStatus.1,
             vo2MaxText: vo2Max.map { $0.value.formatted(.number.precision(.fractionLength(1))) } ?? "-",
-            vo2MaxDateText: vo2Max.map { "업데이트 \($0.date.formatted(date: .abbreviated, time: .omitted))" } ?? "VO2 Max 데이터 없음",
+            vo2MaxDateText: vo2Max.map { "업데이트 \(formatShortKoreanDate($0.date))" } ?? "VO2 Max 데이터 없음",
             predicted5KText: predicted5K,
             predicted10KText: predicted10K,
             predictedHalfText: predictedHalf,
@@ -351,6 +364,15 @@ final class RunningWorkoutsViewModel: ObservableObject {
 
     private static func formatDistance(_ kilometers: Double) -> String {
         kilometers.formatted(.number.precision(.fractionLength(1))) + " km"
+    }
+
+    private static func formatShortKoreanDate(_ date: Date) -> String {
+        date.formatted(
+            .dateTime
+                .locale(Locale(identifier: "ko_KR"))
+                .month(.wide)
+                .day()
+        )
     }
 
     private static func predictTime(for targetDistance: Double, from runs: [RunningWorkout]) -> String {

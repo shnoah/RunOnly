@@ -23,7 +23,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>애플워치로 기록된 러닝 workout 데이터를 읽어와 iPhone에서 단순하게 보여주기 위해 필요합니다.</string>
+	<string>러닝 workout, 경로, 심박, 안정시 심박, VO2 Max, 거리/걸음 수와 러닝 메트릭을 읽어와 iPhone에서 러닝 기록을 분석하고 요약하기 위해 필요합니다.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

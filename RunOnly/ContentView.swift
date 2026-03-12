@@ -1,7 +1,9 @@
 import Charts
 import MapKit
 import SwiftUI
+import UniformTypeIdentifiers
 
+// 앱의 메인 탭 구조를 구성하고 공통 상태 객체를 각 탭에 주입한다.
 struct ContentView: View {
     @StateObject private var viewModel = RunningWorkoutsViewModel()
     @StateObject private var shoeStore = ShoeStore()
@@ -45,6 +47,7 @@ struct ContentView: View {
     }
 }
 
+// 홈 탭은 요약 카드와 최근 상태를 빠르게 보는 대시보드 역할을 맡는다.
 private struct HomeTabView: View {
     @ObservedObject var viewModel: RunningWorkoutsViewModel
 
@@ -87,7 +90,7 @@ private struct HomeTabView: View {
                 case .loaded(let runs):
                     ScrollView {
                         VStack(alignment: .leading, spacing: 18) {
-                            Text("RunOnly v0.1")
+                            Text(AppMetadata.displayName)
                                 .font(.subheadline.weight(.bold))
                                 .foregroundStyle(.white)
                                 .tracking(0.2)
@@ -125,6 +128,7 @@ private struct HomeTabView: View {
     }
 }
 
+// 기록 탭은 월/일 기준으로 러닝 목록을 탐색할 수 있게 구성한다.
 private struct RecordTabView: View {
     @ObservedObject var viewModel: RunningWorkoutsViewModel
     @State private var showingCalendar = false
@@ -251,6 +255,7 @@ private struct RecordTabView: View {
     }
 }
 
+// 월 이동과 날짜 필터 진입 버튼을 담는 상단 헤더다.
 private struct RecordMonthHeader: View {
     let monthText: String
     let selectedDateText: String?
@@ -322,6 +327,7 @@ private struct RecordMonthHeader: View {
     }
 }
 
+// 선택한 달의 거리/빈도/시간을 한눈에 보여주는 요약 카드다.
 private struct RecordMonthSummaryCard: View {
     let summary: RecordMonthSummary
 
@@ -346,6 +352,7 @@ private struct RecordMonthSummaryCard: View {
     }
 }
 
+// 달력 시트는 특정 날짜 러닝만 빠르게 필터링할 때 사용한다.
 private struct RecordCalendarSheet: View {
     @ObservedObject var viewModel: RunningWorkoutsViewModel
     @Environment(\.dismiss) private var dismiss
@@ -473,6 +480,7 @@ private struct RecordCalendarSheet: View {
     }
 }
 
+// 하루 셀은 러닝 유무와 선택 상태를 함께 표시한다.
 private struct RecordCalendarDayCell: View {
     let day: Int
     let isSelected: Bool
@@ -534,6 +542,7 @@ private struct RecordCalendarDayCell: View {
     }
 }
 
+// 간단한 텍스트-값 쌍을 보여주는 범용 컴포넌트다.
 private struct MetricView: View {
     let title: String
     let value: String
@@ -550,6 +559,7 @@ private struct MetricView: View {
     }
 }
 
+// 빈 상태와 오류 상태에서 재시도 버튼까지 함께 제공한다.
 private struct StatusView: View {
     let title: String
     let message: String
@@ -573,6 +583,7 @@ private struct StatusView: View {
     }
 }
 
+// 홈 대시보드 상단의 핵심 요약 카드 묶음을 만든다.
 private struct DashboardHeader: View {
     let summary: RunningSummary
     let runs: [RunningWorkout]
@@ -603,7 +614,7 @@ private struct DashboardHeader: View {
 
                     HStack(spacing: 8) {
                         Label("올해 \(summary.yearDistanceText)", systemImage: "figure.run")
-                        Label(summary.trainingStatus, systemImage: "waveform.path.ecg")
+                        Label(summary.trainingStatus, systemImage: "chart.line.uptrend.xyaxis")
                         Spacer()
                         Image(systemName: "chevron.right")
                             .foregroundStyle(.white.opacity(0.45))
@@ -615,7 +626,12 @@ private struct DashboardHeader: View {
             .buttonStyle(.plain)
 
             HStack(spacing: 12) {
-                SummaryCard(title: "트레이닝 상태", value: summary.trainingStatus, detail: summary.trainingStatusDetail)
+                NavigationLink {
+                    TrainingTrendView(runs: runs, summary: summary)
+                } label: {
+                    SummaryCard(title: "훈련 추세", value: summary.trainingStatus, detail: summary.trainingStatusDetail)
+                }
+                .buttonStyle(.plain)
                 NavigationLink {
                     VO2MaxTrendView(samples: vo2MaxSamples)
                 } label: {
@@ -677,6 +693,7 @@ private struct DashboardHeader: View {
     }
 }
 
+// 공통 요약 카드는 대시보드 전반에서 같은 시각 규칙을 유지한다.
 private struct SummaryCard: View {
     let title: String
     let value: String
@@ -704,6 +721,7 @@ private struct SummaryCard: View {
     }
 }
 
+// 차트에서 선택한 지점의 즉시 값을 두 줄 그리드로 보여준다.
 private struct CompactSelectionRow: View {
     let metrics: SelectedMetrics
 
@@ -722,6 +740,7 @@ private struct CompactSelectionRow: View {
     }
 }
 
+// 선택값이 없을 때는 전체 평균값을 대신 노출한다.
 private struct CompactAverageRow: View {
     let averagePaceText: String
     let averageHeartRateText: String
@@ -738,6 +757,7 @@ private struct CompactAverageRow: View {
     }
 }
 
+// 여러 화면에서 재사용하는 작은 메트릭 배지다.
 private struct CompactMetricChip: View {
     let title: String
     let value: String
@@ -769,6 +789,7 @@ private struct CompactMetricChip: View {
     }
 }
 
+// 레이스 거리별 예측 기록을 한 카드 안에 묶는다.
 private struct PredictionSummaryCard: View {
     let predicted5KText: String
     let predicted10KText: String
@@ -802,6 +823,7 @@ private struct PredictionSummaryCard: View {
     }
 }
 
+// 예측 기록 카드의 개별 셀이다.
 private struct PredictionCell: View {
     let title: String
     let value: String
@@ -825,6 +847,7 @@ private struct PredictionCell: View {
     }
 }
 
+// PR 카드에는 현재 기록과 검토 대기 상태를 함께 보여준다.
 private struct PersonalRecordsCard: View {
     let records: [PersonalRecordEntry]
     let pendingCandidates: [PersonalRecordCandidate]
@@ -883,6 +906,7 @@ private struct PersonalRecordsCard: View {
     }
 }
 
+// PR 거리 한 칸을 렌더링한다.
 private struct PersonalRecordCell: View {
     let record: PersonalRecordEntry
 
@@ -911,6 +935,7 @@ private struct PersonalRecordCell: View {
     }
 }
 
+// PR 후보를 승인/유지하는 검토 전용 화면이다.
 private struct PersonalRecordsManagementView: View {
     let currentRecords: [PersonalRecordEntry]
     let pendingCandidates: [PersonalRecordCandidate]
@@ -952,6 +977,7 @@ private struct PersonalRecordsManagementView: View {
     }
 }
 
+// 후보 기록과 현재 기록을 나란히 비교할 수 있게 만든다.
 private struct PersonalRecordCandidateRow: View {
     let currentRecord: PersonalRecordEntry?
     let candidate: PersonalRecordCandidate
@@ -1006,6 +1032,7 @@ private struct PersonalRecordCandidateRow: View {
     }
 }
 
+// 목록 셀 하나에 날짜/거리/페이스/신발 정보를 압축해 담는다.
 private struct RunRowCard: View {
     let run: RunningWorkout
     @EnvironmentObject private var shoeStore: ShoeStore
@@ -1055,6 +1082,7 @@ private struct RunRowCard: View {
     }
 }
 
+// 실내/실외 여부를 한눈에 보이도록 만든 작은 배지다.
 private struct RunEnvironmentBadge: View {
     let text: String
 
@@ -1071,6 +1099,7 @@ private struct RunEnvironmentBadge: View {
     }
 }
 
+// 러닝 핵심 수치를 가볍게 보여주는 작은 카드다.
 private struct RunMetricPill: View {
     let title: String
     let value: String
@@ -1093,6 +1122,7 @@ private struct RunMetricPill: View {
     }
 }
 
+// 러닝 상세 화면은 route, split, 차트, 장비 정보를 순서대로 보여준다.
 private struct RunDetailView: View {
     let run: RunningWorkout
     @StateObject private var viewModel: RunDetailViewModel
@@ -1172,6 +1202,7 @@ private struct RunDetailView: View {
     }
 }
 
+// 경로 데이터가 있으면 지도를, 없으면 안내 문구를 보여준다.
 private struct RunRouteSection: View {
     let detail: RunDetail
 
@@ -1189,6 +1220,7 @@ private struct RunRouteSection: View {
     }
 }
 
+// 페이스/심박/케이던스/고도를 동기화해 보는 핵심 차트 섹션이다.
 private struct PerformanceChartSection: View {
     let run: RunningWorkout
     let detail: RunDetail
@@ -1489,6 +1521,7 @@ private struct PerformanceChartSection: View {
     }
 }
 
+// 선택 거리를 기준으로 페이스 선 그래프를 그린다.
 private struct PaceChartPlot: View {
     let selectedMetrics: SelectedMetrics?
     let selectedPacePoint: PaceChartPoint?
@@ -1557,6 +1590,7 @@ private struct PaceChartPlot: View {
     }
 }
 
+// 심박 그래프도 같은 거리 축을 공유해 상호 비교를 쉽게 만든다.
 private struct HeartRateChartPlot: View {
     let selectedMetrics: SelectedMetrics?
     let selectedHeartPoint: HeartRateChartPoint?
@@ -1627,6 +1661,7 @@ private func formatAxisDistance(_ distance: Double) -> String {
     return distance.formatted(.number.precision(.fractionLength(fractionLength)))
 }
 
+// km 단위 스플릿 표를 렌더링한다.
 private struct RunSplitSection: View {
     let detail: RunDetail
 
@@ -1653,6 +1688,7 @@ private struct RunSplitSection: View {
     }
 }
 
+// 러닝 전체 평균값을 요약해서 상세 상단에 배치한다.
 private struct RunOverviewMetricsSection: View {
     let run: RunningWorkout
     let detail: RunDetail
@@ -1691,6 +1727,7 @@ private struct RunOverviewMetricsSection: View {
     }
 }
 
+// 심박 존은 현재 러닝에서 어느 강도로 뛰었는지 빠르게 확인하는 영역이다.
 private struct HeartRateZoneSection: View {
     let detail: RunDetail
 
@@ -1765,6 +1802,7 @@ private struct HeartRateZoneSection: View {
     }
 }
 
+// 데이터 출처를 노출해 사용자가 어떤 앱에서 기록된 운동인지 확인할 수 있다.
 private struct RunDataSourceSection: View {
     let run: RunningWorkout
 
@@ -1786,6 +1824,7 @@ private struct RunDataSourceSection: View {
     }
 }
 
+// 심박 존 UI에 필요한 가공 데이터를 묶어둔다.
 private struct HeartRateZoneRowModel: Identifiable {
     let id = UUID()
     let title: String
@@ -1796,6 +1835,7 @@ private struct HeartRateZoneRowModel: Identifiable {
     let color: Color
 }
 
+// 심박 존 한 줄은 범위/시간/비율을 동시에 표현한다.
 private struct HeartRateZoneRow: View {
     let zone: HeartRateZoneRowModel
 
@@ -1840,6 +1880,7 @@ private struct HeartRateZoneRow: View {
     }
 }
 
+// 단일 값 시계열 차트를 그릴 때 사용하는 공통 포인트 모델이다.
 private struct SimpleMetricChartPoint: Identifiable {
     let id: String
     let distanceKilometers: Double
@@ -1854,6 +1895,7 @@ private struct SimpleMetricChartPoint: Identifiable {
     }
 }
 
+// 케이던스/고도처럼 단순 수치 차트는 이 컴포넌트를 재사용한다.
 private struct SyncedMetricChartPlot: View {
     @Binding var selectedDistance: Double?
     let selectedPoint: SimpleMetricChartPoint?
@@ -1916,6 +1958,7 @@ private struct SyncedMetricChartPlot: View {
     }
 }
 
+// 추가 보조 차트가 필요할 때 재사용하는 일반 라인 차트다.
 private struct AdditionalMetricChart: View {
     let title: String
     let tint: Color
@@ -1976,6 +2019,7 @@ private struct AdditionalMetricChart: View {
     }
 }
 
+// 화면 곳곳에 쓰는 공통 섹션 카드 래퍼다.
 private struct DetailSection<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
@@ -1996,6 +2040,7 @@ private struct DetailSection<Content: View>: View {
     }
 }
 
+// 스플릿 표 헤더는 거리/페이스/심박/케이던스 열을 고정 폭으로 맞춘다.
 private struct SplitTableHeader: View {
     var body: some View {
         HStack(spacing: SplitColumnLayout.spacing) {
@@ -2016,6 +2061,7 @@ private struct SplitTableHeader: View {
     }
 }
 
+// 스플릿 한 줄은 열 폭을 유지해 가독성을 확보한다.
 private struct SplitTableRow: View {
     let split: RunSplit
 
@@ -2050,6 +2096,7 @@ private struct SplitTableRow: View {
     }
 }
 
+// 표 레이아웃 상수는 숫자 열 정렬이 흔들리지 않도록 분리했다.
 private enum SplitColumnLayout {
     static let spacing: CGFloat = 10
     static let distanceWidth: CGFloat = 68
@@ -2058,6 +2105,7 @@ private enum SplitColumnLayout {
     static let cadenceWidth: CGFloat = 82
 }
 
+// 지도는 시작/종료 지점과 경로 폴리라인만 단순하게 보여준다.
 private struct RouteMapView: View {
     let points: [RunRoutePoint]
     @State private var position: MapCameraPosition = .automatic
@@ -2107,6 +2155,7 @@ private extension RunRoutePoint {
     }
 }
 
+// 페이스 샘플을 화면 친화적인 포인트로 바꾼다.
 private struct PaceChartPoint: Identifiable {
     let id: Double
     let distanceMeters: Double
@@ -2151,6 +2200,7 @@ private struct PaceChartPoint: Identifiable {
     }
 }
 
+// 심박 샘플도 거리 기준 포인트로 정규화해 차트에 쓴다.
 private struct HeartRateChartPoint: Identifiable {
     let id: Double
     let distanceMeters: Double
@@ -2192,6 +2242,7 @@ private struct HeartRateChartPoint: Identifiable {
     }
 }
 
+// 디버그 메뉴는 개발 중에 상세 화면 레이아웃을 빠르게 점검할 때 쓴다.
 private struct DebugScenarioPanel: View {
     @ObservedObject var viewModel: RunDetailViewModel
 
@@ -2246,6 +2297,7 @@ private struct DebugScenarioPanel: View {
     }
 }
 
+// 차트에서 선택한 위치의 여러 메트릭을 한 번에 묶는다.
 private struct SelectedMetrics {
     let distanceMeters: Double
     let elapsed: TimeInterval
@@ -2305,6 +2357,7 @@ private struct SelectedMetrics {
     }
 }
 
+// 예상 기록 계산 공식을 사용자에게 설명하는 보조 화면이다.
 private struct PredictionMethodView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -2346,6 +2399,7 @@ private struct PredictionMethodView: View {
     }
 }
 
+// 신발 연결 섹션은 러닝과 장비를 매칭하는 역할을 맡는다.
 private struct RunGearSection: View {
     let run: RunningWorkout
     @EnvironmentObject private var shoeStore: ShoeStore
@@ -2392,6 +2446,7 @@ private struct RunGearSection: View {
     }
 }
 
+// VO2 Max 추세는 기간별 변화와 최고치를 함께 보여준다.
 private struct VO2MaxTrendView: View {
     let samples: [VO2MaxSample]
     @State private var selectedRange: VO2TrendRange = .oneYear
@@ -2475,6 +2530,7 @@ private struct VO2MaxTrendView: View {
     }
 }
 
+// VO2 Max 차트에서 사용할 기간 필터다.
 private enum VO2TrendRange: String, CaseIterable, Identifiable {
     case sixMonths
     case oneYear
@@ -2499,6 +2555,150 @@ private enum VO2TrendRange: String, CaseIterable, Identifiable {
     }
 }
 
+private struct TrainingTrendView: View {
+    let runs: [RunningWorkout]
+    let summary: RunningSummary
+
+    private var points: [TrainingTrendPoint] {
+        TrainingTrendPoint.build(from: runs)
+    }
+
+    private var latestPoint: TrainingTrendPoint? { points.last }
+    private var previousPoint: TrainingTrendPoint? {
+        guard points.count >= 2 else { return nil }
+        return points[points.count - 2]
+    }
+
+    private var changeText: String {
+        guard let latestPoint, let previousPoint else { return "-" }
+        let delta = latestPoint.distanceKilometers - previousPoint.distanceKilometers
+        let sign = delta > 0 ? "+" : delta < 0 ? "-" : ""
+        return sign + abs(delta).formatted(.number.precision(.fractionLength(1))) + " km"
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    SummaryCard(title: "현재 상태", value: summary.trainingStatus, detail: summary.trainingStatusDetail)
+                    SummaryCard(
+                        title: "최근 7일 거리",
+                        value: latestPoint.map { formatKilometers($0.distanceKilometers) } ?? "-",
+                        detail: latestPoint.map(\.label) ?? "데이터 없음"
+                    )
+                    SummaryCard(
+                        title: "직전 7일 거리",
+                        value: previousPoint.map { formatKilometers($0.distanceKilometers) } ?? "-",
+                        detail: previousPoint.map(\.label) ?? "데이터 없음"
+                    )
+                    SummaryCard(title: "주간 변화", value: changeText, detail: "최근 7일 vs 직전 7일")
+                }
+
+                DetailSection(title: "주간 훈련량") {
+                    if points.isEmpty {
+                        Text("훈련 추세를 계산할 러닝 데이터가 부족합니다.")
+                            .foregroundStyle(.white.opacity(0.72))
+                    } else {
+                        Chart(points) { point in
+                            BarMark(
+                                x: .value("주간", point.label),
+                                y: .value("거리", point.distanceKilometers)
+                            )
+                            .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                            .cornerRadius(6)
+                        }
+                        .frame(height: 220)
+                        .chartYAxis {
+                            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                                    .foregroundStyle(.white.opacity(0.08))
+                                AxisValueLabel {
+                                    if let distance = value.as(Double.self) {
+                                        Text(distance.formatted(.number.precision(.fractionLength(0))) + " km")
+                                            .foregroundStyle(.white.opacity(0.45))
+                                    }
+                                }
+                            }
+                        }
+                        .chartXAxis {
+                            AxisMarks(values: .automatic) { value in
+                                AxisTick()
+                                    .foregroundStyle(.white.opacity(0.35))
+                                AxisValueLabel {
+                                    if let label = value.as(String.self) {
+                                        Text(label)
+                                            .foregroundStyle(.white.opacity(0.68))
+                                    }
+                                }
+                            }
+                        }
+                        .chartPlotStyle { plotArea in
+                            plotArea.background(.clear)
+                        }
+                    }
+                }
+
+                DetailSection(title: "계산 방식") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("훈련 추세는 최근 7일 러닝 거리와 직전 7일 러닝 거리를 비교해 계산합니다.")
+                        Text("최근 7일 거리가 직전 7일보다 20% 이상 많으면 `빌드업`으로 표시합니다.")
+                        Text("최근 7일에 러닝이 있고 20% 이상 차이가 나지 않으면 `유지`로 표시합니다.")
+                        Text("최근 7일 러닝이 거의 없으면 `회복`으로 표시합니다.")
+                        Text("지금은 거리 기반의 간단한 추세 지표라 강도, 심박, 파워는 반영하지 않습니다.")
+                    }
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.82))
+                }
+            }
+            .padding(16)
+        }
+        .background(AppBackground())
+        .navigationTitle("훈련 추세")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct TrainingTrendPoint: Identifiable {
+    let id: Date
+    let startDate: Date
+    let endDate: Date
+    let distanceKilometers: Double
+
+    var label: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "M/d"
+        return formatter.string(from: startDate)
+    }
+
+    static func build(from runs: [RunningWorkout], weeks: Int = 8) -> [TrainingTrendPoint] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let firstWeekStart = calendar.date(byAdding: .day, value: -(weeks * 7) + 1, to: today) else { return [] }
+
+        return (0..<weeks).compactMap { offset in
+            guard
+                let startDate = calendar.date(byAdding: .day, value: offset * 7, to: firstWeekStart),
+                let endDate = calendar.date(byAdding: .day, value: 7, to: startDate)
+            else {
+                return nil
+            }
+
+            let distanceKilometers = runs
+                .filter { $0.startDate >= startDate && $0.startDate < endDate }
+                .reduce(0) { $0 + $1.distanceInKilometers }
+
+            return TrainingTrendPoint(
+                id: startDate,
+                startDate: startDate,
+                endDate: endDate,
+                distanceKilometers: distanceKilometers
+            )
+        }
+    }
+}
+
+// 예상 기록 추세 화면은 거리별 최근 러닝 폼을 요약한다.
 private struct PredictionTrendView: View {
     let runs: [RunningWorkout]
     @State private var selectedDistance: PredictionDistance = .fiveK
@@ -2603,6 +2803,7 @@ private struct PredictionTrendView: View {
     }
 }
 
+// 5K/10K/하프/풀 거리 필터를 정의한다.
 private enum PredictionDistance: String, CaseIterable, Identifiable {
     case fiveK
     case tenK
@@ -2630,6 +2831,7 @@ private enum PredictionDistance: String, CaseIterable, Identifiable {
     }
 }
 
+// 예측 추세 차트에서 한 점은 특정 날짜의 최적 예측값을 뜻한다.
 private struct PredictionTrendPoint: Identifiable, Equatable {
     let id = UUID()
     let date: Date
@@ -2655,6 +2857,7 @@ private struct PredictionTrendPoint: Identifiable, Equatable {
     }
 }
 
+// 신발 탭은 등록된 러닝화와 누적 사용량을 관리한다.
 private struct ShoesTabView: View {
     let runs: [RunningWorkout]
     @EnvironmentObject private var shoeStore: ShoeStore
@@ -2706,11 +2909,17 @@ private struct ShoesTabView: View {
     }
 }
 
+// 설정 탭은 권한 설명, 저장 정책, 법적 고지, 지원 경로를 모아둔다.
 private struct SettingsTabView: View {
     @EnvironmentObject private var shoeStore: ShoeStore
     @EnvironmentObject private var appSettings: AppSettingsStore
     @State private var backupURL: URL?
     @State private var backupErrorMessage: String?
+    @State private var backupStatusMessage: String?
+    @State private var showingImportOptions = false
+    @State private var showingBackupImporter = false
+    @State private var showingDeleteShoeDataConfirmation = false
+    @State private var selectedImportStrategy: ShoeImportStrategy = .merge
 
     var body: some View {
         NavigationStack {
@@ -2735,13 +2944,40 @@ private struct SettingsTabView: View {
                         }
                     }
 
+                    DetailSection(title: "정책 및 지원") {
+                        VStack(spacing: 12) {
+                            NavigationLink {
+                                PrivacyPolicyView()
+                            } label: {
+                                SettingLinkRow(
+                                    systemImage: "lock.doc.fill",
+                                    title: "개인정보처리방침",
+                                    detail: "앱이 읽는 데이터와 저장 방식을 확인합니다."
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            NavigationLink {
+                                SupportCenterView()
+                            } label: {
+                                SettingLinkRow(
+                                    systemImage: "envelope.fill",
+                                    title: "지원 및 문의",
+                                    detail: "문의 메일과 저장소 링크를 확인합니다."
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
                     DetailSection(title: "신발 데이터") {
                         VStack(spacing: 14) {
-                            SettingInfoRow(title: "저장 위치", value: "iPhone 내부(UserDefaults)")
-                            SettingInfoRow(title: "자동 백업", value: "iCloud/Finder 기기 백업에 포함될 수 있음")
+                            SettingInfoRow(title: "저장 위치", value: "iPhone 내부 전용 저장소")
+                            SettingInfoRow(title: "자동 백업", value: "자동 iCloud/Finder 백업 제외")
                             SettingInfoRow(title: "기기 간 자동 동기화", value: "현재 지원 안 함")
+                            SettingInfoRow(title: "백업 포함 범위", value: "신발 정보 + 러닝 UUID 연결")
 
-                            Text("현재 신발 데이터는 앱 내부에 JSON 형태로 저장됩니다. iPhone의 일반 백업에는 포함될 수 있지만, iCloud 동기화처럼 다른 기기로 자동 전파되지는 않습니다.")
+                            Text("백업 파일에는 신발 이름, 브랜드/모델, 시작 거리, 목표 수명, 생성일과 러닝 UUID 연결만 들어갑니다. 심박, 경로, 페이스 같은 HealthKit 원본 데이터는 포함되지 않습니다. 러닝 연결은 같은 HealthKit workout UUID가 있는 기기에서 가장 잘 복원됩니다.")
                                 .font(.footnote)
                                 .foregroundStyle(.white.opacity(0.62))
 
@@ -2749,6 +2985,7 @@ private struct SettingsTabView: View {
                                 do {
                                     backupURL = try shoeStore.exportBackupFile()
                                     backupErrorMessage = nil
+                                    backupStatusMessage = "백업 파일을 준비했습니다."
                                 } catch {
                                     backupErrorMessage = error.localizedDescription
                                 }
@@ -2768,6 +3005,42 @@ private struct SettingsTabView: View {
                             }
                             .buttonStyle(.plain)
 
+                            Button {
+                                showingImportOptions = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "square.and.arrow.down")
+                                    Text("신발 데이터 가져오기")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(Color.white.opacity(0.08))
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            Button(role: .destructive) {
+                                showingDeleteShoeDataConfirmation = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "trash")
+                                    Text("기존 신발데이터 삭제")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.red)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(Color.red.opacity(0.10))
+                                )
+                            }
+                            .buttonStyle(.plain)
+
                             if let backupURL {
                                 ShareLink(item: backupURL) {
                                     HStack {
@@ -2781,6 +3054,12 @@ private struct SettingsTabView: View {
                                 }
                             }
 
+                            if let backupStatusMessage {
+                                Text(backupStatusMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                            }
+
                             if let backupErrorMessage {
                                 Text(backupErrorMessage)
                                     .font(.caption)
@@ -2790,8 +3069,19 @@ private struct SettingsTabView: View {
                     }
 
                     DetailSection(title: "데이터 및 권한") {
-                        VStack(spacing: 14) {
-                            SettingInfoRow(title: "읽는 데이터", value: "러닝 workout / 심박 / VO2 Max / 경로")
+                        VStack(alignment: .leading, spacing: 14) {
+                            SettingInfoRow(title: "권한", value: "HealthKit 읽기")
+                            SettingInfoRow(title: "네트워크 업로드", value: "없음")
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("읽는 데이터")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.72))
+                                ForEach(AppMetadata.healthDataSummaryItems, id: \.self) { item in
+                                    Text("• \(item)")
+                                        .font(.footnote)
+                                        .foregroundStyle(.white.opacity(0.78))
+                                }
+                            }
                             Text("이 앱은 Apple 건강 데이터 중 러닝과 관련된 항목만 읽습니다. 현재는 서버 업로드 없이 기기 안에서만 표시합니다.")
                                 .font(.footnote)
                                 .foregroundStyle(.white.opacity(0.62))
@@ -2801,7 +3091,7 @@ private struct SettingsTabView: View {
                     DetailSection(title: "고지") {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("이 앱은 러닝 기록을 보기 쉽게 정리하는 용도이며, 의료적 판단이나 진단을 위한 앱이 아닙니다.")
-                            Text("VO2 Max, 예상 기록, 트레이닝 상태는 참고용 추정치이며 실제 경기력과 다를 수 있습니다.")
+                            Text("VO2 Max, 예상 기록, 훈련 추세는 참고용 추정치이며 실제 경기력과 다를 수 있습니다.")
                         }
                         .font(.footnote)
                         .foregroundStyle(.white.opacity(0.66))
@@ -2809,8 +3099,9 @@ private struct SettingsTabView: View {
 
                     DetailSection(title: "앱 정보") {
                         VStack(spacing: 14) {
-                            SettingInfoRow(title: "앱 이름", value: "RunOnly")
-                            SettingInfoRow(title: "버전", value: "RunOnly v0.1")
+                            SettingInfoRow(title: "앱 이름", value: AppMetadata.displayName)
+                            SettingInfoRow(title: "버전", value: AppMetadata.versionText)
+                            SettingInfoRow(title: "지원 메일", value: AppMetadata.supportEmail)
                         }
                     }
                 }
@@ -2819,10 +3110,160 @@ private struct SettingsTabView: View {
             .background(AppBackground())
             .navigationTitle("설정")
             .navigationBarTitleDisplayMode(.large)
+            .confirmationDialog("가져오기 방식", isPresented: $showingImportOptions, titleVisibility: .visible) {
+                Button("병합 가져오기") {
+                    selectedImportStrategy = .merge
+                    showingBackupImporter = true
+                }
+                Button("기존 데이터로 교체", role: .destructive) {
+                    selectedImportStrategy = .replace
+                    showingBackupImporter = true
+                }
+                Button("취소", role: .cancel) {}
+            } message: {
+                Text("병합은 같은 ID만 갱신하고 나머지는 유지합니다. 교체는 현재 신발 데이터와 연결 정보를 백업 파일 내용으로 바꿉니다.")
+            }
+            .confirmationDialog("기존 신발데이터 삭제", isPresented: $showingDeleteShoeDataConfirmation, titleVisibility: .visible) {
+                Button("삭제", role: .destructive) {
+                    shoeStore.clearAllData()
+                    backupURL = nil
+                    backupErrorMessage = nil
+                    backupStatusMessage = "기존 신발데이터를 삭제했습니다."
+                }
+                Button("취소", role: .cancel) {}
+            } message: {
+                Text("등록한 신발 정보와 러닝 연결 정보가 모두 삭제됩니다. HealthKit 원본 러닝 데이터는 삭제되지 않습니다.")
+            }
+            .fileImporter(
+                isPresented: $showingBackupImporter,
+                allowedContentTypes: [UTType.json],
+                allowsMultipleSelection: false
+            ) { result in
+                do {
+                    guard let url = try result.get().first else { return }
+                    let summary = try shoeStore.importBackupFile(from: url, strategy: selectedImportStrategy)
+                    backupErrorMessage = nil
+                    backupStatusMessage = summary.message
+                    backupURL = nil
+                } catch {
+                    backupErrorMessage = error.localizedDescription
+                }
+            }
         }
     }
 }
 
+// 개인정보처리방침은 앱 안에서도 바로 읽을 수 있게 별도 화면으로 제공한다.
+private struct PrivacyPolicyView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                DetailSection(title: "개요") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("\(AppMetadata.displayName)은 Apple 건강의 러닝 데이터를 iPhone에서 분석하고 보기 쉽게 정리하는 앱입니다.")
+                        Text("계정 생성, 광고 추적, 외부 분석 SDK 없이 동작하며, 현재는 서버로 데이터를 업로드하지 않습니다.")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.78))
+                }
+
+                DetailSection(title: "읽는 건강 데이터") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(AppMetadata.healthDataSummaryItems, id: \.self) { item in
+                            Text("• \(item)")
+                        }
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.78))
+                }
+
+                DetailSection(title: "저장 및 보호") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("신발 데이터, 설정값, PR 계산 결과 같은 보조 데이터는 기기 내부 저장소에만 저장됩니다.")
+                        Text("HealthKit에서 읽은 원본 데이터를 서버로 복제하지 않으며, 앱이 저장하는 보조 파일은 자동 클라우드 백업 대상에서 제외됩니다.")
+                        Text("신발 백업 파일은 사용자가 직접 공유 버튼을 눌렀을 때만 외부 앱으로 전달됩니다.")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.78))
+                }
+
+                DetailSection(title: "문의") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Link("지원 메일 보내기", destination: AppMetadata.supportMailURL)
+                            .font(.subheadline.weight(.semibold))
+                        Link("프로젝트 저장소 열기", destination: AppMetadata.repositoryURL)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+                }
+            }
+            .padding(16)
+        }
+        .background(AppBackground())
+        .navigationTitle("개인정보처리방침")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// 지원 화면은 문의 방법과 전달하면 좋은 정보를 함께 안내한다.
+private struct SupportCenterView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                DetailSection(title: "문의 방법") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Link("메일로 문의하기", destination: AppMetadata.supportMailURL)
+                            .font(.subheadline.weight(.semibold))
+                        Link("프로젝트 저장소 열기", destination: AppMetadata.repositoryURL)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+                }
+
+                DetailSection(title: "함께 보내주면 좋은 정보") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("• 사용 중인 iPhone 모델과 iOS 버전")
+                        Text("• 문제가 발생한 러닝 날짜와 화면")
+                        Text("• 재현 순서와 스크린샷")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.78))
+                }
+            }
+            .padding(16)
+        }
+        .background(AppBackground())
+        .navigationTitle("지원 및 문의")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// 설정 화면의 링크 행은 텍스트와 방향 표시를 함께 그린다.
+private struct SettingLinkRow: View {
+    let systemImage: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .foregroundStyle(.white.opacity(0.38))
+        }
+    }
+}
+
+// 설정 정보의 제목/값 행은 긴 값도 줄바꿈해서 표시할 수 있게 만든다.
 private struct SettingInfoRow: View {
     let title: String
     let value: String
@@ -2841,6 +3282,7 @@ private struct SettingInfoRow: View {
     }
 }
 
+// 신발 목록 카드 하나는 누적 거리와 교체까지 남은 거리를 요약한다.
 private struct ShoeSummaryCard: View {
     let shoe: RunningShoe
     let distanceKilometers: Double
@@ -2891,6 +3333,7 @@ private struct ShoeSummaryCard: View {
     }
 }
 
+// 신발 상세 화면은 연결된 러닝 목록과 현재 사용량을 보여준다.
 private struct ShoeDetailView: View {
     let shoe: RunningShoe
     let runs: [RunningWorkout]
@@ -2968,6 +3411,7 @@ private struct ShoeDetailView: View {
     }
 }
 
+// 신발 추가/수정 폼은 최소 정보만 받아 빠르게 관리할 수 있게 한다.
 private struct AddShoeView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var shoeStore: ShoeStore
@@ -3047,13 +3491,13 @@ private struct AddShoeView: View {
     }
 }
 
+// 신발 정보와 러닝 매핑은 별도 파일에 저장해 자동 백업 대상에서 제외한다.
 @MainActor
 final class ShoeStore: ObservableObject {
     @Published private(set) var shoes: [RunningShoe] = []
     @Published private(set) var assignments: [ShoeAssignmentRecord] = []
 
-    private let shoesKey = "runonly.shoes"
-    private let assignmentsKey = "runonly.shoeAssignments"
+    private let storageFilename = "shoe-store.json"
 
     init() {
         load()
@@ -3083,6 +3527,12 @@ final class ShoeStore: ObservableObject {
         save()
     }
 
+    func clearAllData() {
+        shoes = []
+        assignments = []
+        save()
+    }
+
     func distance(for shoeID: UUID, runs allRuns: [RunningWorkout]) -> Double {
         self.runs(for: shoeID, in: allRuns).reduce(0) { $0 + $1.distanceInKilometers }
     }
@@ -3097,7 +3547,14 @@ final class ShoeStore: ObservableObject {
     }
 
     func exportBackupFile() throws -> URL {
-        let payload = ShoeBackupPayload(exportedAt: .now, shoes: shoes, assignments: assignments)
+        let payload = ShoeBackupPayload(
+            schemaVersion: ShoeBackupPayload.currentSchemaVersion,
+            exportedAt: .now,
+            appVersion: AppMetadata.versionText,
+            assignmentReference: "healthkit_workout_uuid",
+            shoes: shoes,
+            assignments: assignments
+        )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -3111,36 +3568,174 @@ final class ShoeStore: ObservableObject {
         return url
     }
 
-    private func load() {
-        let decoder = JSONDecoder()
-        if let data = UserDefaults.standard.data(forKey: shoesKey),
-           let decodedShoes = try? decoder.decode([RunningShoe].self, from: data) {
-            shoes = decodedShoes
+    func importBackupFile(from url: URL, strategy: ShoeImportStrategy) throws -> ShoeImportSummary {
+        let didAccessSecurityScopedResource = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccessSecurityScopedResource {
+                url.stopAccessingSecurityScopedResource()
+            }
         }
 
-        if let data = UserDefaults.standard.data(forKey: assignmentsKey),
-           let decodedAssignments = try? decoder.decode([ShoeAssignmentRecord].self, from: data) {
-            assignments = decodedAssignments
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let payload: ShoeBackupPayload
+        if let decoded = try? decoder.decode(ShoeBackupPayload.self, from: data) {
+            payload = decoded
+        } else if let legacyPayload = try? decoder.decode(LegacyShoeBackupPayload.self, from: data) {
+            payload = ShoeBackupPayload(
+                schemaVersion: 0,
+                exportedAt: legacyPayload.exportedAt,
+                appVersion: "legacy",
+                assignmentReference: "healthkit_workout_uuid",
+                shoes: legacyPayload.shoes,
+                assignments: legacyPayload.assignments
+            )
+        } else {
+            throw CocoaError(.fileReadCorruptFile)
         }
+
+        guard payload.schemaVersion <= ShoeBackupPayload.currentSchemaVersion else {
+            throw ShoeBackupError.unsupportedSchemaVersion(payload.schemaVersion)
+        }
+
+        let importedShoes = deduplicatedShoes(payload.shoes)
+        guard !importedShoes.isEmpty else {
+            throw ShoeBackupError.emptyBackup
+        }
+
+        let validShoeIDs = Set(importedShoes.map(\.id))
+        let importedAssignments = deduplicatedAssignments(
+            payload.assignments.filter { validShoeIDs.contains($0.shoeID) }
+        )
+
+        switch strategy {
+        case .replace:
+            shoes = importedShoes
+            assignments = importedAssignments
+        case .merge:
+            var shoeMap = Dictionary(uniqueKeysWithValues: shoes.map { ($0.id, $0) })
+            for shoe in importedShoes {
+                shoeMap[shoe.id] = shoe
+            }
+
+            var assignmentMap = Dictionary(uniqueKeysWithValues: assignments.map { ($0.runID, $0) })
+            for assignment in importedAssignments {
+                assignmentMap[assignment.runID] = assignment
+            }
+
+            let mergedShoes = deduplicatedShoes(Array(shoeMap.values))
+            let mergedShoeIDs = Set(mergedShoes.map(\.id))
+            shoes = mergedShoes
+            assignments = deduplicatedAssignments(
+                Array(assignmentMap.values).filter { mergedShoeIDs.contains($0.shoeID) }
+            )
+        }
+
+        save()
+        return ShoeImportSummary(
+            strategy: strategy,
+            shoeCount: importedShoes.count,
+            assignmentCount: importedAssignments.count
+        )
+    }
+
+    private func load() {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        guard let snapshot = try? AppStorage.load(ShoeStoreSnapshot.self, from: storageFilename, decoder: decoder) else {
+            shoes = []
+            assignments = []
+            return
+        }
+
+        shoes = snapshot.shoes
+        assignments = snapshot.assignments
     }
 
     private func save() {
         let encoder = JSONEncoder()
-        if let data = try? encoder.encode(shoes) {
-            UserDefaults.standard.set(data, forKey: shoesKey)
+        encoder.dateEncodingStrategy = .iso8601
+        let snapshot = ShoeStoreSnapshot(shoes: shoes, assignments: assignments)
+        try? AppStorage.save(snapshot, to: storageFilename, encoder: encoder)
+    }
+
+    private func deduplicatedShoes(_ shoes: [RunningShoe]) -> [RunningShoe] {
+        let unique = Dictionary(uniqueKeysWithValues: shoes.map { ($0.id, $0) })
+        return unique.values.sorted { lhs, rhs in
+            if lhs.createdAt == rhs.createdAt {
+                return lhs.displayName < rhs.displayName
+            }
+            return lhs.createdAt > rhs.createdAt
         }
-        if let data = try? encoder.encode(assignments) {
-            UserDefaults.standard.set(data, forKey: assignmentsKey)
-        }
+    }
+
+    private func deduplicatedAssignments(_ assignments: [ShoeAssignmentRecord]) -> [ShoeAssignmentRecord] {
+        let unique = Dictionary(uniqueKeysWithValues: assignments.map { ($0.runID, $0) })
+        return Array(unique.values).sorted { $0.runID.uuidString < $1.runID.uuidString }
     }
 }
 
+// 수동 백업 파일은 공유용 JSON 포맷으로 만든다.
 private struct ShoeBackupPayload: Codable {
+    static let currentSchemaVersion = 1
+
+    let schemaVersion: Int
+    let exportedAt: Date
+    let appVersion: String
+    let assignmentReference: String
+    let shoes: [RunningShoe]
+    let assignments: [ShoeAssignmentRecord]
+}
+
+private struct LegacyShoeBackupPayload: Codable {
     let exportedAt: Date
     let shoes: [RunningShoe]
     let assignments: [ShoeAssignmentRecord]
 }
 
+enum ShoeImportStrategy {
+    case merge
+    case replace
+}
+
+struct ShoeImportSummary {
+    let strategy: ShoeImportStrategy
+    let shoeCount: Int
+    let assignmentCount: Int
+
+    var message: String {
+        switch strategy {
+        case .merge:
+            return "신발 \(shoeCount)개와 연결 \(assignmentCount)건을 병합했습니다."
+        case .replace:
+            return "신발 \(shoeCount)개와 연결 \(assignmentCount)건으로 교체했습니다."
+        }
+    }
+}
+
+private enum ShoeBackupError: LocalizedError {
+    case unsupportedSchemaVersion(Int)
+    case emptyBackup
+
+    var errorDescription: String? {
+        switch self {
+        case .unsupportedSchemaVersion(let version):
+            return "이 백업 파일은 더 새로운 형식(v\(version))이라 현재 앱에서 가져올 수 없습니다."
+        case .emptyBackup:
+            return "가져올 신발 데이터가 없습니다."
+        }
+    }
+}
+
+// 내부 저장용 스냅샷은 신발과 연결 정보를 한 번에 다룬다.
+private struct ShoeStoreSnapshot: Codable {
+    let shoes: [RunningShoe]
+    let assignments: [ShoeAssignmentRecord]
+}
+
+// 앱 설정은 비민감 값만 UserDefaults에 저장한다.
 @MainActor
 final class AppSettingsStore: ObservableObject {
     @Published var defaultAppleOnlyFilter: Bool {
@@ -3159,6 +3754,7 @@ final class AppSettingsStore: ObservableObject {
     }
 }
 
+// 모든 탭이 같은 분위기를 유지하도록 공통 배경을 분리했다.
 private struct AppBackground: View {
     var body: some View {
         LinearGradient(
@@ -3173,6 +3769,7 @@ private struct AppBackground: View {
     }
 }
 
+// 마일리지 화면은 월별/연별 누적 거리를 한곳에 모아 보여준다.
 private struct MileageBreakdownView: View {
     let monthlyMileage: [MileagePeriod]
     let yearlyMileage: [MileagePeriod]
@@ -3201,6 +3798,7 @@ private struct MileageBreakdownView: View {
     }
 }
 
+// 월간/연간 기간 카드 목록을 같은 컴포넌트로 재사용한다.
 private struct MileageSection: View {
     let title: String
     let periods: [MileagePeriod]
@@ -3253,6 +3851,7 @@ private func formatSignedDuration(_ seconds: Double) -> String {
     return sign + formatDuration(abs(seconds))
 }
 
+// 미리보기는 앱 루트 화면만 빠르게 점검할 때 사용한다.
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
