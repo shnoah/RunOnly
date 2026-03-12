@@ -2,17 +2,20 @@ import Charts
 import MapKit
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 // 앱의 메인 탭 구조를 구성하고 공통 상태 객체를 각 탭에 주입한다.
 struct ContentView: View {
     @StateObject private var viewModel = RunningWorkoutsViewModel()
     @StateObject private var shoeStore = ShoeStore()
     @StateObject private var appSettings = AppSettingsStore()
+    @StateObject private var mileageGoalStore = MileageGoalStore()
 
     var body: some View {
         TabView {
             HomeTabView(viewModel: viewModel)
                 .environmentObject(shoeStore)
+                .environmentObject(mileageGoalStore)
                 .tabItem {
                     Label("홈", systemImage: "house.fill")
                 }
@@ -97,11 +100,10 @@ private struct HomeTabView: View {
                                 .padding(.horizontal, 20)
 
                             DashboardHeader(
+                                viewModel: viewModel,
                                 summary: viewModel.summary,
                                 runs: runs,
                                 vo2MaxSamples: viewModel.vo2MaxSamples,
-                                monthlyMileage: viewModel.monthlyMileage,
-                                yearlyMileage: viewModel.yearlyMileage,
                                 personalRecords: viewModel.personalRecords,
                                 pendingCandidates: viewModel.pendingPersonalRecordCandidates,
                                 isRefreshingPersonalRecords: viewModel.isRefreshingPersonalRecords,
@@ -585,11 +587,10 @@ private struct StatusView: View {
 
 // 홈 대시보드 상단의 핵심 요약 카드 묶음을 만든다.
 private struct DashboardHeader: View {
+    @ObservedObject var viewModel: RunningWorkoutsViewModel
     let summary: RunningSummary
     let runs: [RunningWorkout]
     let vo2MaxSamples: [VO2MaxSample]
-    let monthlyMileage: [MileagePeriod]
-    let yearlyMileage: [MileagePeriod]
     let personalRecords: [PersonalRecordEntry]
     let pendingCandidates: [PersonalRecordCandidate]
     let isRefreshingPersonalRecords: Bool
@@ -598,11 +599,13 @@ private struct DashboardHeader: View {
     let onDismissCandidate: (PersonalRecordDistance) -> Void
     @Binding var showAppleWorkoutOnly: Bool
     let onToggle: () -> Void
+    @EnvironmentObject private var mileageGoalStore: MileageGoalStore
+    @State private var showingGoalEditor = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             NavigationLink {
-                MileageBreakdownView(monthlyMileage: monthlyMileage, yearlyMileage: yearlyMileage)
+                MileageBreakdownView(viewModel: viewModel)
             } label: {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("이번달")
@@ -622,6 +625,16 @@ private struct DashboardHeader: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.82))
                 }
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                showingGoalEditor = true
+            } label: {
+                GoalMileageCard(
+                    currentDistanceKilometers: summary.monthDistanceKilometers,
+                    goalKilometers: mileageGoalStore.monthlyGoalKilometers
+                )
             }
             .buttonStyle(.plain)
 
@@ -671,6 +684,12 @@ private struct DashboardHeader: View {
                 onToggle()
             }
         }
+        .sheet(isPresented: $showingGoalEditor) {
+            MileageGoalEditorView(currentDistanceKilometers: summary.monthDistanceKilometers)
+                .environmentObject(mileageGoalStore)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -718,6 +737,180 @@ private struct SummaryCard: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(Color.white.opacity(0.06))
         )
+    }
+}
+
+private struct GoalMileageCard: View {
+    let currentDistanceKilometers: Double
+    let goalKilometers: Double
+
+    private var progress: Double {
+        guard goalKilometers > 0 else { return 0 }
+        return min(currentDistanceKilometers / goalKilometers, 1)
+    }
+
+    private var headlineText: String {
+        "\(currentDistanceKilometers.formatted(.number.precision(.fractionLength(1)))) / \(goalKilometers.formatted(.number.precision(.fractionLength(0)))) km"
+    }
+
+    private var statusText: String {
+        let remaining = goalKilometers - currentDistanceKilometers
+        if remaining > 0 {
+            return "\(remaining.formatted(.number.precision(.fractionLength(1)))) km 남음"
+        }
+        return "\(abs(remaining).formatted(.number.precision(.fractionLength(1)))) km 초과 달성"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("목표 마일리지", systemImage: "target")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.65))
+                Spacer()
+                Text("탭해서 수정")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+            }
+
+            Text(headlineText)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+
+            ProgressView(value: progress)
+                .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+
+            HStack {
+                Text(statusText)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.76))
+                Spacer()
+                Text(Date().formatted(.dateTime.locale(Locale(identifier: "ko_KR")).month(.wide)))
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+        )
+    }
+}
+
+private struct MileageGoalEditorView: View {
+    let currentDistanceKilometers: Double
+    @EnvironmentObject private var mileageGoalStore: MileageGoalStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var draftGoalKilometers: Double = 60
+    @State private var didLoadInitialValue = false
+
+    private let presetGoals: [Double] = [40, 60, 80, 100, 150]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        SummaryCard(
+                            title: "이번달 진행",
+                            value: formatKilometers(currentDistanceKilometers),
+                            detail: "현재 누적 거리"
+                        )
+                        SummaryCard(
+                            title: "설정 목표",
+                            value: formatKilometers(draftGoalKilometers),
+                            detail: goalStatusText
+                        )
+                    }
+
+                    DetailSection(title: "월간 목표 설정") {
+                        VStack(alignment: .leading, spacing: 14) {
+                            TextField(
+                                "월간 목표 거리 (km)",
+                                value: $draftGoalKilometers,
+                                format: .number.precision(.fractionLength(0...1))
+                            )
+                            .keyboardType(.decimalPad)
+                            .textFieldStyle(.roundedBorder)
+
+                            Stepper(
+                                value: $draftGoalKilometers,
+                                in: 10...500,
+                                step: 5
+                            ) {
+                                Text("5 km 단위로 조정")
+                                    .foregroundStyle(.white.opacity(0.78))
+                            }
+                            .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+
+                            Text("빠른 선택")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.72))
+
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 72))], spacing: 10) {
+                                ForEach(presetGoals, id: \.self) { goal in
+                                    Button {
+                                        draftGoalKilometers = goal
+                                    } label: {
+                                        Text("\(Int(goal)) km")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 10)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                    .fill(goal == roundedGoal ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.22) : Color.white.opacity(0.06))
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+
+                            Text("목표는 현재 달 전체에 공통으로 적용됩니다. 나중에 월별 개별 목표나 연간 목표로 확장할 수 있습니다.")
+                                .font(.footnote)
+                                .foregroundStyle(.white.opacity(0.58))
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .background(AppBackground())
+            .navigationTitle("목표 마일리지")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("취소") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("저장") {
+                        mileageGoalStore.monthlyGoalKilometers = max(draftGoalKilometers, 1)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .onAppear {
+            guard !didLoadInitialValue else { return }
+            draftGoalKilometers = mileageGoalStore.monthlyGoalKilometers
+            didLoadInitialValue = true
+        }
+    }
+
+    private var roundedGoal: Double {
+        draftGoalKilometers.rounded()
+    }
+
+    private var goalStatusText: String {
+        let remaining = draftGoalKilometers - currentDistanceKilometers
+        if remaining > 0 {
+            return "\(remaining.formatted(.number.precision(.fractionLength(1)))) km 남음"
+        }
+        return "이미 달성"
     }
 }
 
@@ -1126,7 +1319,7 @@ private struct RunMetricPill: View {
 private struct RunDetailView: View {
     let run: RunningWorkout
     @StateObject private var viewModel: RunDetailViewModel
-    @EnvironmentObject private var shoeStore: ShoeStore
+    @State private var showingShareComposer = false
 
     init(run: RunningWorkout) {
         self.run = run
@@ -1196,9 +1389,33 @@ private struct RunDetailView: View {
             .ignoresSafeArea()
         )
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if loadedDetail != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingShareComposer = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
         .task {
             await viewModel.loadIfNeeded()
         }
+        .sheet(isPresented: $showingShareComposer) {
+            if let loadedDetail {
+                RunShareComposerView(
+                    run: run,
+                    detail: loadedDetail
+                )
+            }
+        }
+    }
+
+    private var loadedDetail: RunDetail? {
+        guard case .loaded(let detail) = viewModel.state else { return nil }
+        return detail
     }
 }
 
@@ -2857,6 +3074,899 @@ private struct PredictionTrendPoint: Identifiable, Equatable {
     }
 }
 
+private enum RunShareTemplate: String, CaseIterable, Identifiable {
+    case sticker
+    case square
+    case story
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .sticker:
+            return "스티커"
+        case .square:
+            return "정사각형"
+        case .story:
+            return "스토리"
+        }
+    }
+
+    var descriptionText: String {
+        switch self {
+        case .sticker:
+            return "투명 배경 PNG로 복사/공유하기 좋습니다."
+        case .square:
+            return "피드용 카드에 가까운 정사각형 이미지입니다."
+        case .story:
+            return "세로 비율이 긴 스토리형 포스터입니다."
+        }
+    }
+
+    var canvasSize: CGSize {
+        switch self {
+        case .sticker:
+            return CGSize(width: 1080, height: 1500)
+        case .square:
+            return CGSize(width: 1080, height: 1080)
+        case .story:
+            return CGSize(width: 1080, height: 1920)
+        }
+    }
+
+    var cornerRadius: CGFloat {
+        switch self {
+        case .sticker:
+            return 0
+        case .square:
+            return 34
+        case .story:
+            return 0
+        }
+    }
+
+    func previewHeight(for width: CGFloat) -> CGFloat {
+        width * (canvasSize.height / canvasSize.width)
+    }
+}
+
+private enum RunShareField: String, CaseIterable, Identifiable {
+    case route
+    case date
+    case environment
+    case distance
+    case duration
+    case pace
+    case heartRate
+    case cadence
+    case shoe
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .route:
+            return "경로"
+        case .date:
+            return "날짜"
+        case .environment:
+            return "실내/실외"
+        case .distance:
+            return "거리"
+        case .duration:
+            return "시간"
+        case .pace:
+            return "페이스"
+        case .heartRate:
+            return "심박"
+        case .cadence:
+            return "케이던스"
+        case .shoe:
+            return "신발"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .route:
+            return "point.topleft.down.curvedto.point.bottomright.up"
+        case .date:
+            return "calendar"
+        case .environment:
+            return "figure.run"
+        case .distance:
+            return "ruler"
+        case .duration:
+            return "timer"
+        case .pace:
+            return "speedometer"
+        case .heartRate:
+            return "heart.fill"
+        case .cadence:
+            return "metronome"
+        case .shoe:
+            return "shoeprints.fill"
+        }
+    }
+}
+
+private struct RunShareMetric: Identifiable {
+    let field: RunShareField
+    let title: String
+    let value: String
+
+    var id: RunShareField { field }
+}
+
+private struct RunShareComposerView: View {
+    let run: RunningWorkout
+    let detail: RunDetail
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedTemplate: RunShareTemplate = .sticker
+    @State private var enabledFields: Set<RunShareField> = [.route, .date, .distance, .duration, .pace, .heartRate]
+    @State private var shareItems: [Any] = []
+    @State private var showingShareSheet = false
+    @State private var exportStatusMessage: String?
+    @State private var exportErrorMessage: String?
+    private let hiddenFields: Set<RunShareField> = [.environment, .shoe]
+
+    private var availableFields: [RunShareField] {
+        RunShareField.allCases.filter { !hiddenFields.contains($0) && isFieldAvailable($0) }
+    }
+
+    private var effectiveFields: Set<RunShareField> {
+        enabledFields.intersection(Set(availableFields))
+    }
+
+    private var previewWidth: CGFloat {
+        min(UIScreen.main.bounds.width - 52, 360)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    DetailSection(title: "미리보기") {
+                        ZStack {
+                            if selectedTemplate == .sticker {
+                                TransparentPreviewBackground()
+                                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                            }
+
+                            RunShareArtworkView(
+                                run: run,
+                                detail: detail,
+                                template: selectedTemplate,
+                                enabledFields: effectiveFields
+                            )
+                            .frame(
+                                width: selectedTemplate.canvasSize.width,
+                                height: selectedTemplate.canvasSize.height
+                            )
+                            .scaleEffect(previewWidth / selectedTemplate.canvasSize.width, anchor: .topLeading)
+                            .frame(
+                                width: previewWidth,
+                                height: selectedTemplate.previewHeight(for: previewWidth),
+                                alignment: .topLeading
+                            )
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    DetailSection(title: "템플릿") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Picker("공유 템플릿", selection: $selectedTemplate) {
+                                ForEach(RunShareTemplate.allCases) { template in
+                                    Text(template.label).tag(template)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Text(selectedTemplate.descriptionText)
+                                .font(.footnote)
+                                .foregroundStyle(.white.opacity(0.62))
+                        }
+                    }
+
+                    DetailSection(title: "포함할 데이터") {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 126), spacing: 10)], spacing: 10) {
+                            ForEach(availableFields) { field in
+                                Button {
+                                    toggleField(field)
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: field.systemImage)
+                                        Text(field.label)
+                                            .lineLimit(1)
+                                    }
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .fill(
+                                                effectiveFields.contains(field)
+                                                    ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.22)
+                                                    : Color.white.opacity(0.06)
+                                            )
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    DetailSection(title: "내보내기") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("투명 스티커는 PNG로 복사하거나 공유 시트로 내보낼 수 있습니다. 앱별로 투명도 처리가 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다.")
+                                .font(.footnote)
+                                .foregroundStyle(.white.opacity(0.72))
+
+                            if let exportStatusMessage {
+                                Text(exportStatusMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                            }
+
+                            if let exportErrorMessage {
+                                Text(exportErrorMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+                .padding(.bottom, 88)
+            }
+            .background(AppBackground())
+            .navigationTitle("공유 이미지")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("닫기") {
+                        dismiss()
+                    }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                HStack(spacing: 12) {
+                    Button {
+                        copyPNGToPasteboard()
+                    } label: {
+                        Label("PNG 복사", systemImage: "doc.on.doc")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color.white.opacity(0.08))
+                            )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        shareImage()
+                    } label: {
+                        Label("공유", systemImage: "square.and.arrow.up")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color(red: 0.29, green: 0.88, blue: 0.63))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 14)
+                .background(.ultraThinMaterial)
+            }
+            .sheet(isPresented: $showingShareSheet) {
+                ShareSheet(activityItems: shareItems)
+            }
+        }
+    }
+
+    private func toggleField(_ field: RunShareField) {
+        if effectiveFields.contains(field) {
+            enabledFields.remove(field)
+        } else {
+            enabledFields.insert(field)
+        }
+    }
+
+    private func shareImage() {
+        do {
+            let url = try exportShareImageFile()
+            shareItems = [url]
+            exportErrorMessage = nil
+            exportStatusMessage = "공유용 PNG를 준비했습니다."
+            showingShareSheet = true
+        } catch {
+            exportErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func copyPNGToPasteboard() {
+        do {
+            let data = try renderPNGData()
+            UIPasteboard.general.setItems([[UTType.png.identifier: data]])
+            exportErrorMessage = nil
+            exportStatusMessage = "PNG를 클립보드에 복사했습니다."
+        } catch {
+            exportErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func exportShareImageFile() throws -> URL {
+        let data = try renderPNGData()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmm"
+        let filename = "RunOnly-Share-\(formatter.string(from: run.startDate))-\(selectedTemplate.rawValue).png"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
+    private func renderPNGData() throws -> Data {
+        let size = selectedTemplate.canvasSize
+        let content = RunShareArtworkView(
+            run: run,
+            detail: detail,
+            template: selectedTemplate,
+            enabledFields: effectiveFields
+        )
+        .frame(width: size.width, height: size.height)
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 1
+
+        guard let image = renderer.uiImage, let data = image.pngData() else {
+            throw RunShareExportError.renderFailed
+        }
+
+        return data
+    }
+
+    private func isFieldAvailable(_ field: RunShareField) -> Bool {
+        switch field {
+        case .route:
+            return !detail.route.isEmpty
+        case .heartRate:
+            return averageHeartRateText != nil
+        case .cadence:
+            return averageCadenceText != nil
+        case .shoe, .environment:
+            return false
+        case .date, .distance, .duration, .pace:
+            return true
+        }
+    }
+
+    private var averageHeartRateText: String? {
+        guard !detail.heartRates.isEmpty else { return nil }
+        let average = detail.heartRates.map(\.bpm).reduce(0, +) / Double(detail.heartRates.count)
+        return average.formatted(.number.precision(.fractionLength(0))) + " bpm"
+    }
+
+    private var averageCadenceText: String? {
+        let weightedCadence = detail.splits.reduce(into: (weighted: 0.0, duration: 0.0)) { partial, split in
+            guard let cadence = split.averageCadence else { return }
+            partial.weighted += cadence * split.duration
+            partial.duration += split.duration
+        }
+
+        if weightedCadence.duration > 0 {
+            let average = weightedCadence.weighted / weightedCadence.duration
+            return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+        }
+
+        guard !detail.runningMetrics.cadence.isEmpty else { return nil }
+        let average = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
+        return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+    }
+}
+
+private enum RunShareExportError: LocalizedError {
+    case renderFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .renderFailed:
+            return "공유 이미지를 렌더링하지 못했습니다."
+        }
+    }
+}
+
+private struct RunShareArtworkView: View {
+    let run: RunningWorkout
+    let detail: RunDetail
+    let template: RunShareTemplate
+    let enabledFields: Set<RunShareField>
+
+    private var metrics: [RunShareMetric] {
+        var items: [RunShareMetric] = []
+
+        if enabledFields.contains(.distance) {
+            items.append(RunShareMetric(field: .distance, title: "거리", value: run.distanceText))
+        }
+        if enabledFields.contains(.duration) {
+            items.append(RunShareMetric(field: .duration, title: "시간", value: run.durationText))
+        }
+        if enabledFields.contains(.pace) {
+            items.append(RunShareMetric(field: .pace, title: "페이스", value: run.paceText))
+        }
+        if enabledFields.contains(.heartRate), let averageHeartRateText {
+            items.append(RunShareMetric(field: .heartRate, title: "평균 심박", value: averageHeartRateText))
+        }
+        if enabledFields.contains(.cadence), let averageCadenceText {
+            items.append(RunShareMetric(field: .cadence, title: "평균 케이던스", value: averageCadenceText))
+        }
+
+        return items
+    }
+
+    private var primaryMetric: RunShareMetric? {
+        metrics.first
+    }
+
+    private var secondaryMetrics: [RunShareMetric] {
+        Array(metrics.dropFirst())
+    }
+
+    private var routeHeight: CGFloat {
+        switch template {
+        case .sticker:
+            return 460
+        case .square:
+            return 300
+        case .story:
+            return 720
+        }
+    }
+
+    private var contentPadding: CGFloat {
+        switch template {
+        case .sticker:
+            return 50
+        case .square:
+            return 48
+        case .story:
+            return 62
+        }
+    }
+
+    private var headerBrandFontSize: CGFloat {
+        switch template {
+        case .sticker:
+            return 20
+        case .square:
+            return 22
+        case .story:
+            return 28
+        }
+    }
+
+    private var headerSubtitleFont: Font {
+        switch template {
+        case .sticker:
+            return .system(size: 15, weight: .semibold, design: .rounded)
+        case .square:
+            return .system(size: 16, weight: .semibold, design: .rounded)
+        case .story:
+            return .system(size: 19, weight: .semibold, design: .rounded)
+        }
+    }
+
+    private var heroLabelFont: Font {
+        switch template {
+        case .sticker:
+            return .system(size: 18, weight: .bold, design: .rounded)
+        case .square:
+            return .system(size: 19, weight: .bold, design: .rounded)
+        case .story:
+            return .system(size: 22, weight: .bold, design: .rounded)
+        }
+    }
+
+    private var heroValueFontSize: CGFloat {
+        switch template {
+        case .sticker:
+            return 64
+        case .square:
+            return 68
+        case .story:
+            return 84
+        }
+    }
+
+    private var fallbackHeroFontSize: CGFloat {
+        switch template {
+        case .sticker:
+            return 54
+        case .square:
+            return 58
+        case .story:
+            return 72
+        }
+    }
+
+    private var statColumns: [GridItem] {
+        switch template {
+        case .story:
+            return [GridItem(.flexible()), GridItem(.flexible())]
+        case .sticker, .square:
+            return [GridItem(.flexible())]
+        }
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if template != .sticker {
+                RunShareTemplateBackground(template: template)
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: template.cornerRadius, style: .continuous)
+                    )
+            }
+
+            VStack(alignment: .leading, spacing: template == .story ? 24 : 18) {
+                header
+
+                if enabledFields.contains(.route) {
+                    RunShareRouteCanvas(route: detail.route)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: routeHeight)
+                }
+
+                heroSection
+
+                if !secondaryMetrics.isEmpty {
+                    LazyVGrid(columns: statColumns, spacing: 14) {
+                        ForEach(secondaryMetrics) { metric in
+                            RunShareStatChip(metric: metric, large: template != .sticker)
+                        }
+                    }
+                }
+
+                if !metaPills.isEmpty {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: template == .story ? 220 : 132), alignment: .leading)], spacing: 10) {
+                        ForEach(metaPills, id: \.self) { item in
+                            ShareMetaPill(text: item)
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(contentPadding)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var header: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("RUNONLY")
+                    .font(.system(size: headerBrandFontSize, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Color(red: 1.0, green: 0.40, blue: 0.16))
+                    .tracking(0.8)
+                    .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
+                Text("Share Card")
+                    .font(headerSubtitleFont)
+                    .foregroundStyle(.white.opacity(0.58))
+                    .shadow(color: .black.opacity(0.24), radius: 4, y: 1)
+            }
+            Spacer()
+            if template != .sticker {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: template == .story ? 24 : 20, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.82))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var heroSection: some View {
+        if let primaryMetric {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(primaryMetric.title.uppercased())
+                    .font(heroLabelFont)
+                    .foregroundStyle(.white.opacity(0.55))
+                    .shadow(color: .black.opacity(0.22), radius: 4, y: 1)
+                Text(primaryMetric.value)
+                    .font(
+                        .system(
+                            size: heroValueFontSize,
+                            weight: .heavy,
+                            design: .rounded
+                        )
+                    )
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(2)
+                    .shadow(color: .black.opacity(0.34), radius: 10, y: 3)
+            }
+        } else {
+            Text("RUN SHARE")
+                .font(.system(size: fallbackHeroFontSize, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
+                .tracking(0.4)
+                .shadow(color: .black.opacity(0.34), radius: 10, y: 3)
+        }
+    }
+
+    private var metaPills: [String] {
+        var items: [String] = []
+
+        if enabledFields.contains(.date) {
+            items.append(run.detailDateText)
+        }
+
+        return items
+    }
+
+    private var averageHeartRateText: String? {
+        guard !detail.heartRates.isEmpty else { return nil }
+        let average = detail.heartRates.map(\.bpm).reduce(0, +) / Double(detail.heartRates.count)
+        return average.formatted(.number.precision(.fractionLength(0))) + " bpm"
+    }
+
+    private var averageCadenceText: String? {
+        let weightedCadence = detail.splits.reduce(into: (weighted: 0.0, duration: 0.0)) { partial, split in
+            guard let cadence = split.averageCadence else { return }
+            partial.weighted += cadence * split.duration
+            partial.duration += split.duration
+        }
+
+        if weightedCadence.duration > 0 {
+            let average = weightedCadence.weighted / weightedCadence.duration
+            return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+        }
+
+        guard !detail.runningMetrics.cadence.isEmpty else { return nil }
+        let average = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
+        return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+    }
+}
+
+private struct RunShareTemplateBackground: View {
+    let template: RunShareTemplate
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.08, blue: 0.10),
+                    Color(red: 0.14, green: 0.15, blue: 0.19),
+                    Color.black
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Circle()
+                .fill(Color(red: 1.0, green: 0.40, blue: 0.16).opacity(template == .story ? 0.22 : 0.14))
+                .frame(width: template == .story ? 560 : 320)
+                .blur(radius: 24)
+                .offset(x: 180, y: -220)
+
+            Circle()
+                .fill(Color.white.opacity(0.08))
+                .frame(width: template == .story ? 420 : 260)
+                .blur(radius: 18)
+                .offset(x: -160, y: 260)
+        }
+    }
+}
+
+private struct RunShareRouteCanvas: View {
+    let route: [RunRoutePoint]
+
+    var body: some View {
+        GeometryReader { geometry in
+            let projection = RouteProjection(route: route, size: geometry.size, padding: 18)
+
+            ZStack {
+                if let projection {
+                    Path { path in
+                        guard let first = projection.points.first else { return }
+                        path.move(to: first)
+                        for point in projection.points.dropFirst() {
+                            path.addLine(to: point)
+                        }
+                    }
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 1.0, green: 0.47, blue: 0.12),
+                                Color(red: 1.0, green: 0.34, blue: 0.09)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        style: StrokeStyle(lineWidth: 14, lineCap: .round, lineJoin: .round)
+                    )
+                    .shadow(color: Color(red: 1.0, green: 0.43, blue: 0.16).opacity(0.32), radius: 18, y: 10)
+
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 26, height: 26)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.black.opacity(0.26), lineWidth: 5)
+                        )
+                        .position(projection.startPoint)
+
+                    Circle()
+                        .fill(Color.black)
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Circle()
+                                .fill(Color(red: 1.0, green: 0.43, blue: 0.16))
+                                .frame(width: 14, height: 14)
+                        )
+                        .position(projection.endPoint)
+                } else {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(Color.white.opacity(0.04))
+                        .overlay(
+                            VStack(spacing: 8) {
+                                Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.44))
+                                Text("경로 없음")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.44))
+                            }
+                        )
+                }
+            }
+        }
+    }
+}
+
+private struct RouteProjection {
+    let points: [CGPoint]
+    let startPoint: CGPoint
+    let endPoint: CGPoint
+
+    init?(route: [RunRoutePoint], size: CGSize, padding: CGFloat) {
+        guard route.count >= 2 else { return nil }
+
+        let latitudes = route.map(\.latitude)
+        let longitudes = route.map(\.longitude)
+
+        guard
+            let minLatitude = latitudes.min(),
+            let maxLatitude = latitudes.max(),
+            let minLongitude = longitudes.min(),
+            let maxLongitude = longitudes.max()
+        else {
+            return nil
+        }
+
+        let longitudeSpan = max(maxLongitude - minLongitude, 0.00001)
+        let latitudeSpan = max(maxLatitude - minLatitude, 0.00001)
+        let availableWidth = max(size.width - padding * 2, 1)
+        let availableHeight = max(size.height - padding * 2, 1)
+        let scale = min(availableWidth / longitudeSpan, availableHeight / latitudeSpan)
+        let contentWidth = longitudeSpan * scale
+        let contentHeight = latitudeSpan * scale
+        let offsetX = (size.width - contentWidth) / 2
+        let offsetY = (size.height - contentHeight) / 2
+
+        let projectedPoints = route.map { point in
+            CGPoint(
+                x: offsetX + (point.longitude - minLongitude) * scale,
+                y: offsetY + (maxLatitude - point.latitude) * scale
+            )
+        }
+
+        guard let startPoint = projectedPoints.first, let endPoint = projectedPoints.last else {
+            return nil
+        }
+
+        self.points = projectedPoints
+        self.startPoint = startPoint
+        self.endPoint = endPoint
+    }
+}
+
+private struct RunShareStatChip: View {
+    let metric: RunShareMetric
+    let large: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(metric.title)
+                .font(.system(size: large ? 16 : 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.68))
+            Text(metric.value)
+                .font(.system(size: large ? 31 : 28, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .minimumScaleFactor(0.8)
+                .lineLimit(2)
+                .shadow(color: .black.opacity(0.24), radius: 6, y: 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(0.42))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct ShareMetaPill: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 16, weight: .semibold, design: .rounded))
+            .foregroundStyle(.white.opacity(0.86))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.34))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                    )
+            )
+    }
+}
+
+private struct TransparentPreviewBackground: View {
+    private let tileSize: CGFloat = 20
+
+    var body: some View {
+        Canvas { context, size in
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color.white.opacity(0.04)))
+
+            let rows = Int(ceil(size.height / tileSize))
+            let columns = Int(ceil(size.width / tileSize))
+
+            for row in 0...rows {
+                for column in 0...columns where (row + column).isMultiple(of: 2) {
+                    let rect = CGRect(
+                        x: CGFloat(column) * tileSize,
+                        y: CGFloat(row) * tileSize,
+                        width: tileSize,
+                        height: tileSize
+                    )
+                    context.fill(Path(rect), with: .color(Color.white.opacity(0.08)))
+                }
+            }
+        }
+    }
+}
+
+private struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
 // 신발 탭은 등록된 러닝화와 누적 사용량을 관리한다.
 private struct ShoesTabView: View {
     let runs: [RunningWorkout]
@@ -3754,6 +4864,25 @@ final class AppSettingsStore: ObservableObject {
     }
 }
 
+@MainActor
+final class MileageGoalStore: ObservableObject {
+    @Published var monthlyGoalKilometers: Double {
+        didSet {
+            UserDefaults.standard.set(monthlyGoalKilometers, forKey: monthlyGoalKilometersKey)
+        }
+    }
+
+    private let monthlyGoalKilometersKey = "runonly.goals.monthlyKilometers"
+
+    init() {
+        let storedValue = UserDefaults.standard.double(forKey: monthlyGoalKilometersKey)
+        if storedValue <= 0 {
+            UserDefaults.standard.set(60.0, forKey: monthlyGoalKilometersKey)
+        }
+        self.monthlyGoalKilometers = UserDefaults.standard.double(forKey: monthlyGoalKilometersKey)
+    }
+}
+
 // 모든 탭이 같은 분위기를 유지하도록 공통 배경을 분리했다.
 private struct AppBackground: View {
     var body: some View {
@@ -3771,12 +4900,67 @@ private struct AppBackground: View {
 
 // 마일리지 화면은 월별/연별 누적 거리를 한곳에 모아 보여준다.
 private struct MileageBreakdownView: View {
-    let monthlyMileage: [MileagePeriod]
-    let yearlyMileage: [MileagePeriod]
+    @ObservedObject var viewModel: RunningWorkoutsViewModel
+    @State private var selectedRange: MileageHistoryRange = .currentYear
+
+    private var summary: MileageRangeSummary {
+        viewModel.mileageSummary(for: selectedRange)
+    }
+
+    private var monthlyMileage: [MileagePeriod] {
+        viewModel.mileageMonthlyPeriods(for: selectedRange)
+    }
+
+    private var yearlyMileage: [MileagePeriod] {
+        viewModel.mileageYearlyPeriods(for: selectedRange)
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("범위")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.6))
+
+                    Picker("마일리지 범위", selection: $selectedRange) {
+                        ForEach(MileageHistoryRange.allCases) { range in
+                            Text(range.label).tag(range)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    SummaryCard(
+                        title: "누적 거리",
+                        value: formatKilometers(summary.totalDistanceKilometers),
+                        detail: "\(summary.runCount)회 러닝"
+                    )
+                    SummaryCard(
+                        title: "데이터 범위",
+                        value: selectedRange.label,
+                        detail: summary.isFullyLoaded ? "선택 범위 반영 완료" : "선택 범위 확장 중"
+                    )
+                }
+
+                DetailSection(title: "불러오는 범위") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(summary.helperText)
+                            .foregroundStyle(.white.opacity(0.78))
+
+                        if selectedRange != .currentYear && viewModel.isPreparingMileageHistory {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                    .tint(.white)
+                                Text("과거 마일리지 데이터를 불러오는 중")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.82))
+                            }
+                        }
+                    }
+                }
+
                 MileageSection(title: "월별 마일리지", periods: monthlyMileage)
                 MileageSection(title: "연별 마일리지", periods: yearlyMileage)
             }
@@ -3795,6 +4979,9 @@ private struct MileageBreakdownView: View {
         )
         .navigationTitle("마일리지")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: selectedRange) {
+            await viewModel.prepareMileageHistory(for: selectedRange)
+        }
     }
 }
 

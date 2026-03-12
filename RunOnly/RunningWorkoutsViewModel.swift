@@ -11,6 +11,13 @@ struct RecordMonthSummary {
     let weeklyRunFrequency: Double
 }
 
+struct MileageRangeSummary {
+    let totalDistanceKilometers: Double
+    let runCount: Int
+    let helperText: String
+    let isFullyLoaded: Bool
+}
+
 // 메인 목록과 대시보드에 필요한 러닝 데이터를 로드하고 가공한다.
 @MainActor
 final class RunningWorkoutsViewModel: ObservableObject {
@@ -30,6 +37,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
     @Published private(set) var yearlyMileage: [MileagePeriod] = []
     @Published private(set) var vo2MaxSamples: [VO2MaxSample] = []
     @Published private(set) var isLoadingMoreHistory = false
+    @Published private(set) var isPreparingMileageHistory = false
     @Published private(set) var hasMoreHistory = false
     @Published private(set) var personalRecords: [PersonalRecordEntry]
     @Published private(set) var pendingPersonalRecordCandidates: [PersonalRecordCandidate]
@@ -107,8 +115,9 @@ final class RunningWorkoutsViewModel: ObservableObject {
     }
 
     // 기록 탭에서 이전 달 데이터를 요청할 때 필요한 추가 로딩 경로다.
-    func loadMoreHistory() async {
-        guard !isLoadingMoreHistory, let monthStart = nextHistoryMonthStart else { return }
+    @discardableResult
+    func loadMoreHistory(refreshPersonalRecords: Bool = true) async -> Bool {
+        guard !isLoadingMoreHistory, let monthStart = nextHistoryMonthStart else { return false }
 
         isLoadingMoreHistory = true
         defer { isLoadingMoreHistory = false }
@@ -128,12 +137,59 @@ final class RunningWorkoutsViewModel: ObservableObject {
             }
 
             applyFilter()
-            Task {
-                await refreshPersonalRecordsIfNeeded()
+            if refreshPersonalRecords {
+                Task {
+                    await refreshPersonalRecordsIfNeeded()
+                }
             }
+            return true
         } catch {
             state = .failed(error.localizedDescription)
+            return false
         }
+    }
+
+    func prepareMileageHistory(for range: MileageHistoryRange) async {
+        guard range != .currentYear else { return }
+        guard !isPreparingMileageHistory else { return }
+        guard !isMileageHistoryReady(for: range) else { return }
+
+        isPreparingMileageHistory = true
+        defer { isPreparingMileageHistory = false }
+
+        var didLoadAdditionalHistory = false
+
+        while shouldLoadMoreHistory(forMileageRange: range) {
+            let loaded = await loadMoreHistory(refreshPersonalRecords: false)
+            guard loaded else { break }
+            didLoadAdditionalHistory = true
+        }
+
+        if didLoadAdditionalHistory {
+            await refreshPersonalRecordsIfNeeded()
+        }
+    }
+
+    func mileageMonthlyPeriods(for range: MileageHistoryRange) -> [MileagePeriod] {
+        buildMonthlyMileage(from: mileageRuns(for: range))
+    }
+
+    func mileageYearlyPeriods(for range: MileageHistoryRange) -> [MileagePeriod] {
+        buildYearlyMileage(from: mileageRuns(for: range))
+    }
+
+    func mileageSummary(for range: MileageHistoryRange) -> MileageRangeSummary {
+        let runs = mileageRuns(for: range)
+        let totalDistanceKilometers = runs.reduce(0) { $0 + $1.distanceInKilometers }
+        let runCount = runs.count
+        let isFullyLoaded = isMileageHistoryReady(for: range)
+
+        return MileageRangeSummary(
+            totalDistanceKilometers: totalDistanceKilometers,
+            runCount: runCount,
+            helperText: mileageHelperText(for: range, isFullyLoaded: isFullyLoaded),
+            isFullyLoaded: isFullyLoaded
+        )
     }
 
     var recordRuns: [RunningWorkout] {
@@ -349,6 +405,8 @@ final class RunningWorkoutsViewModel: ObservableObject {
         let predictedMarathon = predictTime(for: 42_195, from: runs)
 
         return RunningSummary(
+            monthDistanceKilometers: monthDistance,
+            yearDistanceKilometers: yearDistance,
             monthDistanceText: formatDistance(monthDistance),
             yearDistanceText: formatDistance(yearDistance),
             trainingStatus: trainingStatus.0,
@@ -440,8 +498,15 @@ final class RunningWorkoutsViewModel: ObservableObject {
     }
 
     private func ensureRecordMonthAvailable(_ monthStart: Date) async {
+        var didLoadAdditionalHistory = false
         while !isRecordMonthLoaded(monthStart) && hasMoreHistory {
-            await loadMoreHistory()
+            let loaded = await loadMoreHistory(refreshPersonalRecords: false)
+            guard loaded else { break }
+            didLoadAdditionalHistory = true
+        }
+
+        if didLoadAdditionalHistory {
+            await refreshPersonalRecordsIfNeeded()
         }
     }
 
@@ -450,6 +515,84 @@ final class RunningWorkoutsViewModel: ObservableObject {
             return true
         }
         return monthStart > nextHistoryMonthStart
+    }
+
+    private func mileageRuns(for range: MileageHistoryRange) -> [RunningWorkout] {
+        guard let startDate = mileageStartDate(for: range) else {
+            return filteredAllRuns
+        }
+
+        return filteredAllRuns.filter { $0.startDate >= startDate }
+    }
+
+    private func mileageStartDate(for range: MileageHistoryRange) -> Date? {
+        let calendar = Calendar.current
+        let now = Date()
+
+        switch range {
+        case .currentYear:
+            return calendar.date(from: calendar.dateComponents([.year], from: now))
+        case .recentThreeYears:
+            return calendar.date(byAdding: .year, value: -3, to: now)
+        case .all:
+            return nil
+        }
+    }
+
+    private func shouldLoadMoreHistory(forMileageRange range: MileageHistoryRange) -> Bool {
+        guard hasMoreHistory, let nextHistoryMonthStart else { return false }
+
+        switch range {
+        case .currentYear:
+            return false
+        case .recentThreeYears:
+            guard let targetStartDate = mileageStartDate(for: range) else { return false }
+            return startOfMonth(nextHistoryMonthStart) >= startOfMonth(targetStartDate)
+        case .all:
+            return true
+        }
+    }
+
+    private func isMileageHistoryReady(for range: MileageHistoryRange) -> Bool {
+        switch range {
+        case .currentYear:
+            return true
+        case .recentThreeYears:
+            guard let targetStartDate = mileageStartDate(for: range) else { return !hasMoreHistory }
+            guard let earliestLoadedDate = allRuns.map(\.startDate).min() else { return !hasMoreHistory }
+            return startOfMonth(earliestLoadedDate) <= startOfMonth(targetStartDate) || !hasMoreHistory
+        case .all:
+            return !hasMoreHistory
+        }
+    }
+
+    private func mileageHelperText(for range: MileageHistoryRange, isFullyLoaded: Bool) -> String {
+        switch range {
+        case .currentYear:
+            return "올해 범위는 앱 첫 로딩 데이터로 바로 볼 수 있습니다."
+        case .recentThreeYears:
+            if isFullyLoaded {
+                return "최근 3년 범위까지 반영했습니다."
+            }
+            if let targetStartDate = mileageStartDate(for: range) {
+                return "\(formatMonthYear(targetStartDate))까지 과거 기록을 추가로 불러오는 중입니다."
+            }
+            return "최근 3년 범위를 위해 과거 기록을 불러오는 중입니다."
+        case .all:
+            if let earliestLoadedDate = allRuns.map(\.startDate).min(), isFullyLoaded {
+                return "\(formatMonthYear(earliestLoadedDate))부터 전체 기록을 반영했습니다."
+            }
+            return "전체 기간을 보려면 과거 기록을 순차적으로 더 불러옵니다."
+        }
+    }
+
+    private func formatMonthYear(_ date: Date) -> String {
+        date.formatted(
+            .dateTime
+                .locale(Locale(identifier: "ko_KR"))
+                .year()
+                .month(.wide)
+        )
     }
 
     private func updatePersonalRecords(

@@ -110,6 +110,8 @@ struct RunningWorkout: Identifiable {
 
 // 홈 대시보드에 표시할 핵심 요약 수치 묶음이다.
 struct RunningSummary {
+    let monthDistanceKilometers: Double
+    let yearDistanceKilometers: Double
     let monthDistanceText: String
     let yearDistanceText: String
     let trainingStatus: String
@@ -122,6 +124,8 @@ struct RunningSummary {
     let predictedMarathonText: String
 
     static let empty = RunningSummary(
+        monthDistanceKilometers: 0,
+        yearDistanceKilometers: 0,
         monthDistanceText: "0 km",
         yearDistanceText: "0 km",
         trainingStatus: "준비중",
@@ -368,6 +372,25 @@ struct MileagePeriod: Identifiable {
     let title: String
     let subtitle: String
     let distanceText: String
+}
+
+enum MileageHistoryRange: String, CaseIterable, Identifiable {
+    case currentYear
+    case recentThreeYears
+    case all
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .currentYear:
+            return "올해"
+        case .recentThreeYears:
+            return "최근 3년"
+        case .all:
+            return "전체"
+        }
+    }
 }
 
 // 신발 정보는 사용자 입력 기반이므로 Codable로 저장한다.
