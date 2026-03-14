@@ -3145,6 +3145,7 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
 private enum RunShareField: String, CaseIterable, Identifiable {
     case route
     case date
+    case weather
     case environment
     case distance
     case duration
@@ -3161,6 +3162,8 @@ private enum RunShareField: String, CaseIterable, Identifiable {
             return "경로"
         case .date:
             return "날짜"
+        case .weather:
+            return "날씨"
         case .environment:
             return "실내/실외"
         case .distance:
@@ -3184,6 +3187,8 @@ private enum RunShareField: String, CaseIterable, Identifiable {
             return "point.topleft.down.curvedto.point.bottomright.up"
         case .date:
             return "calendar"
+        case .weather:
+            return "cloud.sun.fill"
         case .environment:
             return "figure.run"
         case .distance:
@@ -3219,11 +3224,14 @@ private struct RunShareComposerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTemplate: RunShareTemplate = .sticker
-    @State private var enabledFields: Set<RunShareField> = [.route, .distance, .duration, .pace]
+    @State private var enabledFields: Set<RunShareField> = [.route, .weather, .distance, .duration, .pace]
     @State private var shareItems: [Any] = []
     @State private var showingShareSheet = false
     @State private var exportStatusMessage: String?
     @State private var exportErrorMessage: String?
+    @State private var weatherSnapshot: RunWeatherSnapshot?
+    @State private var weatherErrorMessage: String?
+    @State private var isLoadingWeather = false
     private let hiddenFields: Set<RunShareField> = [.environment, .shoe]
 
     private var availableFields: [RunShareField] {
@@ -3273,7 +3281,8 @@ private struct RunShareComposerView: View {
                                 run: run,
                                 detail: detail,
                                 template: selectedTemplate,
-                                enabledFields: effectiveFields
+                                enabledFields: effectiveFields,
+                                weatherSnapshot: weatherSnapshot
                             )
                             .frame(
                                 width: selectedTemplate.canvasSize.width,
@@ -3371,6 +3380,16 @@ private struct RunShareComposerView: View {
                                 .foregroundStyle(.orange)
                         }
 
+                        if isLoadingWeather {
+                            Text("러닝 시각 기준 날씨를 불러오는 중입니다.")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.58))
+                        } else if let weatherErrorMessage {
+                            Text(weatherErrorMessage)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.58))
+                        }
+
                         Text("투명 스티커는 앱마다 alpha 처리 방식이 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다.")
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.58))
@@ -3387,6 +3406,9 @@ private struct RunShareComposerView: View {
             .background(AppBackground())
             .navigationTitle("공유 이미지")
             .navigationBarTitleDisplayMode(.inline)
+            .task(id: weatherLookupKey) {
+                await loadWeatherIfNeeded()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("닫기") {
@@ -3531,7 +3553,8 @@ private struct RunShareComposerView: View {
             run: run,
             detail: detail,
             template: selectedTemplate,
-            enabledFields: effectiveFields
+            enabledFields: effectiveFields,
+            weatherSnapshot: weatherSnapshot
         )
         .frame(width: size.width, height: size.height)
 
@@ -3549,6 +3572,8 @@ private struct RunShareComposerView: View {
         switch field {
         case .route:
             return !detail.route.isEmpty
+        case .weather:
+            return weatherSnapshot != nil
         case .heartRate:
             return averageHeartRateText != nil
         case .cadence:
@@ -3582,6 +3607,39 @@ private struct RunShareComposerView: View {
         let average = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
         return average.formatted(.number.precision(.fractionLength(0))) + " spm"
     }
+
+    private var weatherLookupPoint: RunRoutePoint? {
+        guard !detail.route.isEmpty else { return nil }
+        return detail.route[detail.route.count / 2]
+    }
+
+    private var weatherLookupKey: String {
+        guard let weatherLookupPoint else { return "weather-unavailable" }
+        return "\(run.id.uuidString)-\(weatherLookupPoint.latitude)-\(weatherLookupPoint.longitude)"
+    }
+
+    @MainActor
+    private func loadWeatherIfNeeded() async {
+        guard !isLoadingWeather else { return }
+        guard weatherSnapshot == nil else { return }
+        guard let weatherLookupPoint else { return }
+
+        isLoadingWeather = true
+        weatherErrorMessage = nil
+
+        do {
+            weatherSnapshot = try await RunWeatherService.shared.fetchWeather(
+                latitude: weatherLookupPoint.latitude,
+                longitude: weatherLookupPoint.longitude,
+                referenceDate: run.startDate
+            )
+        } catch {
+            weatherErrorMessage = error.localizedDescription
+        }
+
+        isLoadingWeather = false
+    }
+
 }
 
 private enum RunShareExportError: LocalizedError {
@@ -3622,6 +3680,7 @@ private struct RunShareArtworkView: View {
     let detail: RunDetail
     let template: RunShareTemplate
     let enabledFields: Set<RunShareField>
+    let weatherSnapshot: RunWeatherSnapshot?
 
     private var metrics: [RunShareMetric] {
         var items: [RunShareMetric] = []
@@ -3636,10 +3695,10 @@ private struct RunShareArtworkView: View {
             items.append(RunShareMetric(field: .pace, title: "페이스", value: run.paceText))
         }
         if enabledFields.contains(.heartRate), let averageHeartRateText {
-            items.append(RunShareMetric(field: .heartRate, title: "평균 심박", value: averageHeartRateText))
+            items.append(RunShareMetric(field: .heartRate, title: "심박", value: averageHeartRateText))
         }
         if enabledFields.contains(.cadence), let averageCadenceText {
-            items.append(RunShareMetric(field: .cadence, title: "평균 케이던스", value: averageCadenceText))
+            items.append(RunShareMetric(field: .cadence, title: "케이던스", value: averageCadenceText))
         }
 
         return items
@@ -3695,17 +3754,6 @@ private struct RunShareArtworkView: View {
             return 12
         case .story:
             return 16
-        }
-    }
-
-    private var fallbackMetricFontSize: CGFloat {
-        switch template {
-        case .sticker:
-            return 36
-        case .square:
-            return 34
-        case .story:
-            return 40
         }
     }
 
@@ -3793,7 +3841,7 @@ private struct RunShareArtworkView: View {
             }
 
             if !metrics.isEmpty {
-                VStack(spacing: 4) {
+                VStack(spacing: 12) {
                     ForEach(metrics) { metric in
                         RunShareMetricTile(metric: metric, template: template, centered: true)
                     }
@@ -3821,6 +3869,10 @@ private struct RunShareArtworkView: View {
 
         if enabledFields.contains(.date) {
             items.append(run.detailDateText)
+        }
+
+        if enabledFields.contains(.weather), let weatherSnapshot {
+            items.append(weatherSnapshot.shareText)
         }
 
         return items
@@ -3990,14 +4042,32 @@ private struct RunShareMetricTile: View {
         }
     }
 
+    private var labelFontSize: CGFloat {
+        switch template {
+        case .sticker:
+            return 24
+        case .square:
+            return 18
+        case .story:
+            return 20
+        }
+    }
+
     var body: some View {
-        Text(metric.value)
-            .font(.system(size: valueFontSize, weight: .heavy, design: .rounded))
-            .foregroundStyle(.white)
-            .monospacedDigit()
-            .minimumScaleFactor(0.4)
-            .lineLimit(1)
-            .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
+        VStack(alignment: centered ? .center : .leading, spacing: centered ? 6 : 8) {
+            Text(metric.title)
+                .font(.system(size: labelFontSize, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.78))
+                .tracking(0.2)
+
+            Text(metric.value)
+                .font(.system(size: valueFontSize, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .minimumScaleFactor(0.4)
+                .lineLimit(1)
+                .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
+        }
         .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
     }
 }

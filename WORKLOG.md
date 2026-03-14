@@ -314,3 +314,20 @@
 
 ### 검증 메모
 - CLI 기준 `ContentView.swift`, `RunningWorkoutsViewModel.swift`, `HealthKitService.swift`의 신규 Swift 컴파일 에러는 보이지 않음.
+
+## 2026-03-14 (공유 이미지 날씨 재추가 / 라벨 확대)
+
+### 공유 이미지 날씨 재추가
+- 공유 이미지 옵션에 `날씨`를 다시 추가하고 기본 포함 항목에 넣음.
+- 표기는 `섭씨 + 한글 상태` 형식으로 정리:
+  - 예: `8°C 맑음`
+- 현재는 route 대표 좌표와 러닝 시작 시각 기준으로 Open-Meteo archive API를 조회.
+- 직전 실패 원인이었던 미래 `end_date` 포함 문제를 막기 위해 요청 날짜를 오늘 이하로 clamp.
+
+### 메트릭 라벨 가독성 조정
+- 거리/시간/페이스/심박/케이던스 라벨 글자 크기를 크게 조정.
+- 기존 스티커 구조와 배치는 유지하고 라벨 가독성만 보강.
+
+### 검증 메모
+- `swiftc -typecheck RunOnly/*.swift` 통과.
+- `xcodebuild`는 Swift 컴파일 단계까지 진행되며, 최종 실패는 기존과 동일한 asset catalog / simulator runtime 환경 문제.
