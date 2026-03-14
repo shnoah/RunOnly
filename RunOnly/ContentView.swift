@@ -1,6 +1,7 @@
 import Charts
 import MapKit
 import Photos
+import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
@@ -3218,6 +3219,84 @@ private struct RunShareMetric: Identifiable {
 private let runOnlyShareAccent = Color(red: 0.29, green: 0.88, blue: 0.63)
 private let runOnlyShareAccentDark = Color(red: 0.15, green: 0.71, blue: 0.49)
 
+private enum RunShareFontChoice: String, CaseIterable, Identifiable {
+    case rounded
+    case system
+    case serif
+    case monospaced
+    case condensed
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .rounded:
+            return "둥근"
+        case .system:
+            return "기본"
+        case .serif:
+            return "세리프"
+        case .monospaced:
+            return "모노"
+        case .condensed:
+            return "콘덴스"
+        }
+    }
+
+    func font(size: CGFloat, weight: Font.Weight) -> Font {
+        switch self {
+        case .rounded:
+            return .system(size: size, weight: weight, design: .rounded)
+        case .system:
+            return .system(size: size, weight: weight, design: .default)
+        case .serif:
+            return .system(size: size, weight: weight, design: .serif)
+        case .monospaced:
+            return .system(size: size, weight: weight, design: .monospaced)
+        case .condensed:
+            return .custom("HelveticaNeue-CondensedBold", size: size)
+        }
+    }
+}
+
+private struct RunShareArtworkStyle {
+    let accentColor: Color
+    let accentShadowColor: Color
+    let fontChoice: RunShareFontChoice
+    let fontScale: Double
+
+    static let `default` = Self(
+        accentColor: runOnlyShareAccent,
+        accentShadowColor: runOnlyShareAccentDark,
+        fontChoice: .rounded,
+        fontScale: 1
+    )
+
+    func scaled(_ size: CGFloat) -> CGFloat {
+        size * fontScale
+    }
+}
+
+private struct RunShareStickerDebugSettings {
+    var fontChoice: RunShareFontChoice = .rounded
+    var fontScale: Double = 1
+
+    var artworkStyle: RunShareArtworkStyle {
+        RunShareArtworkStyle(
+            accentColor: runOnlyShareAccent,
+            accentShadowColor: runOnlyShareAccentDark,
+            fontChoice: fontChoice,
+            fontScale: fontScale
+        )
+    }
+}
+
+private struct RunShareStickerPlacement {
+    var centerX: CGFloat = 0.5
+    var centerY: CGFloat = 0.62
+    var scale: CGFloat = 1
+}
+
 private struct RunShareComposerView: View {
     let run: RunningWorkout
     let detail: RunDetail
@@ -3225,6 +3304,14 @@ private struct RunShareComposerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTemplate: RunShareTemplate = .sticker
     @State private var enabledFields: Set<RunShareField> = [.route, .weather, .distance, .duration, .pace]
+    @State private var stickerDebugSettings = RunShareStickerDebugSettings()
+    @State private var selectedBackgroundPhotoItem: PhotosPickerItem?
+    @State private var backgroundPhotoImage: UIImage?
+    @State private var backgroundPreviewPhotoImage: UIImage?
+    @State private var backgroundPhotoErrorMessage: String?
+    @State private var isLoadingBackgroundPhoto = false
+    @State private var previewStickerImage: UIImage?
+    @State private var stickerPlacement = RunShareStickerPlacement()
     @State private var shareItems: [Any] = []
     @State private var showingShareSheet = false
     @State private var exportStatusMessage: String?
@@ -3242,12 +3329,54 @@ private struct RunShareComposerView: View {
         enabledFields.intersection(Set(availableFields))
     }
 
+    private var artworkStyle: RunShareArtworkStyle {
+        stickerDebugSettings.artworkStyle
+    }
+
     private var previewWidth: CGFloat {
         min(UIScreen.main.bounds.width - 32, selectedTemplate.composerPreviewWidth)
     }
 
     private var previewHeight: CGFloat {
         selectedTemplate.previewHeight(for: previewWidth)
+    }
+
+    private var previewCanvasSize: CGSize {
+        guard selectedTemplate == .sticker, let previewImage = backgroundPreviewPhotoImage ?? backgroundPhotoImage else {
+            return CGSize(width: previewWidth, height: previewHeight)
+        }
+
+        return fittedSize(
+            for: previewImage.size,
+            maxWidth: min(UIScreen.main.bounds.width - 32, 360),
+            maxHeight: 480
+        )
+    }
+
+    private var renderCanvasSize: CGSize {
+        guard selectedTemplate == .sticker, let backgroundPhotoImage else {
+            return selectedTemplate.canvasSize
+        }
+
+        return fittedSize(
+            for: backgroundPhotoImage.size,
+            maxWidth: 2048,
+            maxHeight: 2048
+        )
+    }
+
+    private var previewStickerRenderKey: String {
+        let fieldKey = effectiveFields.map(\.rawValue).sorted().joined(separator: ",")
+        let weatherKey = weatherSnapshot?.shareText ?? "none"
+        let photoKey = backgroundPhotoImage == nil ? "no-photo" : "photo"
+        return [
+            selectedTemplate.rawValue,
+            fieldKey,
+            weatherKey,
+            stickerDebugSettings.fontChoice.rawValue,
+            String(format: "%.3f", stickerDebugSettings.fontScale),
+            photoKey
+        ].joined(separator: "|")
     }
 
     var body: some View {
@@ -3271,32 +3400,11 @@ private struct RunShareComposerView: View {
                                 )
                         }
 
-                        ZStack {
-                            if selectedTemplate == .sticker {
-                                TransparentPreviewBackground()
-                                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                            }
-
-                            RunShareArtworkView(
-                                run: run,
-                                detail: detail,
-                                template: selectedTemplate,
-                                enabledFields: effectiveFields,
-                                weatherSnapshot: weatherSnapshot
-                            )
-                            .frame(
-                                width: selectedTemplate.canvasSize.width,
-                                height: selectedTemplate.canvasSize.height
-                            )
-                            .scaleEffect(previewWidth / selectedTemplate.canvasSize.width, anchor: .topLeading)
-                            .frame(
-                                width: previewWidth,
-                                height: previewHeight,
-                                alignment: .topLeading
-                            )
-                        }
+                        shareCanvasView(canvasSize: previewCanvasSize, interactive: true)
+                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            .frame(width: previewCanvasSize.width, height: previewCanvasSize.height)
                         .frame(maxWidth: .infinity)
-                        .frame(height: previewHeight)
+                        .frame(height: previewCanvasSize.height)
                     }
                     .padding(16)
                     .background(
@@ -3320,6 +3428,82 @@ private struct RunShareComposerView: View {
                             Text(selectedTemplate.descriptionText)
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.62))
+                        }
+
+                        if selectedTemplate == .sticker {
+                            Divider()
+                                .overlay(Color.white.opacity(0.08))
+
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("스티커 디버그")
+                                        .font(.headline)
+                                        .foregroundStyle(.white)
+                                    Spacer()
+                                    Button("초기화") {
+                                        stickerDebugSettings = RunShareStickerDebugSettings()
+                                    }
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(runOnlyShareAccent)
+                                }
+
+                                Text("폰트와 크기를 손보면 스티커 프리뷰와 내보내기 결과에 바로 반영됩니다.")
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.62))
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("폰트 크기")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.white)
+                                        Spacer()
+                                        Text("\(Int(stickerDebugSettings.fontScale * 100))%")
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(.white.opacity(0.5))
+                                    }
+
+                                    Slider(value: $stickerDebugSettings.fontScale, in: 0.75...1.6)
+                                        .tint(artworkStyle.accentColor)
+                                }
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("폰트")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.white)
+
+                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 8)], spacing: 8) {
+                                        ForEach(RunShareFontChoice.allCases) { choice in
+                                            Button {
+                                                stickerDebugSettings.fontChoice = choice
+                                            } label: {
+                                                Text(choice.label)
+                                                    .font(choice.font(size: 16, weight: .heavy))
+                                                    .foregroundStyle(.white)
+                                                    .frame(maxWidth: .infinity)
+                                                    .padding(.vertical, 12)
+                                                    .background(
+                                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                            .fill(
+                                                                stickerDebugSettings.fontChoice == choice
+                                                                    ? artworkStyle.accentColor.opacity(0.22)
+                                                                    : Color.white.opacity(0.06)
+                                                            )
+                                                    )
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                            .stroke(
+                                                                stickerDebugSettings.fontChoice == choice
+                                                                    ? artworkStyle.accentColor.opacity(0.36)
+                                                                    : Color.white.opacity(0.08),
+                                                                lineWidth: 1
+                                                            )
+                                                    )
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         Divider()
@@ -3368,6 +3552,91 @@ private struct RunShareComposerView: View {
                             }
                         }
 
+                        if selectedTemplate == .sticker {
+                            Divider()
+                                .overlay(Color.white.opacity(0.08))
+
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("사진 위에 붙이기")
+                                        .font(.headline)
+                                        .foregroundStyle(.white)
+                                    Spacer()
+                                    if backgroundPhotoImage != nil {
+                                        Button("제거") {
+                                            clearBackgroundPhoto()
+                                        }
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(runOnlyShareAccent)
+                                    }
+                                }
+
+                                PhotosPicker(selection: $selectedBackgroundPhotoItem, matching: .images, photoLibrary: .shared()) {
+                                    Label(backgroundPhotoImage == nil ? "사진 불러오기" : "사진 다시 고르기", systemImage: "photo.on.rectangle.angled")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                .fill(Color.white.opacity(0.06))
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+
+                                if backgroundPhotoImage != nil {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Text("스티커 크기")
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(.white)
+                                            Spacer()
+                                            Text("\(Int(stickerPlacement.scale * 100))%")
+                                                .font(.caption.weight(.bold))
+                                                .foregroundStyle(.white.opacity(0.5))
+                                        }
+
+                                        Slider(
+                                            value: Binding(
+                                                get: { stickerPlacement.scale },
+                                                set: { stickerPlacement.scale = $0 }
+                                            ),
+                                            in: 0.55...1.7
+                                        )
+                                        .tint(artworkStyle.accentColor)
+
+                                        Button("위치/크기 초기화") {
+                                            stickerPlacement = RunShareStickerPlacement()
+                                        }
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(runOnlyShareAccent)
+                                    }
+
+                                    Text("미리보기에서 스티커를 직접 드래그해서 위치를 맞출 수 있습니다.")
+                                        .font(.caption)
+                                        .foregroundStyle(.white.opacity(0.62))
+                                } else {
+                                    Text("배경 사진을 고르면 그 위에 스티커를 바로 올려 보고 저장하거나 공유할 수 있습니다.")
+                                        .font(.caption)
+                                        .foregroundStyle(.white.opacity(0.62))
+                                }
+
+                                if isLoadingBackgroundPhoto {
+                                    Text("사진을 불러오는 중입니다.")
+                                        .font(.caption)
+                                        .foregroundStyle(.white.opacity(0.58))
+                                } else if let backgroundPhotoErrorMessage {
+                                    Text(backgroundPhotoErrorMessage)
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                        }
+
                         if let exportStatusMessage {
                             Text(exportStatusMessage)
                                 .font(.caption)
@@ -3408,6 +3677,14 @@ private struct RunShareComposerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .task(id: weatherLookupKey) {
                 await loadWeatherIfNeeded()
+            }
+            .task(id: previewStickerRenderKey) {
+                refreshPreviewStickerImageIfNeeded()
+            }
+            .onChange(of: selectedBackgroundPhotoItem) { _, newItem in
+                Task {
+                    await loadBackgroundPhoto(from: newItem)
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -3548,15 +3825,9 @@ private struct RunShareComposerView: View {
     }
 
     private func renderPNGData() throws -> Data {
-        let size = selectedTemplate.canvasSize
-        let content = RunShareArtworkView(
-            run: run,
-            detail: detail,
-            template: selectedTemplate,
-            enabledFields: effectiveFields,
-            weatherSnapshot: weatherSnapshot
-        )
-        .frame(width: size.width, height: size.height)
+        let size = renderCanvasSize
+        let content = shareCanvasView(canvasSize: size, interactive: false)
+            .frame(width: size.width, height: size.height)
 
         let renderer = ImageRenderer(content: content)
         renderer.scale = 1
@@ -3640,6 +3911,140 @@ private struct RunShareComposerView: View {
         isLoadingWeather = false
     }
 
+    @ViewBuilder
+    private func shareCanvasView(canvasSize: CGSize, interactive: Bool) -> some View {
+        if selectedTemplate == .sticker, let backgroundPhotoImage {
+            RunSharePhotoCompositeView(
+                run: run,
+                detail: detail,
+                template: selectedTemplate,
+                enabledFields: effectiveFields,
+                weatherSnapshot: weatherSnapshot,
+                style: artworkStyle,
+                backgroundImage: interactive ? (backgroundPreviewPhotoImage ?? backgroundPhotoImage) : backgroundPhotoImage,
+                stickerPreviewImage: interactive ? previewStickerImage : nil,
+                stickerPlacement: $stickerPlacement,
+                interactive: interactive
+            )
+            .frame(width: canvasSize.width, height: canvasSize.height)
+        } else {
+            ZStack {
+                if selectedTemplate == .sticker, interactive {
+                    TransparentPreviewBackground()
+                }
+
+                RunShareArtworkView(
+                    run: run,
+                    detail: detail,
+                    template: selectedTemplate,
+                    enabledFields: effectiveFields,
+                    weatherSnapshot: weatherSnapshot,
+                    style: artworkStyle
+                )
+                .frame(
+                    width: selectedTemplate.canvasSize.width,
+                    height: selectedTemplate.canvasSize.height
+                )
+                .scaleEffect(canvasSize.width / selectedTemplate.canvasSize.width, anchor: .topLeading)
+                .frame(
+                    width: canvasSize.width,
+                    height: canvasSize.height,
+                    alignment: .topLeading
+                )
+            }
+            .frame(width: canvasSize.width, height: canvasSize.height)
+        }
+    }
+
+    @MainActor
+    private func loadBackgroundPhoto(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+
+        isLoadingBackgroundPhoto = true
+        backgroundPhotoErrorMessage = nil
+
+        do {
+            guard
+                let data = try await item.loadTransferable(type: Data.self),
+                let image = UIImage(data: data)
+            else {
+                throw RunShareExportError.renderFailed
+            }
+
+            backgroundPhotoImage = image
+            backgroundPreviewPhotoImage = resizedImage(image, maxDimension: 1400)
+            stickerPlacement = RunShareStickerPlacement()
+        } catch {
+            backgroundPhotoErrorMessage = "사진을 불러오지 못했습니다."
+        }
+
+        selectedBackgroundPhotoItem = nil
+        isLoadingBackgroundPhoto = false
+    }
+
+    private func clearBackgroundPhoto() {
+        backgroundPhotoImage = nil
+        backgroundPreviewPhotoImage = nil
+        backgroundPhotoErrorMessage = nil
+        previewStickerImage = nil
+        selectedBackgroundPhotoItem = nil
+        stickerPlacement = RunShareStickerPlacement()
+    }
+
+    private func fittedSize(for original: CGSize, maxWidth: CGFloat, maxHeight: CGFloat) -> CGSize {
+        guard original.width > 0, original.height > 0 else {
+            return CGSize(width: maxWidth, height: maxHeight)
+        }
+
+        let scale = min(maxWidth / original.width, maxHeight / original.height, 1)
+        return CGSize(
+            width: max(original.width * scale, 1),
+            height: max(original.height * scale, 1)
+        )
+    }
+
+    @MainActor
+    private func refreshPreviewStickerImageIfNeeded() {
+        guard selectedTemplate == .sticker, backgroundPhotoImage != nil else {
+            previewStickerImage = nil
+            return
+        }
+
+        let content = RunShareArtworkView(
+            run: run,
+            detail: detail,
+            template: selectedTemplate,
+            enabledFields: effectiveFields,
+            weatherSnapshot: weatherSnapshot,
+            style: artworkStyle
+        )
+        .frame(
+            width: selectedTemplate.canvasSize.width,
+            height: selectedTemplate.canvasSize.height
+        )
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 2
+        previewStickerImage = renderer.uiImage
+    }
+
+    private func resizedImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let originalSize = image.size
+        guard originalSize.width > 0, originalSize.height > 0 else { return image }
+
+        let scale = min(maxDimension / max(originalSize.width, originalSize.height), 1)
+        guard scale < 1 else { return image }
+
+        let targetSize = CGSize(width: originalSize.width * scale, height: originalSize.height * scale)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+    }
+
 }
 
 private enum RunShareExportError: LocalizedError {
@@ -3681,6 +4086,7 @@ private struct RunShareArtworkView: View {
     let template: RunShareTemplate
     let enabledFields: Set<RunShareField>
     let weatherSnapshot: RunWeatherSnapshot?
+    let style: RunShareArtworkStyle
 
     private var metrics: [RunShareMetric] {
         var items: [RunShareMetric] = []
@@ -3772,18 +4178,18 @@ private struct RunShareArtworkView: View {
     private var header: some View {
         if template == .sticker {
             Text("RUNONLY")
-                .font(.system(size: headerBrandFontSize, weight: .heavy, design: .rounded))
-                .foregroundStyle(runOnlyShareAccent)
+                .font(style.fontChoice.font(size: style.scaled(headerBrandFontSize), weight: .heavy))
+                .foregroundStyle(style.accentColor)
                 .tracking(1.2)
-                .shadow(color: runOnlyShareAccent.opacity(0.26), radius: 10, y: 2)
+                .shadow(color: style.accentColor.opacity(0.26), radius: 10, y: 2)
                 .frame(maxWidth: .infinity, alignment: .center)
         } else {
             HStack {
                 Text("RUNONLY")
-                    .font(.system(size: headerBrandFontSize, weight: .heavy, design: .rounded))
-                    .foregroundStyle(runOnlyShareAccent)
+                    .font(style.fontChoice.font(size: style.scaled(headerBrandFontSize), weight: .heavy))
+                    .foregroundStyle(style.accentColor)
                     .tracking(0.8)
-                    .shadow(color: runOnlyShareAccent.opacity(0.26), radius: 10, y: 2)
+                    .shadow(color: style.accentColor.opacity(0.26), radius: 10, y: 2)
                 Spacer()
             }
         }
@@ -3791,7 +4197,7 @@ private struct RunShareArtworkView: View {
 
     private var standardLayout: some View {
         ZStack(alignment: .topLeading) {
-            RunShareTemplateBackground(template: template)
+            RunShareTemplateBackground(template: template, style: style)
                 .clipShape(
                     RoundedRectangle(cornerRadius: template.cornerRadius, style: .continuous)
                 )
@@ -3800,7 +4206,7 @@ private struct RunShareArtworkView: View {
                 header
 
                 if enabledFields.contains(.route) {
-                    RunShareRouteCanvas(route: detail.route)
+                    RunShareRouteCanvas(route: detail.route, style: style)
                         .frame(maxWidth: .infinity)
                         .frame(height: routeHeight)
                 }
@@ -3808,7 +4214,7 @@ private struct RunShareArtworkView: View {
                 if !metrics.isEmpty {
                     LazyVGrid(columns: metricColumns, alignment: .leading, spacing: metricSpacing) {
                         ForEach(metrics) { metric in
-                            RunShareMetricTile(metric: metric, template: template, centered: false)
+                            RunShareMetricTile(metric: metric, template: template, centered: false, style: style)
                         }
                     }
                 }
@@ -3816,7 +4222,7 @@ private struct RunShareArtworkView: View {
                 if !metaPills.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: template == .story ? 220 : 132), alignment: .leading)], spacing: 10) {
                         ForEach(metaPills, id: \.self) { item in
-                            ShareMetaPill(text: item, centered: false)
+                            ShareMetaPill(text: item, centered: false, style: style)
                         }
                     }
                 }
@@ -3834,7 +4240,7 @@ private struct RunShareArtworkView: View {
                 .padding(.bottom, 6)
 
             if enabledFields.contains(.route) {
-                RunShareRouteCanvas(route: detail.route)
+                RunShareRouteCanvas(route: detail.route, style: style)
                     .frame(width: stickerRouteWidth, height: routeHeight)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.bottom, 18)
@@ -3843,7 +4249,7 @@ private struct RunShareArtworkView: View {
             if !metrics.isEmpty {
                 VStack(spacing: 12) {
                     ForEach(metrics) { metric in
-                        RunShareMetricTile(metric: metric, template: template, centered: true)
+                        RunShareMetricTile(metric: metric, template: template, centered: true, style: style)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -3853,7 +4259,7 @@ private struct RunShareArtworkView: View {
             if !metaPills.isEmpty {
                 VStack(spacing: 4) {
                     ForEach(metaPills, id: \.self) { item in
-                        ShareMetaPill(text: item, centered: true)
+                        ShareMetaPill(text: item, centered: true, style: style)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -3904,6 +4310,7 @@ private struct RunShareArtworkView: View {
 
 private struct RunShareTemplateBackground: View {
     let template: RunShareTemplate
+    let style: RunShareArtworkStyle
 
     var body: some View {
         ZStack {
@@ -3918,7 +4325,7 @@ private struct RunShareTemplateBackground: View {
             )
 
             Circle()
-                .fill(runOnlyShareAccent.opacity(template == .story ? 0.22 : 0.14))
+                .fill(style.accentColor.opacity(template == .story ? 0.22 : 0.14))
                 .frame(width: template == .story ? 560 : 320)
                 .blur(radius: 24)
                 .offset(x: 180, y: -220)
@@ -3932,8 +4339,112 @@ private struct RunShareTemplateBackground: View {
     }
 }
 
+private struct RunSharePhotoCompositeView: View {
+    let run: RunningWorkout
+    let detail: RunDetail
+    let template: RunShareTemplate
+    let enabledFields: Set<RunShareField>
+    let weatherSnapshot: RunWeatherSnapshot?
+    let style: RunShareArtworkStyle
+    let backgroundImage: UIImage
+    let stickerPreviewImage: UIImage?
+    @Binding var stickerPlacement: RunShareStickerPlacement
+    let interactive: Bool
+
+    @GestureState private var dragTranslation: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { geometry in
+            let stickerSize = stickerCanvasSize(in: geometry.size)
+            let livePlacement = translatedPlacement(
+                from: stickerPlacement,
+                translation: interactive ? dragTranslation : .zero,
+                canvasSize: geometry.size,
+                stickerSize: stickerSize
+            )
+
+            ZStack {
+                Image(uiImage: backgroundImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+
+                stickerLayer(size: stickerSize)
+                    .position(
+                        x: livePlacement.centerX * geometry.size.width,
+                        y: livePlacement.centerY * geometry.size.height
+                    )
+                    .shadow(color: .black.opacity(0.24), radius: 24, y: 12)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture()
+                            .updating($dragTranslation) { value, state, _ in
+                                guard interactive else { return }
+                                state = value.translation
+                            }
+                            .onEnded { value in
+                                guard interactive else { return }
+                                stickerPlacement = translatedPlacement(
+                                    from: stickerPlacement,
+                                    translation: value.translation,
+                                    canvasSize: geometry.size,
+                                    stickerSize: stickerSize
+                                )
+                            }
+                    )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stickerLayer(size: CGSize) -> some View {
+        if interactive, let stickerPreviewImage {
+            Image(uiImage: stickerPreviewImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: size.width, height: size.height)
+        } else {
+            RunShareArtworkView(
+                run: run,
+                detail: detail,
+                template: template,
+                enabledFields: enabledFields,
+                weatherSnapshot: weatherSnapshot,
+                style: style
+            )
+            .frame(width: size.width, height: size.height)
+        }
+    }
+
+    private func stickerCanvasSize(in canvasSize: CGSize) -> CGSize {
+        let aspectRatio = template.canvasSize.height / max(template.canvasSize.width, 1)
+        let baseWidth = min(canvasSize.width * 0.46, canvasSize.height * 0.58)
+        let width = max(baseWidth * stickerPlacement.scale, 120)
+        return CGSize(width: width, height: width * aspectRatio)
+    }
+
+    private func translatedPlacement(
+        from placement: RunShareStickerPlacement,
+        translation: CGSize,
+        canvasSize: CGSize,
+        stickerSize: CGSize
+    ) -> RunShareStickerPlacement {
+        let halfWidth = min((stickerSize.width / max(canvasSize.width, 1)) / 2, 0.5)
+        let halfHeight = min((stickerSize.height / max(canvasSize.height, 1)) / 2, 0.5)
+
+        var updated = placement
+        updated.centerX += translation.width / max(canvasSize.width, 1)
+        updated.centerY += translation.height / max(canvasSize.height, 1)
+        updated.centerX = min(max(updated.centerX, halfWidth), 1 - halfWidth)
+        updated.centerY = min(max(updated.centerY, halfHeight), 1 - halfHeight)
+        return updated
+    }
+}
+
 private struct RunShareRouteCanvas: View {
     let route: [RunRoutePoint]
+    let style: RunShareArtworkStyle
 
     var body: some View {
         GeometryReader { geometry in
@@ -3951,15 +4462,15 @@ private struct RunShareRouteCanvas: View {
                     .stroke(
                         LinearGradient(
                             colors: [
-                                runOnlyShareAccent,
-                                runOnlyShareAccentDark
+                                style.accentColor,
+                                style.accentShadowColor
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
                         style: StrokeStyle(lineWidth: 14, lineCap: .round, lineJoin: .round)
                     )
-                    .shadow(color: runOnlyShareAccent.opacity(0.28), radius: 18, y: 10)
+                    .shadow(color: style.accentColor.opacity(0.28), radius: 18, y: 10)
                 } else {
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(Color.white.opacity(0.04))
@@ -4030,6 +4541,7 @@ private struct RunShareMetricTile: View {
     let metric: RunShareMetric
     let template: RunShareTemplate
     let centered: Bool
+    let style: RunShareArtworkStyle
 
     private var valueFontSize: CGFloat {
         switch template {
@@ -4056,12 +4568,12 @@ private struct RunShareMetricTile: View {
     var body: some View {
         VStack(alignment: centered ? .center : .leading, spacing: centered ? 6 : 8) {
             Text(metric.title)
-                .font(.system(size: labelFontSize, weight: .bold, design: .rounded))
+                .font(style.fontChoice.font(size: style.scaled(labelFontSize), weight: .bold))
                 .foregroundStyle(.white.opacity(0.78))
                 .tracking(0.2)
 
             Text(metric.value)
-                .font(.system(size: valueFontSize, weight: .heavy, design: .rounded))
+                .font(style.fontChoice.font(size: style.scaled(valueFontSize), weight: .heavy))
                 .foregroundStyle(.white)
                 .monospacedDigit()
                 .minimumScaleFactor(0.4)
@@ -4075,11 +4587,12 @@ private struct RunShareMetricTile: View {
 private struct ShareMetaPill: View {
     let text: String
     let centered: Bool
+    let style: RunShareArtworkStyle
 
     var body: some View {
         Text(text)
-            .font(.system(size: 14, weight: .semibold, design: .rounded))
-            .foregroundStyle(runOnlyShareAccent.opacity(0.94))
+            .font(style.fontChoice.font(size: style.scaled(14), weight: .semibold))
+            .foregroundStyle(style.accentColor.opacity(0.94))
             .shadow(color: .black.opacity(0.18), radius: 4, y: 1)
             .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
     }
