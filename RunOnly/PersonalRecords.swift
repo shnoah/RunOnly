@@ -81,29 +81,94 @@ struct PersonalRecordCandidate: Identifiable, Codable {
     }
 }
 
+// 확정된 PR 경신 이력 한 건을 그래프와 축하 배너에서 함께 사용한다.
+struct PersonalRecordHistoryEntry: Identifiable, Codable {
+    let distance: PersonalRecordDistance
+    var duration: TimeInterval
+    var date: Date
+    var workoutID: UUID
+
+    var id: String { "\(distance.id)-\(workoutID.uuidString)" }
+
+    var valueText: String {
+        formatPersonalRecordDuration(duration)
+    }
+
+    var detailText: String {
+        date.formatted(date: .abbreviated, time: .omitted)
+    }
+}
+
 // PR 계산 결과와 처리 이력을 로컬에 저장하기 위한 스냅샷이다.
 struct PersonalRecordSnapshot: Codable {
     var version: Int
     var records: [PersonalRecordEntry]
     var pendingCandidates: [PersonalRecordCandidate]
+    var history: [PersonalRecordHistoryEntry]
     var processedRunIDs: [UUID]
     var updatedAt: Date?
+
+    init(
+        version: Int,
+        records: [PersonalRecordEntry],
+        pendingCandidates: [PersonalRecordCandidate],
+        history: [PersonalRecordHistoryEntry],
+        processedRunIDs: [UUID],
+        updatedAt: Date?
+    ) {
+        self.version = version
+        self.records = records
+        self.pendingCandidates = pendingCandidates
+        self.history = history
+        self.processedRunIDs = processedRunIDs
+        self.updatedAt = updatedAt
+    }
 
     static func empty(version: Int) -> PersonalRecordSnapshot {
         PersonalRecordSnapshot(
             version: version,
             records: PersonalRecordEntry.placeholders,
             pendingCandidates: [],
+            history: [],
             processedRunIDs: [],
             updatedAt: nil
         )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case records
+        case pendingCandidates
+        case history
+        case processedRunIDs
+        case updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        records = try container.decode([PersonalRecordEntry].self, forKey: .records)
+        pendingCandidates = try container.decodeIfPresent([PersonalRecordCandidate].self, forKey: .pendingCandidates) ?? []
+        history = try container.decodeIfPresent([PersonalRecordHistoryEntry].self, forKey: .history) ?? []
+        processedRunIDs = try container.decodeIfPresent([UUID].self, forKey: .processedRunIDs) ?? []
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(records, forKey: .records)
+        try container.encode(pendingCandidates, forKey: .pendingCandidates)
+        try container.encode(history, forKey: .history)
+        try container.encode(processedRunIDs, forKey: .processedRunIDs)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
     }
 }
 
 // HealthKit 파생 데이터는 백업 제외 저장소에 보관해 심사 리스크를 줄인다.
 final class PersonalRecordStore {
     private let snapshotFilename = "personal-records.json"
-    let version = 2
+    let version = 4
 
     func load() -> PersonalRecordSnapshot {
         let decoder = JSONDecoder()

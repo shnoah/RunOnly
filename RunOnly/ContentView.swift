@@ -41,6 +41,7 @@ struct ContentView: View {
                     Label("설정", systemImage: "gearshape.fill")
                 }
         }
+        .environmentObject(viewModel)
         .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
         .onAppear {
             viewModel.showAppleWorkoutOnly = appSettings.defaultAppleOnlyFilter
@@ -1075,15 +1076,27 @@ private struct PersonalRecordsCard: View {
                     }
                     .buttonStyle(.plain)
                 } else {
-                    Text(statusText)
+                    Text(headerStatusText)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(headerStatusColor)
                 }
             }
 
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(records) { record in
-                    PersonalRecordCell(record: record)
+                    if let workoutID = record.workoutID {
+                        NavigationLink {
+                            PersonalRecordRunDestinationView(
+                                workoutID: workoutID,
+                                highlightedDistances: [record.distance]
+                            )
+                        } label: {
+                            PersonalRecordCell(record: record, showsDisclosureIndicator: true)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        PersonalRecordCell(record: record)
+                    }
                 }
             }
         }
@@ -1095,21 +1108,41 @@ private struct PersonalRecordsCard: View {
     }
 
     private var statusText: String {
-        guard isRefreshing else { return "전체 러닝 기준" }
+        guard isRefreshing else { return "최근 3년 기준" }
         let percent = Int(((progress ?? 0) * 100).rounded())
         return "계산 중 \(percent)%"
+    }
+
+    private var headerStatusText: String {
+        if !pendingCandidates.isEmpty {
+            return "검토 \(pendingCandidates.count)건"
+        }
+        return statusText
+    }
+
+    private var headerStatusColor: Color {
+        pendingCandidates.isEmpty ? .white.opacity(0.5) : Color(red: 0.29, green: 0.88, blue: 0.63)
     }
 }
 
 // PR 거리 한 칸을 렌더링한다.
 private struct PersonalRecordCell: View {
     let record: PersonalRecordEntry
+    var showsDisclosureIndicator = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(record.distance.label)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.5))
+            HStack(alignment: .top) {
+                Text(record.distance.label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.5))
+                Spacer()
+                if showsDisclosureIndicator {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.35))
+                }
+            }
             Text(record.valueText)
                 .font(.system(.headline, design: .rounded).weight(.bold))
                 .foregroundStyle(.white)
@@ -1127,6 +1160,93 @@ private struct PersonalRecordCell: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.black.opacity(0.18))
         )
+    }
+}
+
+@MainActor
+private final class PersonalRecordRunLoaderViewModel: ObservableObject {
+    enum State {
+        case idle
+        case loading
+        case loaded(RunningWorkout)
+        case failed(String)
+    }
+
+    @Published private(set) var state: State = .idle
+
+    private let workoutID: UUID
+    private let healthKitService = HealthKitService()
+
+    init(workoutID: UUID) {
+        self.workoutID = workoutID
+    }
+
+    func loadIfNeeded() async {
+        guard case .idle = state else { return }
+        await load()
+    }
+
+    func load() async {
+        state = .loading
+
+        do {
+            if let run = try await healthKitService.fetchRunningWorkout(with: workoutID) {
+                state = .loaded(run)
+            } else {
+                state = .failed("해당 러닝 기록을 찾을 수 없습니다.")
+            }
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+}
+
+private struct PersonalRecordRunDestinationView: View {
+    let workoutID: UUID
+    let highlightedDistances: [PersonalRecordDistance]
+    @StateObject private var viewModel: PersonalRecordRunLoaderViewModel
+
+    init(workoutID: UUID, highlightedDistances: [PersonalRecordDistance]) {
+        self.workoutID = workoutID
+        self.highlightedDistances = highlightedDistances
+        _viewModel = StateObject(wrappedValue: PersonalRecordRunLoaderViewModel(workoutID: workoutID))
+    }
+
+    var body: some View {
+        Group {
+            switch viewModel.state {
+            case .idle, .loading:
+                ZStack {
+                    AppBackground()
+                    ProgressView("러닝 기록을 불러오는 중")
+                        .tint(.white)
+                        .foregroundStyle(.white)
+                }
+
+            case .failed(let message):
+                ZStack {
+                    AppBackground()
+                    StatusView(
+                        title: "러닝 기록을 찾을 수 없습니다",
+                        message: message,
+                        buttonTitle: "다시 시도"
+                    ) {
+                        Task {
+                            await viewModel.load()
+                        }
+                    }
+                }
+
+            case .loaded(let run):
+                RunDetailView(
+                    run: run,
+                    personalRecordAchievements: highlightedDistances
+                )
+            }
+        }
+        .task {
+            await viewModel.loadIfNeeded()
+        }
     }
 }
 
@@ -1317,20 +1437,59 @@ private struct RunMetricPill: View {
     }
 }
 
+private struct RunPersonalRecordBanner: View {
+    let achievements: [PersonalRecordDistance]
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+            Text(message)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.35), lineWidth: 1)
+                )
+        )
+    }
+
+    private var message: String {
+        let labels = achievements.map(\.label)
+        return "축하합니다! \(labels.joined(separator: ", ")) 새로운 최고 기록을 달성했습니다!"
+    }
+}
+
 // 러닝 상세 화면은 route, split, 차트, 장비 정보를 순서대로 보여준다.
 private struct RunDetailView: View {
     let run: RunningWorkout
+    let personalRecordAchievements: [PersonalRecordDistance]
+    @EnvironmentObject private var workoutsViewModel: RunningWorkoutsViewModel
     @StateObject private var viewModel: RunDetailViewModel
     @State private var showingShareComposer = false
 
-    init(run: RunningWorkout) {
+    init(run: RunningWorkout, personalRecordAchievements: [PersonalRecordDistance] = []) {
         self.run = run
+        self.personalRecordAchievements = personalRecordAchievements
         _viewModel = StateObject(wrappedValue: RunDetailViewModel(run: run))
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                if !displayedPersonalRecordAchievements.isEmpty {
+                    RunPersonalRecordBanner(achievements: displayedPersonalRecordAchievements)
+                }
+
                 VStack(alignment: .leading, spacing: 6) {
                     Text(run.detailDateText)
                         .font(.title2.weight(.bold))
@@ -1419,6 +1578,105 @@ private struct RunDetailView: View {
         guard case .loaded(let detail) = viewModel.state else { return nil }
         return detail
     }
+
+    private var displayedPersonalRecordAchievements: [PersonalRecordDistance] {
+        let explicitAchievements = Set(personalRecordAchievements)
+        let liveAchievements = Set(workoutsViewModel.personalRecordAchievements(for: run))
+        let inferredAchievements = Set(loadedDetail.map(inferredPersonalRecordAchievements(from:)) ?? [])
+        let allAchievements = explicitAchievements
+            .union(liveAchievements)
+            .union(inferredAchievements)
+
+        return PersonalRecordDistance.allCases.filter { allAchievements.contains($0) }
+    }
+
+    private func inferredPersonalRecordAchievements(from detail: RunDetail) -> [PersonalRecordDistance] {
+        let historyMatches = workoutsViewModel.personalRecordHistory.compactMap { entry -> PersonalRecordDistance? in
+            guard let duration = bestPersonalRecordDuration(for: entry.distance.meters, in: detail.distanceTimeline) else {
+                return nil
+            }
+
+            if abs(entry.date.timeIntervalSince(run.startDate)) < 1 || abs(duration - entry.duration) < 0.5 {
+                return entry.distance
+            }
+
+            return nil
+        }
+
+        let currentRecordMatches = workoutsViewModel.personalRecords.compactMap { record -> PersonalRecordDistance? in
+            guard let targetDuration = record.duration else { return nil }
+            guard let duration = bestPersonalRecordDuration(for: record.distance.meters, in: detail.distanceTimeline) else {
+                return nil
+            }
+
+            if let recordDate = record.date, abs(recordDate.timeIntervalSince(run.startDate)) < 1 {
+                return record.distance
+            }
+
+            if abs(duration - targetDuration) < 0.5 {
+                return record.distance
+            }
+
+            return nil
+        }
+
+        let matchedDistances = Set(historyMatches + currentRecordMatches)
+        return PersonalRecordDistance.allCases.filter { matchedDistances.contains($0) }
+    }
+}
+
+private func bestPersonalRecordDuration(
+    for targetDistance: Double,
+    in timeline: [DistanceTimelinePoint]
+) -> TimeInterval? {
+    guard timeline.count > 1, let lastDistance = timeline.last?.distanceMeters, lastDistance >= targetDistance else {
+        return nil
+    }
+
+    var best: TimeInterval?
+    var lowerIndex = 0
+
+    for endIndex in timeline.indices {
+        let endPoint = timeline[endIndex]
+        guard endPoint.distanceMeters >= targetDistance else { continue }
+
+        let startDistance = endPoint.distanceMeters - targetDistance
+        while lowerIndex + 1 < timeline.count, timeline[lowerIndex + 1].distanceMeters < startDistance {
+            lowerIndex += 1
+        }
+
+        let startElapsed = interpolatedPersonalRecordElapsed(
+            for: startDistance,
+            in: timeline,
+            lowerIndex: lowerIndex
+        )
+        let duration = endPoint.elapsed - startElapsed
+        guard duration > 0 else { continue }
+
+        if best == nil || duration < (best ?? .greatestFiniteMagnitude) {
+            best = duration
+        }
+    }
+
+    return best
+}
+
+private func interpolatedPersonalRecordElapsed(
+    for distance: Double,
+    in timeline: [DistanceTimelinePoint],
+    lowerIndex: Int
+) -> TimeInterval {
+    let clampedIndex = min(max(lowerIndex, 0), timeline.count - 1)
+    let lowerPoint = timeline[clampedIndex]
+    guard clampedIndex + 1 < timeline.count else { return lowerPoint.elapsed }
+
+    let upperPoint = timeline[clampedIndex + 1]
+    let distanceSpan = upperPoint.distanceMeters - lowerPoint.distanceMeters
+    guard distanceSpan > 0 else { return upperPoint.elapsed }
+
+    let ratio = (distance - lowerPoint.distanceMeters) / distanceSpan
+    let clampedRatio = min(max(ratio, 0), 1)
+    return lowerPoint.elapsed + (upperPoint.elapsed - lowerPoint.elapsed) * clampedRatio
 }
 
 // 경로 데이터가 있으면 지도를, 없으면 안내 문구를 보여준다.
@@ -2777,9 +3035,10 @@ private enum VO2TrendRange: String, CaseIterable, Identifiable {
 private struct TrainingTrendView: View {
     let runs: [RunningWorkout]
     let summary: RunningSummary
+    @State private var selectedWeekDate: Date?
 
     private var points: [TrainingTrendPoint] {
-        TrainingTrendPoint.build(from: runs)
+        TrainingTrendPoint.build(from: runs, weeks: 5)
     }
 
     private var latestPoint: TrainingTrendPoint? { points.last }
@@ -2795,22 +3054,29 @@ private struct TrainingTrendView: View {
         return sign + abs(delta).formatted(.number.precision(.fractionLength(1))) + " km"
     }
 
+    private var selectedPoint: TrainingTrendPoint? {
+        guard let selectedWeekDate else { return nil }
+        return points.min {
+            abs($0.startDate.timeIntervalSince(selectedWeekDate)) < abs($1.startDate.timeIntervalSince(selectedWeekDate))
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     SummaryCard(title: "현재 상태", value: summary.trainingStatus, detail: summary.trainingStatusDetail)
                     SummaryCard(
-                        title: "최근 7일 거리",
+                        title: "이번 주 거리",
                         value: latestPoint.map { formatKilometers($0.distanceKilometers) } ?? "-",
                         detail: latestPoint.map(\.label) ?? "데이터 없음"
                     )
                     SummaryCard(
-                        title: "직전 7일 거리",
+                        title: "직전 주 거리",
                         value: previousPoint.map { formatKilometers($0.distanceKilometers) } ?? "-",
                         detail: previousPoint.map(\.label) ?? "데이터 없음"
                     )
-                    SummaryCard(title: "주간 변화", value: changeText, detail: "최근 7일 vs 직전 7일")
+                    SummaryCard(title: "주간 변화", value: changeText, detail: "이번 주 vs 직전 주")
                 }
 
                 DetailSection(title: "주간 훈련량") {
@@ -2818,41 +3084,57 @@ private struct TrainingTrendView: View {
                         Text("훈련 추세를 계산할 러닝 데이터가 부족합니다.")
                             .foregroundStyle(.white.opacity(0.72))
                     } else {
-                        Chart(points) { point in
-                            BarMark(
-                                x: .value("주간", point.label),
-                                y: .value("거리", point.distanceKilometers)
+                        VStack(alignment: .leading, spacing: 10) {
+                            Chart(points) { point in
+                                BarMark(
+                                    x: .value("주간", point.startDate),
+                                    y: .value("거리", point.distanceKilometers),
+                                    width: .fixed(20)
+                                )
+                                .foregroundStyle(
+                                    (selectedPoint?.id == point.id ? Color.white : Color(red: 0.29, green: 0.88, blue: 0.63))
+                                        .opacity(selectedPoint == nil || selectedPoint?.id == point.id ? 1 : 0.42)
+                                )
+                                .cornerRadius(6)
+                                .annotation(position: .top, spacing: 8) {
+                                    if selectedPoint?.id == point.id {
+                                        Text(point.distanceText)
+                                            .font(.caption2.weight(.bold))
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(
+                                                Capsule()
+                                                    .fill(Color.black.opacity(0.28))
+                                            )
+                                    }
+                                }
+                            }
+                            .frame(height: 220)
+                            .chartXSelection(value: $selectedWeekDate)
+                            .chartYAxis {
+                                AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                                        .foregroundStyle(.white.opacity(0.08))
+                                    AxisValueLabel {
+                                        if let distance = value.as(Double.self) {
+                                            Text(distance.formatted(.number.precision(.fractionLength(0))) + " km")
+                                                .foregroundStyle(.white.opacity(0.45))
+                                        }
+                                    }
+                                }
+                            }
+                            .chartXAxis(.hidden)
+                            .chartPlotStyle { plotArea in
+                                plotArea.background(.clear)
+                            }
+
+                            TrainingTrendAxisRow(
+                                points: points,
+                                selectedPointID: selectedPoint?.id
                             )
-                            .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
-                            .cornerRadius(6)
-                        }
-                        .frame(height: 220)
-                        .chartYAxis {
-                            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                                    .foregroundStyle(.white.opacity(0.08))
-                                AxisValueLabel {
-                                    if let distance = value.as(Double.self) {
-                                        Text(distance.formatted(.number.precision(.fractionLength(0))) + " km")
-                                            .foregroundStyle(.white.opacity(0.45))
-                                    }
-                                }
-                            }
-                        }
-                        .chartXAxis {
-                            AxisMarks(values: .automatic) { value in
-                                AxisTick()
-                                    .foregroundStyle(.white.opacity(0.35))
-                                AxisValueLabel {
-                                    if let label = value.as(String.self) {
-                                        Text(label)
-                                            .foregroundStyle(.white.opacity(0.68))
-                                    }
-                                }
-                            }
-                        }
-                        .chartPlotStyle { plotArea in
-                            plotArea.background(.clear)
+                            .padding(.leading, 46)
+                            .padding(.trailing, 6)
                         }
                     }
                 }
@@ -2860,6 +3142,7 @@ private struct TrainingTrendView: View {
                 DetailSection(title: "계산 방식") {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("훈련 추세는 최근 7일 러닝 거리와 직전 7일 러닝 거리를 비교해 계산합니다.")
+                        Text("아래 주간 그래프는 최근 5주를 달력 기준 주차별로 보여줍니다.")
                         Text("최근 7일 거리가 직전 7일보다 20% 이상 많으면 `빌드업`으로 표시합니다.")
                         Text("최근 7일에 러닝이 있고 20% 이상 차이가 나지 않으면 `유지`로 표시합니다.")
                         Text("최근 7일 러닝이 거의 없으면 `회복`으로 표시합니다.")
@@ -2877,40 +3160,90 @@ private struct TrainingTrendView: View {
     }
 }
 
+private struct TrainingTrendAxisRow: View {
+    let points: [TrainingTrendPoint]
+    let selectedPointID: Date?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(points) { point in
+                Text(point.axisLabel)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(point.id == selectedPointID ? .white : .white.opacity(0.68))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+}
+
 private struct TrainingTrendPoint: Identifiable {
     let id: Date
     let startDate: Date
     let endDate: Date
     let distanceKilometers: Double
 
+    var distanceText: String {
+        distanceKilometers.formatted(.number.precision(.fractionLength(1))) + " km"
+    }
+
     var label: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = "M/d"
-        return formatter.string(from: startDate)
+        "\(monthText) \(weekText)"
+    }
+
+    var axisLabel: String {
+        label
+    }
+
+    var dateRangeText: String {
+        let rangeEndDate = Calendar.current.date(byAdding: .day, value: -1, to: endDate) ?? endDate
+        return "\(formattedMonthDay(startDate)) - \(formattedMonthDay(rangeEndDate))"
+    }
+
+    private var monthText: String {
+        "\(Calendar.current.component(.month, from: startDate))월"
+    }
+
+    private var weekText: String {
+        "\(Calendar.current.component(.weekOfMonth, from: startDate))주차"
+    }
+
+    private func formattedMonthDay(_ date: Date) -> String {
+        date.formatted(
+            .dateTime
+                .locale(Locale(identifier: "ko_KR"))
+                .month()
+                .day()
+        )
     }
 
     static func build(from runs: [RunningWorkout], weeks: Int = 8) -> [TrainingTrendPoint] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        guard let firstWeekStart = calendar.date(byAdding: .day, value: -(weeks * 7) + 1, to: today) else { return [] }
+        guard
+            let currentWeek = calendar.dateInterval(of: .weekOfYear, for: today),
+            let firstWeekStart = calendar.date(byAdding: .weekOfYear, value: -(weeks - 1), to: currentWeek.start)
+        else {
+            return []
+        }
 
         return (0..<weeks).compactMap { offset in
             guard
-                let startDate = calendar.date(byAdding: .day, value: offset * 7, to: firstWeekStart),
-                let endDate = calendar.date(byAdding: .day, value: 7, to: startDate)
+                let weekStart = calendar.date(byAdding: .weekOfYear, value: offset, to: firstWeekStart),
+                let weekInterval = calendar.dateInterval(of: .weekOfYear, for: weekStart)
             else {
                 return nil
             }
 
             let distanceKilometers = runs
-                .filter { $0.startDate >= startDate && $0.startDate < endDate }
+                .filter { $0.startDate >= weekInterval.start && $0.startDate < weekInterval.end }
                 .reduce(0) { $0 + $1.distanceInKilometers }
 
             return TrainingTrendPoint(
-                id: startDate,
-                startDate: startDate,
-                endDate: endDate,
+                id: weekInterval.start,
+                startDate: weekInterval.start,
+                endDate: weekInterval.end,
                 distanceKilometers: distanceKilometers
             )
         }

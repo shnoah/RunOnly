@@ -108,6 +108,35 @@ final class HealthKitService {
         }
     }
 
+    func fetchRunningWorkout(with id: UUID) async throws -> RunningWorkout? {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            throw HealthKitServiceError.notAvailable
+        }
+
+        let runningPredicate = HKQuery.predicateForWorkouts(with: .running)
+        let objectPredicate = HKQuery.predicateForObject(with: id)
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [runningPredicate, objectPredicate])
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: .workoutType(),
+                predicate: predicate,
+                limit: 1,
+                sortDescriptors: nil
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let workout = (samples as? [HKWorkout])?.first
+                continuation.resume(returning: workout.map(RunningWorkout.init(workout:)))
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
     // 가장 오래된 러닝 날짜는 과거 기록 로딩과 PR 재계산의 시작점이 된다.
     func fetchOldestRunningWorkoutDate() async throws -> Date? {
         guard HKHealthStore.isHealthDataAvailable() else {
