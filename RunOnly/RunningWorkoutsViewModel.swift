@@ -289,7 +289,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         selectedRecordDate = nil
     }
 
-    // PR은 전체 러닝을 기준으로 계산하되, 이미 처리한 기록은 다시 돌리지 않는다.
+    // PR은 Apple 운동 앱 러닝만 기준으로 계산해 기록 탭과 일관성을 맞춘다.
     func refreshPersonalRecordsIfNeeded() async {
         guard !isRefreshingPersonalRecords else { return }
         isRefreshingPersonalRecords = true
@@ -311,12 +311,12 @@ final class RunningWorkoutsViewModel: ObservableObject {
                 guard let oldestRunningWorkoutDate else { return }
                 let startDate = max(oldestRunningWorkoutDate, cutoffDate)
                 let historicalRuns = try await healthKitService.fetchRunningWorkouts(from: startDate, to: now)
-                runsToProcess = deduplicatedAndSortedChronologically(historicalRuns)
+                runsToProcess = deduplicatedAndSortedChronologically(historicalRuns).filter(\.isAppleWorkout)
                 snapshot = .empty(version: personalRecordStore.version)
             } else {
                 let processedIDs = Set(snapshot.processedRunIDs)
                 runsToProcess = deduplicatedAndSortedChronologically(allRuns).filter {
-                    !processedIDs.contains($0.id) && $0.startDate >= cutoffDate
+                    $0.isAppleWorkout && !processedIDs.contains($0.id) && $0.startDate >= cutoffDate
                 }
             }
 

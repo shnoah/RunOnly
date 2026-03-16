@@ -168,7 +168,7 @@ struct PersonalRecordSnapshot: Codable {
 // HealthKit 파생 데이터는 백업 제외 저장소에 보관해 심사 리스크를 줄인다.
 final class PersonalRecordStore {
     private let snapshotFilename = "personal-records.json"
-    let version = 4
+    let version = 5
 
     func load() -> PersonalRecordSnapshot {
         let decoder = JSONDecoder()
