@@ -265,6 +265,22 @@ struct RunDetail {
         activeDuration: 0,
         heartRateZoneProfile: nil
     )
+
+    func updatingSupplementary(
+        route: [RunRoutePoint],
+        heartRateZoneProfile: HeartRateZoneProfile?
+    ) -> RunDetail {
+        RunDetail(
+            route: route.isEmpty ? self.route : route,
+            distanceTimeline: distanceTimeline,
+            heartRates: heartRates,
+            runningMetrics: runningMetrics,
+            paceSamples: paceSamples,
+            splits: splits,
+            activeDuration: activeDuration,
+            heartRateZoneProfile: heartRateZoneProfile ?? self.heartRateZoneProfile
+        )
+    }
 }
 
 // 지도에 그릴 경로 포인트는 거리와 고도까지 함께 가진다.

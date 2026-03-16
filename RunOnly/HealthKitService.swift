@@ -242,42 +242,17 @@ final class HealthKitService {
         }
     }
 
-    // 상세 화면은 여러 HealthKit 쿼리를 병렬 실행한 뒤 하나의 RunDetail로 합친다.
+    // 상세 화면 첫 진입에서는 핵심 차트와 스플릿에 필요한 데이터만 우선 읽는다.
     func fetchRunDetail(for runningWorkout: RunningWorkout) async throws -> RunDetail {
-        async let routeTask = fetchRoute(for: runningWorkout.workout)
         async let heartRateTask = fetchHeartRates(for: runningWorkout.workout)
         async let distanceTask = fetchDistanceSamples(for: runningWorkout.workout)
         async let stepCountTask = fetchStepCountSamples(for: runningWorkout.workout)
-        async let runningPowerTask = fetchQuantitySamples(
-            for: runningWorkout.workout,
-            identifier: .runningPower,
-            unit: .watt()
-        )
-        async let runningSpeedTask = fetchQuantitySamples(
-            for: runningWorkout.workout,
-            identifier: .runningSpeed,
-            unit: HKUnit.meter().unitDivided(by: .second())
-        )
-        async let strideLengthTask = fetchQuantitySamples(
-            for: runningWorkout.workout,
-            identifier: .runningStrideLength,
-            unit: .meter()
-        )
-        async let verticalOscillationTask = fetchQuantitySamples(
-            for: runningWorkout.workout,
-            identifier: .runningVerticalOscillation,
-            unit: HKUnit.meterUnit(with: .centi)
-        )
-        async let groundContactTimeTask = fetchQuantitySamples(
-            for: runningWorkout.workout,
-            identifier: .runningGroundContactTime,
-            unit: HKUnit.secondUnit(with: .milli)
-        )
 
         let activeIntervals = buildActiveIntervals(for: runningWorkout.workout)
-        let route = try await routeTask
+        let distanceSamples = try await distanceTask
+        let route = distanceSamples.isEmpty ? (try await fetchRoute(for: runningWorkout.workout)) : []
         let distanceTimeline = buildDistanceTimeline(
-            from: try await distanceTask,
+            from: distanceSamples,
             route: route,
             activeIntervals: activeIntervals,
             targetDistance: runningWorkout.distanceInMeters,
@@ -291,18 +266,13 @@ final class HealthKitService {
         let stepSamples = try await stepCountTask
         let runningMetrics = buildRunningMetrics(
             stepSamples: stepSamples,
-            powerSamples: try await runningPowerTask,
-            speedSamples: try await runningSpeedTask,
-            strideLengthSamples: try await strideLengthTask,
-            verticalOscillationSamples: try await verticalOscillationTask,
-            groundContactTimeSamples: try await groundContactTimeTask,
+            powerSamples: [],
+            speedSamples: [],
+            strideLengthSamples: [],
+            verticalOscillationSamples: [],
+            groundContactTimeSamples: [],
             timeline: distanceTimeline,
             activeIntervals: activeIntervals
-        )
-        let observedMaximumHeartRate = heartRates.map(\.bpm).max()
-        let heartRateZoneProfile = try? await fetchHeartRateZoneProfile(
-            referenceDate: runningWorkout.startDate,
-            observedMaximumHeartRate: observedMaximumHeartRate
         )
 
         return RunDetail(
@@ -322,7 +292,22 @@ final class HealthKitService {
             activeDuration: activeIntervals.reduce(0) { partialResult, interval in
                 partialResult + interval.endDate.timeIntervalSince(interval.startDate)
             },
-            heartRateZoneProfile: heartRateZoneProfile
+            heartRateZoneProfile: nil
+        )
+    }
+
+    // 지도와 심박 존은 첫 화면이 뜬 뒤 보강 로딩할 수 있게 별도 진입점을 둔다.
+    func fetchRunRoute(for runningWorkout: RunningWorkout) async throws -> [RunRoutePoint] {
+        try await fetchRoute(for: runningWorkout.workout)
+    }
+
+    func fetchRunHeartRateZoneProfile(
+        for runningWorkout: RunningWorkout,
+        observedMaximumHeartRate: Double?
+    ) async -> HeartRateZoneProfile? {
+        try? await fetchHeartRateZoneProfile(
+            referenceDate: runningWorkout.startDate,
+            observedMaximumHeartRate: observedMaximumHeartRate
         )
     }
 
@@ -1086,13 +1071,14 @@ final class HealthKitService {
         activeIntervals: [ActiveInterval]
     ) -> [HeartRateSample] {
         guard !timeline.isEmpty else { return heartRates }
+        let timelineLookup = TimelineLookup(timeline: timeline)
 
         return heartRates.compactMap { sample in
             guard let interval = activeInterval(containing: sample.date, activeIntervals: activeIntervals) else { return nil }
             let distancePoint = nearestTimelinePoint(
                 to: sample.date,
                 segmentIndex: interval.index,
-                timeline: timeline
+                lookup: timelineLookup
             )
 
             return HeartRateSample(
@@ -1116,35 +1102,37 @@ final class HealthKitService {
         timeline: [DistanceTimelinePoint],
         activeIntervals: [ActiveInterval]
     ) -> RunningMetrics {
-        RunningMetrics(
+        let timelineLookup = TimelineLookup(timeline: timeline)
+
+        return RunningMetrics(
             cadence: buildCadenceSamples(
                 from: stepSamples,
-                timeline: timeline,
+                timelineLookup: timelineLookup,
                 activeIntervals: activeIntervals
             ),
             power: mapRunningMetricSamples(
                 powerSamples,
-                timeline: timeline,
+                timelineLookup: timelineLookup,
                 activeIntervals: activeIntervals
             ),
             speed: mapRunningMetricSamples(
                 speedSamples,
-                timeline: timeline,
+                timelineLookup: timelineLookup,
                 activeIntervals: activeIntervals
             ),
             strideLength: mapRunningMetricSamples(
                 strideLengthSamples,
-                timeline: timeline,
+                timelineLookup: timelineLookup,
                 activeIntervals: activeIntervals
             ),
             verticalOscillation: mapRunningMetricSamples(
                 verticalOscillationSamples,
-                timeline: timeline,
+                timelineLookup: timelineLookup,
                 activeIntervals: activeIntervals
             ),
             groundContactTime: mapRunningMetricSamples(
                 groundContactTimeSamples,
-                timeline: timeline,
+                timelineLookup: timelineLookup,
                 activeIntervals: activeIntervals
             )
         )
@@ -1152,10 +1140,10 @@ final class HealthKitService {
 
     private func buildCadenceSamples(
         from stepSamples: [RawStepSample],
-        timeline: [DistanceTimelinePoint],
+        timelineLookup: TimelineLookup,
         activeIntervals: [ActiveInterval]
     ) -> [RunningMetricSample] {
-        guard !timeline.isEmpty else { return [] }
+        guard !timelineLookup.isEmpty else { return [] }
 
         var samples: [RunningMetricSample] = []
 
@@ -1175,7 +1163,7 @@ final class HealthKitService {
                 let distancePoint = nearestTimelinePoint(
                     to: overlap.end,
                     segmentIndex: interval.index,
-                    timeline: timeline
+                    lookup: timelineLookup
                 )
 
                 samples.append(
@@ -1195,10 +1183,10 @@ final class HealthKitService {
 
     private func mapRunningMetricSamples(
         _ samples: [RawQuantitySample],
-        timeline: [DistanceTimelinePoint],
+        timelineLookup: TimelineLookup,
         activeIntervals: [ActiveInterval]
     ) -> [RunningMetricSample] {
-        guard !timeline.isEmpty else { return [] }
+        guard !timelineLookup.isEmpty else { return [] }
 
         var mappedSamples: [RunningMetricSample] = []
 
@@ -1213,7 +1201,7 @@ final class HealthKitService {
                 let distancePoint = nearestTimelinePoint(
                     to: overlap.end,
                     segmentIndex: interval.index,
-                    timeline: timeline
+                    lookup: timelineLookup
                 )
 
                 mappedSamples.append(
@@ -1243,13 +1231,35 @@ final class HealthKitService {
     private func nearestTimelinePoint(
         to date: Date,
         segmentIndex: Int,
-        timeline: [DistanceTimelinePoint]
+        lookup: TimelineLookup
     ) -> DistanceTimelinePoint? {
-        timeline
-            .filter { $0.segmentIndex == segmentIndex }
-            .min(by: {
-                abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
-            })
+        guard let points = lookup.pointsBySegment[segmentIndex], !points.isEmpty else { return nil }
+
+        var lowerBound = 0
+        var upperBound = points.count
+
+        while lowerBound < upperBound {
+            let middle = (lowerBound + upperBound) / 2
+            if points[middle].date < date {
+                lowerBound = middle + 1
+            } else {
+                upperBound = middle
+            }
+        }
+
+        if lowerBound == 0 {
+            return points[0]
+        }
+
+        if lowerBound == points.count {
+            return points[points.count - 1]
+        }
+
+        let previousPoint = points[lowerBound - 1]
+        let nextPoint = points[lowerBound]
+        let previousDistance = abs(previousPoint.date.timeIntervalSince(date))
+        let nextDistance = abs(nextPoint.date.timeIntervalSince(date))
+        return previousDistance <= nextDistance ? previousPoint : nextPoint
     }
 
     private func averageHeartRate(from heartRates: [HeartRateSample], elapsedRange: Range<TimeInterval>) -> Double? {
@@ -1369,5 +1379,20 @@ private struct ActiveInterval {
 
     var dateInterval: DateInterval {
         DateInterval(start: startDate, end: endDate)
+    }
+}
+
+private struct TimelineLookup {
+    let pointsBySegment: [Int: [DistanceTimelinePoint]]
+
+    init(timeline: [DistanceTimelinePoint]) {
+        pointsBySegment = Dictionary(grouping: timeline, by: \.segmentIndex)
+            .mapValues { points in
+                points.sorted { $0.date < $1.date }
+            }
+    }
+
+    var isEmpty: Bool {
+        pointsBySegment.isEmpty
     }
 }

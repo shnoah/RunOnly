@@ -12,9 +12,11 @@ final class RunDetailViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
+    @Published private(set) var isLoadingSupplementary = false
 
     private let healthKitService = HealthKitService()
     private let run: RunningWorkout
+    private var loadGeneration = 0
 
     init(run: RunningWorkout) {
         self.run = run
@@ -28,13 +30,20 @@ final class RunDetailViewModel: ObservableObject {
 
     // HealthKit 조회 결과를 그대로 상태에 반영한다.
     func load() async {
+        loadGeneration += 1
+        let currentGeneration = loadGeneration
         state = .loading
+        isLoadingSupplementary = false
 
         do {
             let detail = try await healthKitService.fetchRunDetail(for: run)
+            guard currentGeneration == loadGeneration else { return }
             state = .loaded(detail)
+            await loadSupplementary(for: detail, generation: currentGeneration)
         } catch {
+            guard currentGeneration == loadGeneration else { return }
             state = .failed(error.localizedDescription)
+            isLoadingSupplementary = false
         }
     }
 
@@ -50,6 +59,9 @@ final class RunDetailViewModel: ObservableObject {
 
     // 개발 중에는 실데이터 없이도 다양한 상세 화면 레이아웃을 점검할 수 있다.
     func applyDebugScenario(_ scenario: DebugScenario) async {
+        loadGeneration += 1
+        isLoadingSupplementary = false
+
         switch scenario {
         case .live:
             await load()
@@ -66,5 +78,38 @@ final class RunDetailViewModel: ObservableObject {
         case .empty:
             state = .loaded(.empty)
         }
+    }
+
+    private func loadSupplementary(for detail: RunDetail, generation: Int) async {
+        isLoadingSupplementary = true
+        defer {
+            if generation == loadGeneration {
+                isLoadingSupplementary = false
+            }
+        }
+
+        async let heartRateZoneProfileTask = healthKitService.fetchRunHeartRateZoneProfile(
+            for: run,
+            observedMaximumHeartRate: detail.heartRates.map(\.bpm).max()
+        )
+
+        let route: [RunRoutePoint]
+        if detail.route.isEmpty {
+            route = (try? await healthKitService.fetchRunRoute(for: run)) ?? []
+        } else {
+            route = detail.route
+        }
+
+        let heartRateZoneProfile = await heartRateZoneProfileTask
+
+        guard generation == loadGeneration else { return }
+        guard case .loaded(let currentDetail) = state else { return }
+
+        state = .loaded(
+            currentDetail.updatingSupplementary(
+                route: route,
+                heartRateZoneProfile: heartRateZoneProfile
+            )
+        )
     }
 }

@@ -1485,7 +1485,7 @@ private struct RunDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            LazyVStack(alignment: .leading, spacing: 18) {
                 if !displayedPersonalRecordAchievements.isEmpty {
                     RunPersonalRecordBanner(achievements: displayedPersonalRecordAchievements)
                 }
@@ -1530,9 +1530,9 @@ private struct RunDetailView: View {
                     RunOverviewMetricsSection(run: run, detail: detail)
                     RunSplitSection(detail: detail)
                     PerformanceChartSection(run: run, detail: detail)
-                    HeartRateZoneSection(detail: detail)
+                    HeartRateZoneSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
                     RunGearSection(run: run)
-                    RunRouteSection(detail: detail)
+                    RunRouteSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
                     RunDataSourceSection(run: run)
                 }
             }
@@ -1682,10 +1682,18 @@ private func interpolatedPersonalRecordElapsed(
 // 경로 데이터가 있으면 지도를, 없으면 안내 문구를 보여준다.
 private struct RunRouteSection: View {
     let detail: RunDetail
+    let isLoadingSupplementary: Bool
 
     var body: some View {
         DetailSection(title: "러닝 경로") {
-            if detail.route.isEmpty {
+            if detail.route.isEmpty, isLoadingSupplementary {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .tint(.white)
+                    Text("경로 데이터를 불러오는 중")
+                        .foregroundStyle(.white.opacity(0.72))
+                }
+            } else if detail.route.isEmpty {
                 Text("이 러닝에는 경로 데이터가 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
             } else {
@@ -2207,10 +2215,18 @@ private struct RunOverviewMetricsSection: View {
 // 심박 존은 현재 러닝에서 어느 강도로 뛰었는지 빠르게 확인하는 영역이다.
 private struct HeartRateZoneSection: View {
     let detail: RunDetail
+    let isLoadingSupplementary: Bool
 
     var body: some View {
         DetailSection(title: "심박 존 1-5") {
-            if zoneRows.isEmpty {
+            if zoneRows.isEmpty, isLoadingSupplementary {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .tint(.white)
+                    Text("심박 존 데이터를 계산하는 중")
+                        .foregroundStyle(.white.opacity(0.72))
+                }
+            } else if zoneRows.isEmpty {
                 Text("심박 데이터가 부족해 존 분포를 계산할 수 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
             } else {
@@ -3477,6 +3493,7 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
 }
 
 private enum RunShareField: String, CaseIterable, Identifiable {
+    case logo
     case route
     case date
     case weather
@@ -3492,6 +3509,8 @@ private enum RunShareField: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
+        case .logo:
+            return "RUNONLY"
         case .route:
             return "경로"
         case .date:
@@ -3517,6 +3536,8 @@ private enum RunShareField: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
+        case .logo:
+            return "app.badge"
         case .route:
             return "point.topleft.down.curvedto.point.bottomright.up"
         case .date:
@@ -3636,7 +3657,7 @@ private struct RunShareComposerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTemplate: RunShareTemplate = .sticker
-    @State private var enabledFields: Set<RunShareField> = [.route, .weather, .distance, .duration, .pace]
+    @State private var enabledFields: Set<RunShareField> = [.logo, .route, .weather, .distance, .duration, .pace]
     @State private var stickerDebugSettings = RunShareStickerDebugSettings()
     @State private var selectedBackgroundPhotoItem: PhotosPickerItem?
     @State private var backgroundPhotoImage: UIImage?
@@ -4174,6 +4195,8 @@ private struct RunShareComposerView: View {
 
     private func isFieldAvailable(_ field: RunShareField) -> Bool {
         switch field {
+        case .logo:
+            return true
         case .route:
             return !detail.route.isEmpty
         case .weather:
@@ -4509,21 +4532,23 @@ private struct RunShareArtworkView: View {
 
     @ViewBuilder
     private var header: some View {
-        if template == .sticker {
-            Text("RUNONLY")
-                .font(style.fontChoice.font(size: style.scaled(headerBrandFontSize), weight: .heavy))
-                .foregroundStyle(style.accentColor)
-                .tracking(1.2)
-                .shadow(color: style.accentColor.opacity(0.26), radius: 10, y: 2)
-                .frame(maxWidth: .infinity, alignment: .center)
-        } else {
-            HStack {
+        if enabledFields.contains(.logo) {
+            if template == .sticker {
                 Text("RUNONLY")
                     .font(style.fontChoice.font(size: style.scaled(headerBrandFontSize), weight: .heavy))
                     .foregroundStyle(style.accentColor)
-                    .tracking(0.8)
+                    .tracking(1.2)
                     .shadow(color: style.accentColor.opacity(0.26), radius: 10, y: 2)
-                Spacer()
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                HStack {
+                    Text("RUNONLY")
+                        .font(style.fontChoice.font(size: style.scaled(headerBrandFontSize), weight: .heavy))
+                        .foregroundStyle(style.accentColor)
+                        .tracking(0.8)
+                        .shadow(color: style.accentColor.opacity(0.26), radius: 10, y: 2)
+                    Spacer()
+                }
             }
         }
     }
@@ -4607,7 +4632,7 @@ private struct RunShareArtworkView: View {
         var items: [String] = []
 
         if enabledFields.contains(.date) {
-            items.append(run.detailDateText)
+            items.append(shareDateText)
         }
 
         if enabledFields.contains(.weather), let weatherSnapshot {
@@ -4639,6 +4664,18 @@ private struct RunShareArtworkView: View {
         let average = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
         return average.formatted(.number.precision(.fractionLength(0))) + " spm"
     }
+
+    private var shareDateText: String {
+        Self.shareDateFormatter.string(from: run.startDate)
+    }
+
+    private static let shareDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+        return formatter
+    }()
 }
 
 private struct RunShareTemplateBackground: View {
@@ -4922,9 +4959,11 @@ private struct ShareMetaPill: View {
     let centered: Bool
     let style: RunShareArtworkStyle
 
+    private let baseFontSize: CGFloat = 16
+
     var body: some View {
         Text(text)
-            .font(style.fontChoice.font(size: style.scaled(14), weight: .semibold))
+            .font(style.fontChoice.font(size: style.scaled(baseFontSize), weight: .semibold))
             .foregroundStyle(style.accentColor.opacity(0.94))
             .shadow(color: .black.opacity(0.18), radius: 4, y: 1)
             .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
