@@ -2,6 +2,18 @@
 
 ## 2026-03-16
 
+### ContentView 분리 1차 시작
+- `ContentView.swift`에 있던 공유하기(`RunShare`) 관련 뷰와 보조 타입을 별도 파일 `RunShareViews.swift`로 분리.
+- 이번 단계는 기능 이동만 수행하고 동작은 바꾸지 않는 것을 원칙으로 진행.
+- 공유하기 기능이 다른 탭/상세 로직과 덜 얽혀 있어, 첫 분리 대상으로 선택.
+
+### ContentView 분리 2차 진행
+- 공통 UI 컴포넌트와 포맷 유틸을 `SharedViews.swift`로 분리.
+- `ShoeStore`, `AppSettingsStore`, `MileageGoalStore`와 관련 백업/가져오기 모델을 `Stores.swift`로 분리.
+- 러닝 상세 화면과 차트/지도/심박 존/디버그 패널을 `RunDetailViews.swift`로 분리.
+- 남아 있던 홈/기록/신발/설정 화면 블록은 `FeatureViews.swift`로 이동.
+- 최종적으로 `ContentView.swift`는 탭 구성과 공통 상태 주입만 담당하는 앱 셸 역할로 축소.
+
 ### 상세 화면 1차 로딩 최적화
 - 러닝 상세 첫 진입 시 route / 심박 존 / 미사용 고급 러닝 메트릭까지 한 번에 읽던 구조를 정리.
 - 현재는 기본 로딩에서 다음 데이터만 먼저 읽도록 조정:
