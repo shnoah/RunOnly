@@ -22,6 +22,8 @@ struct ContentView: View {
                 .environmentObject(shoeStore)
             }
         }
+        .environmentObject(appSettings)
+        .environment(\.locale, appSettings.appLocale)
         .fullScreenCover(isPresented: $appSettings.isPresentingHealthKitIntro) {
             NavigationStack {
                 HealthKitOnboardingView(
@@ -43,6 +45,12 @@ struct ContentView: View {
             viewModel.showAppleWorkoutOnly = appSettings.defaultAppleOnlyFilter
             viewModel.applyFilter()
         }
+        .onChange(of: appSettings.distanceUnitPreference) {
+            viewModel.applyFilter()
+        }
+        .onChange(of: appSettings.appLanguagePreference) {
+            viewModel.applyFilter()
+        }
     }
 
     private var mainTabs: some View {
@@ -50,18 +58,21 @@ struct ContentView: View {
             HomeTabView(viewModel: viewModel)
                 .environmentObject(shoeStore)
                 .environmentObject(mileageGoalStore)
+                .environmentObject(appSettings)
                 .tabItem {
                     Label("홈", systemImage: "house.fill")
                 }
 
             RecordTabView(viewModel: viewModel)
                 .environmentObject(shoeStore)
+                .environmentObject(appSettings)
                 .tabItem {
                     Label("기록", systemImage: "list.bullet.rectangle")
                 }
 
             ShoesTabView(runs: viewModel.allRuns)
                 .environmentObject(shoeStore)
+                .environmentObject(appSettings)
                 .tabItem {
                     Label("신발", systemImage: "shoeprints.fill")
                 }

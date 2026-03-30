@@ -7,7 +7,10 @@ enum AppMetadata {
     static let repositoryURL = URL(string: "https://github.com/shnoah/RunOnly")!
     static let privacyPolicyURL = URL(string: "https://github.com/shnoah/RunOnly/blob/main/APP_STORE/PRIVACY_POLICY.md")!
     static let reviewNotesURL = URL(string: "https://github.com/shnoah/RunOnly/blob/main/APP_STORE/REVIEW_NOTES.md")!
-    static let healthPermissionSettingsPath = "설정 > 건강 > 데이터 접근 및 기기 > RunOnly"
+
+    static var healthPermissionSettingsPath: String {
+        L10n.tr("설정 > 건강 > 데이터 접근 및 기기 > RunOnly")
+    }
 
     static var displayName: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "RunOnly"
@@ -20,19 +23,22 @@ enum AppMetadata {
     }
 
     static var supportMailURL: URL {
-        let subject = "\(displayName) 문의".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "\(displayName)%20문의"
+        let subject = L10n.format("%@ 문의", displayName)
+            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "\(displayName)%20문의"
         return URL(string: "mailto:\(supportEmail)?subject=\(subject)")!
     }
 
-    static let healthDataSummaryItems = [
-        "러닝 workout",
-        "러닝 경로",
-        "심박",
-        "안정시 심박",
-        "VO2 Max",
-        "거리 및 걸음 수",
-        "러닝 파워 / 속도 / 보폭 / 수직진폭 / 지면접촉시간"
-    ]
+    static var healthDataSummaryItems: [String] {
+        [
+            L10n.tr("러닝 workout"),
+            L10n.tr("러닝 경로"),
+            L10n.tr("심박"),
+            L10n.tr("안정시 심박"),
+            L10n.tr("VO2 Max"),
+            L10n.tr("거리 및 걸음 수"),
+            L10n.tr("러닝 파워 / 속도 / 보폭 / 수직진폭 / 지면접촉시간")
+        ]
+    }
 }
 
 // HealthKit 파생 데이터를 포함한 로컬 파일을 앱 내부 저장소에 보관하고 백업 대상에서 제외한다.

@@ -14,22 +14,22 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .sticker:
-            return "스티커"
+            return L10n.tr("스티커")
         case .square:
-            return "정사각형"
+            return L10n.tr("정사각형")
         case .story:
-            return "스토리"
+            return L10n.tr("스토리")
         }
     }
 
     var descriptionText: String {
         switch self {
         case .sticker:
-            return "투명 배경 PNG로 복사/공유하기 좋습니다."
+            return L10n.tr("투명 배경 PNG로 복사/공유하기 좋습니다.")
         case .square:
-            return "피드용 카드에 가까운 정사각형 이미지입니다."
+            return L10n.tr("피드용 카드에 가까운 정사각형 이미지입니다.")
         case .story:
-            return "세로 비율이 긴 스토리형 포스터입니다."
+            return L10n.tr("세로 비율이 긴 스토리형 포스터입니다.")
         }
     }
 
@@ -91,25 +91,25 @@ private enum RunShareField: String, CaseIterable, Identifiable {
         case .logo:
             return "RUNONLY"
         case .route:
-            return "경로"
+            return L10n.tr("경로")
         case .date:
-            return "날짜"
+            return L10n.tr("날짜")
         case .environment:
-            return "실내/실외"
+            return L10n.tr("실내/실외")
         case .distance:
-            return "거리"
+            return L10n.tr("거리")
         case .duration:
-            return "시간"
+            return L10n.tr("시간")
         case .pace:
-            return "페이스"
+            return L10n.tr("페이스")
         case .elevationGain:
-            return "상승 고도"
+            return L10n.tr("상승 고도")
         case .heartRate:
-            return "심박"
+            return L10n.tr("심박")
         case .cadence:
-            return "케이던스"
+            return L10n.tr("케이던스")
         case .shoe:
-            return "신발"
+            return L10n.tr("신발")
         }
     }
 
@@ -164,15 +164,15 @@ private enum RunShareFontChoice: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .rounded:
-            return "둥근"
+            return L10n.tr("둥근")
         case .system:
-            return "기본"
+            return L10n.tr("기본")
         case .serif:
-            return "세리프"
+            return L10n.tr("세리프")
         case .monospaced:
-            return "모노"
+            return L10n.tr("모노")
         case .condensed:
-            return "콘덴스"
+            return L10n.tr("콘덴스")
         }
     }
 
@@ -306,6 +306,10 @@ struct RunShareComposerView: View {
             String(format: "%.3f", stickerDebugSettings.fontScale),
             photoKey
         ].joined(separator: "|")
+    }
+
+    private var backgroundPhotoButtonTitle: String {
+        backgroundPhotoImage == nil ? L10n.tr("사진 불러오기") : L10n.tr("사진 다시 고르기")
     }
 
     var body: some View {
@@ -501,7 +505,7 @@ struct RunShareComposerView: View {
                                 }
 
                                 PhotosPicker(selection: $selectedBackgroundPhotoItem, matching: .images, photoLibrary: .shared()) {
-                                    Label(backgroundPhotoImage == nil ? "사진 불러오기" : "사진 다시 고르기", systemImage: "photo.on.rectangle.angled")
+                                    Label(LocalizedStringKey(backgroundPhotoButtonTitle), systemImage: "photo.on.rectangle.angled")
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(.white)
                                         .frame(maxWidth: .infinity)
@@ -675,7 +679,7 @@ struct RunShareComposerView: View {
         foregroundColor: Color,
         backgroundColor: Color
     ) -> some View {
-        Label(title, systemImage: systemImage)
+        Label(LocalizedStringKey(title), systemImage: systemImage)
             .font(.caption.weight(.bold))
             .foregroundStyle(foregroundColor)
             .frame(maxWidth: .infinity)
@@ -691,7 +695,7 @@ struct RunShareComposerView: View {
             let url = try exportShareImageFile()
             shareItems = [url]
             exportErrorMessage = nil
-            exportStatusMessage = "공유용 PNG를 준비했습니다."
+            exportStatusMessage = L10n.tr("공유용 PNG를 준비했습니다.")
             showingShareSheet = true
         } catch {
             exportStatusMessage = nil
@@ -704,7 +708,7 @@ struct RunShareComposerView: View {
             let data = try renderPNGData()
             UIPasteboard.general.setItems([[UTType.png.identifier: data]])
             exportErrorMessage = nil
-            exportStatusMessage = "PNG를 클립보드에 복사했습니다."
+            exportStatusMessage = L10n.tr("PNG를 클립보드에 복사했습니다.")
         } catch {
             exportStatusMessage = nil
             exportErrorMessage = error.localizedDescription
@@ -717,13 +721,13 @@ struct RunShareComposerView: View {
             let authorizationStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
             guard authorizationStatus == .authorized || authorizationStatus == .limited else {
                 exportStatusMessage = nil
-                exportErrorMessage = "사진 앱 저장 권한이 필요합니다."
+                exportErrorMessage = L10n.tr("사진 앱 저장 권한이 필요합니다.")
                 return
             }
 
             try await PhotoLibraryPNGWriter.save(data)
             exportErrorMessage = nil
-            exportStatusMessage = "카메라롤에 PNG를 저장했습니다."
+            exportStatusMessage = L10n.tr("카메라롤에 PNG를 저장했습니다.")
         } catch {
             exportStatusMessage = nil
             exportErrorMessage = error.localizedDescription
@@ -850,7 +854,7 @@ struct RunShareComposerView: View {
             backgroundPreviewPhotoImage = resizedImage(image, maxDimension: 1400)
             stickerPlacement = RunShareStickerPlacement()
         } catch {
-            backgroundPhotoErrorMessage = "사진을 불러오지 못했습니다."
+            backgroundPhotoErrorMessage = L10n.tr("사진을 불러오지 못했습니다.")
         }
 
         selectedBackgroundPhotoItem = nil
@@ -928,9 +932,9 @@ private enum RunShareExportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .renderFailed:
-            return "공유 이미지를 렌더링하지 못했습니다."
+            return L10n.tr("공유 이미지를 렌더링하지 못했습니다.")
         case .photoSaveFailed:
-            return "사진 앱에 저장하지 못했습니다."
+            return L10n.tr("사진 앱에 저장하지 못했습니다.")
         }
     }
 }
@@ -966,22 +970,22 @@ private struct RunShareArtworkView: View {
         var items: [RunShareMetric] = []
 
         if enabledFields.contains(.distance) {
-            items.append(RunShareMetric(field: .distance, title: "거리", value: run.distanceText))
+            items.append(RunShareMetric(field: .distance, title: L10n.tr("거리"), value: run.distanceText))
         }
         if enabledFields.contains(.duration) {
-            items.append(RunShareMetric(field: .duration, title: "시간", value: run.durationText))
+            items.append(RunShareMetric(field: .duration, title: L10n.tr("시간"), value: run.durationText))
         }
         if enabledFields.contains(.pace) {
-            items.append(RunShareMetric(field: .pace, title: "페이스", value: run.paceText))
+            items.append(RunShareMetric(field: .pace, title: L10n.tr("페이스"), value: run.paceText))
         }
         if enabledFields.contains(.elevationGain), let elevationGainText {
-            items.append(RunShareMetric(field: .elevationGain, title: "상승", value: elevationGainText))
+            items.append(RunShareMetric(field: .elevationGain, title: L10n.tr("상승"), value: elevationGainText))
         }
         if enabledFields.contains(.heartRate), let averageHeartRateText {
-            items.append(RunShareMetric(field: .heartRate, title: "심박", value: averageHeartRateText))
+            items.append(RunShareMetric(field: .heartRate, title: L10n.tr("심박"), value: averageHeartRateText))
         }
         if enabledFields.contains(.cadence), let averageCadenceText {
-            items.append(RunShareMetric(field: .cadence, title: "케이던스", value: averageCadenceText))
+            items.append(RunShareMetric(field: .cadence, title: L10n.tr("케이던스"), value: averageCadenceText))
         }
 
         return items
@@ -1172,16 +1176,8 @@ private struct RunShareArtworkView: View {
     }
 
     private var shareDateText: String {
-        Self.shareDateFormatter.string(from: run.startDate)
+        RunDisplayFormatter.shareDate(run.startDate)
     }
-
-    private static let shareDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy/MM/dd HH:mm"
-        return formatter
-    }()
 }
 
 private struct RunShareTemplateBackground: View {

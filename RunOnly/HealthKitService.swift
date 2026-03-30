@@ -9,7 +9,7 @@ enum HealthKitServiceError: Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notAvailable:
-            return "이 기기에서는 HealthKit을 사용할 수 없습니다."
+            return L10n.tr("이 기기에서는 HealthKit을 사용할 수 없습니다.")
         }
     }
 }

@@ -64,7 +64,7 @@ private struct RunPersonalRecordBanner: View {
 
     private var message: String {
         let labels = achievements.map(\.label)
-        return "축하합니다! \(labels.joined(separator: ", ")) 새로운 최고 기록을 달성했습니다!"
+        return L10n.format("축하합니다! %@ 새로운 최고 기록을 달성했습니다!", labels.joined(separator: ", "))
     }
 }
 
@@ -417,7 +417,7 @@ private struct PerformanceChartSection: View {
     private var averageHeartRateText: String {
         guard !detail.heartRates.isEmpty else { return "-" }
         let avg = detail.heartRates.map(\.bpm).reduce(0, +) / Double(detail.heartRates.count)
-        return avg.formatted(.number.precision(.fractionLength(0))) + " bpm"
+        return RunDisplayFormatter.heartRate(avg) ?? "-"
     }
 
     private var averagePaceText: String {
@@ -433,12 +433,12 @@ private struct PerformanceChartSection: View {
 
         if weightedCadence.duration > 0 {
             let average = weightedCadence.weighted / weightedCadence.duration
-            return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+            return RunDisplayFormatter.cadence(average)
         }
 
         guard !detail.runningMetrics.cadence.isEmpty else { return nil }
         let average = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
-        return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+        return RunDisplayFormatter.cadence(average)
     }
 
     private var heartSeries: [HeartRateChartPoint] {
@@ -574,7 +574,7 @@ private struct PerformanceChartSection: View {
 
     private func metricHeader(title: String, systemImage: String, tint: Color) -> some View {
         HStack {
-            Label(title, systemImage: systemImage)
+            Label(LocalizedStringKey(title), systemImage: systemImage)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(tint)
             Spacer()
@@ -728,16 +728,14 @@ private struct HeartRateChartPlot: View {
 }
 
 private func formatAxisDistance(_ distance: Double) -> String {
-    let hasFraction = abs(distance.rounded() - distance) > 0.001
-    let fractionLength = hasFraction ? 2 : 1
-    return distance.formatted(.number.precision(.fractionLength(fractionLength)))
+    RunDisplayFormatter.axisDistance(kilometers: distance)
 }
 
 private struct RunSplitSection: View {
     let detail: RunDetail
 
     var body: some View {
-        DetailSection(title: "km 스플릿") {
+        DetailSection(title: L10n.tr("스플릿")) {
             if detail.splits.isEmpty {
                 Text("스플릿을 계산할 경로 데이터가 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
@@ -805,7 +803,7 @@ private struct HeartRateZoneSection: View {
                     .foregroundStyle(.white.opacity(0.72))
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(detail.heartRateZoneProfile?.method.descriptionText ?? "심박 존 기준 없음")
+                    Text(detail.heartRateZoneProfile?.method.descriptionText ?? L10n.tr("심박 존 기준 없음"))
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.5))
 
@@ -822,11 +820,11 @@ private struct HeartRateZoneSection: View {
         guard let zoneProfile = detail.heartRateZoneProfile else { return [] }
 
         let boundaries: [(label: String, lower: Double, upper: Double, color: Color)] = [
-            ("존 1", 0.50, 0.60, Color.blue),
-            ("존 2", 0.60, 0.70, Color.green),
-            ("존 3", 0.70, 0.80, Color.yellow),
-            ("존 4", 0.80, 0.90, Color.orange),
-            ("존 5", 0.90, 1.01, Color.red)
+            (L10n.tr("존 1"), 0.50, 0.60, Color.blue),
+            (L10n.tr("존 2"), 0.60, 0.70, Color.green),
+            (L10n.tr("존 3"), 0.70, 0.80, Color.yellow),
+            (L10n.tr("존 4"), 0.80, 0.90, Color.orange),
+            (L10n.tr("존 5"), 0.90, 1.01, Color.red)
         ]
 
         let sortedHeartRates = detail.heartRates.sorted {
@@ -906,7 +904,7 @@ private struct HeartRateZoneRow: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(zone.title)
+                Text(LocalizedStringKey(zone.title))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                 Text(zone.rangeText)
@@ -1029,7 +1027,7 @@ private struct AdditionalMetricChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                 Spacer()
@@ -1093,7 +1091,7 @@ private struct SplitTableHeader: View {
     }
 
     private func splitColumnTitle(_ title: String, width: CGFloat, alignment: Alignment) -> some View {
-        Text(title)
+        Text(LocalizedStringKey(title))
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.white.opacity(0.45))
             .frame(width: width, alignment: alignment)
@@ -1344,39 +1342,28 @@ private struct SelectedMetrics {
     }
 
     var distanceText: String {
-        distanceKilometers.formatted(.number.precision(.fractionLength(2))) + " km"
+        RunDisplayFormatter.distance(meters: distanceMeters, fractionLength: 2)
     }
 
     var elapsedText: String {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = [.pad]
-        return formatter.string(from: elapsed) ?? "-"
+        RunDisplayFormatter.duration(elapsed)
     }
 
     var paceText: String {
         guard let paceSecondsPerKilometer else { return "-" }
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = [.pad]
-        return (formatter.string(from: paceSecondsPerKilometer) ?? "-") + "/km"
+        return RunDisplayFormatter.pace(secondsPerKilometer: paceSecondsPerKilometer)
     }
 
     var heartRateText: String {
-        guard let heartRate else { return "-" }
-        return heartRate.formatted(.number.precision(.fractionLength(0))) + " bpm"
+        RunDisplayFormatter.heartRate(heartRate) ?? "-"
     }
 
     var cadenceText: String? {
-        guard let cadence else { return nil }
-        return cadence.formatted(.number.precision(.fractionLength(0))) + " spm"
+        RunDisplayFormatter.cadence(cadence)
     }
 
     var altitudeText: String? {
-        guard let altitudeMeters else { return nil }
-        return altitudeMeters.formatted(.number.precision(.fractionLength(0))) + " m"
+        RunDisplayFormatter.elevation(altitudeMeters)
     }
 
     func paceScaledForChart(heartRateRange: ClosedRange<Double>, paceRange: ClosedRange<Double>) -> Double? {
@@ -1433,10 +1420,10 @@ private struct RunGearSection: View {
             } else {
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(shoeStore.shoe(for: run.id)?.displayName ?? "신발 미선택")
+                        Text(shoeStore.shoe(for: run.id)?.displayName ?? L10n.tr("신발 미선택"))
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(.white)
-                        Text(shoeStore.shoe(for: run.id)?.brandModelText ?? "이 러닝에 어떤 신발을 신었는지 기록해두세요.")
+                        Text(shoeStore.shoe(for: run.id)?.brandModelText ?? L10n.tr("이 러닝에 어떤 신발을 신었는지 기록해두세요."))
                             .font(.footnote)
                             .foregroundStyle(.white.opacity(0.6))
                     }

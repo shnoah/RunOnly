@@ -56,8 +56,7 @@ struct RunningWorkout: Identifiable {
     }
 
     var distanceText: String {
-        let distanceInKilometers = distanceInMeters / 1_000
-        return distanceInKilometers.formatted(.number.precision(.fractionLength(2))) + " km"
+        RunDisplayFormatter.distance(meters: distanceInMeters, fractionLength: 2)
     }
 
     var distanceInKilometers: Double {
@@ -65,21 +64,11 @@ struct RunningWorkout: Identifiable {
     }
 
     var durationText: String {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = duration >= 3_600 ? [.hour, .minute, .second] : [.minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = [.pad]
-        return formatter.string(from: duration) ?? "-"
+        RunDisplayFormatter.duration(duration)
     }
 
     var paceText: String {
-        guard distanceInMeters > 0 else { return "-" }
-        let secondsPerKilometer = duration / (distanceInMeters / 1_000)
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = [.pad]
-        return (formatter.string(from: secondsPerKilometer) ?? "-") + "/km"
+        RunDisplayFormatter.pace(duration: duration, distanceMeters: distanceInMeters)
     }
 
     var isAppleWorkout: Bool {
@@ -100,51 +89,36 @@ struct RunningWorkout: Identifiable {
     var environmentText: String {
         switch isIndoorWorkout {
         case true:
-            return "실내"
+            return L10n.tr("실내")
         case false:
-            return "실외"
+            return L10n.tr("실외")
         case nil:
-            return "미확인"
+            return L10n.tr("미확인")
         }
     }
 
     var environmentShortText: String {
         switch isIndoorWorkout {
         case true:
-            return "실내"
+            return L10n.tr("실내")
         case false:
-            return "실외"
+            return L10n.tr("실외")
         case nil:
-            return "미확인"
+            return L10n.tr("미확인")
         }
     }
 
     var recordDateText: String {
-        Self.recordDateFormatter.string(from: startDate)
+        RunDisplayFormatter.recordDate(startDate)
     }
 
     var detailDateText: String {
-        Self.detailDateFormatter.string(from: startDate)
+        RunDisplayFormatter.detailDate(startDate)
     }
 
     var titleText: String {
         recordDateText
     }
-
-    private static let recordDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = "M월 d일 (E) a h:mm"
-        return formatter
-    }()
-
-    private static let detailDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = "yyyy년 M월 d일 (E) a h:mm"
-        return formatter
-    }()
-
     static let demoSample = RunningWorkout(
         id: UUID(uuidString: "8A6D2A35-4222-4E7E-A4E1-7D3B57F593A1") ?? UUID(),
         startDate: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 3, day: 15, hour: 7, minute: 30)) ?? .now,
@@ -171,20 +145,22 @@ struct RunningSummary {
     let predictedHalfText: String
     let predictedMarathonText: String
 
-    static let empty = RunningSummary(
+    static var empty: RunningSummary {
+        RunningSummary(
         monthDistanceKilometers: 0,
         yearDistanceKilometers: 0,
-        monthDistanceText: "0 km",
-        yearDistanceText: "0 km",
-        trainingStatus: "준비중",
-        trainingStatusDetail: "러닝 데이터가 쌓이면 상태를 계산합니다.",
+        monthDistanceText: RunDisplayFormatter.distance(kilometers: 0),
+        yearDistanceText: RunDisplayFormatter.distance(kilometers: 0),
+        trainingStatus: L10n.tr("준비중"),
+        trainingStatusDetail: L10n.tr("러닝 데이터가 쌓이면 상태를 계산합니다."),
         vo2MaxText: "-",
-        vo2MaxDateText: "VO2 Max 데이터 없음",
+        vo2MaxDateText: L10n.tr("VO2 Max 데이터 없음"),
         predicted5KText: "-",
         predicted10KText: "-",
         predictedHalfText: "-",
         predictedMarathonText: "-"
     )
+    }
 }
 
 // VO2 Max 한 점은 값과 측정 날짜만 있으면 충분하다.
@@ -243,18 +219,15 @@ struct RunSummaryMetrics: Codable, Equatable {
     }
 
     var averageHeartRateText: String? {
-        guard let averageHeartRate else { return nil }
-        return averageHeartRate.formatted(.number.precision(.fractionLength(0))) + " bpm"
+        RunDisplayFormatter.heartRate(averageHeartRate)
     }
 
     var averageCadenceText: String? {
-        guard let averageCadence else { return nil }
-        return averageCadence.formatted(.number.precision(.fractionLength(0))) + " spm"
+        RunDisplayFormatter.cadence(averageCadence)
     }
 
     var elevationGainText: String? {
-        guard let elevationGainMeters else { return nil }
-        return elevationGainMeters.formatted(.number.precision(.fractionLength(0))) + " m"
+        RunDisplayFormatter.elevation(elevationGainMeters)
     }
 
     func mergingMissingValues(from fallback: RunSummaryMetrics?) -> RunSummaryMetrics {
@@ -275,11 +248,11 @@ enum HeartRateZoneMethod: String {
     var descriptionText: String {
         switch self {
         case .heartRateReserve:
-            return "심박 예비량(HRR) 기준"
+            return L10n.tr("심박 예비량(HRR) 기준")
         case .maximumHeartRate:
-            return "최근 최대심박 기준"
+            return L10n.tr("최근 최대심박 기준")
         case .observedWorkoutMaximum:
-            return "이번 러닝 관측 최고심박 기준"
+            return L10n.tr("이번 러닝 관측 최고심박 기준")
         }
     }
 }
@@ -376,8 +349,7 @@ struct RunDetail {
     }
 
     var elevationGainText: String? {
-        guard let elevationGainMeters else { return nil }
-        return elevationGainMeters.formatted(.number.precision(.fractionLength(0))) + " m"
+        RunDisplayFormatter.elevation(elevationGainMeters)
     }
 
     var averageHeartRate: Double? {
@@ -538,38 +510,23 @@ struct RunSplit: Identifiable {
     }
 
     var titleText: String {
-        if distanceMeters >= 999.5 {
-            return "\(index) km"
-        }
-
-        let distanceInKilometers = distanceMeters / 1_000
-        return "\(distanceInKilometers.formatted(.number.precision(.fractionLength(2)))) km"
+        RunDisplayFormatter.splitDistance(meters: distanceMeters)
     }
 
     var paceText: String {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = [.pad]
-        return (formatter.string(from: paceSecondsPerKilometer) ?? "-") + "/km"
+        RunDisplayFormatter.pace(secondsPerKilometer: paceSecondsPerKilometer)
     }
 
     var durationText: String {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = duration >= 3_600 ? [.hour, .minute, .second] : [.minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = [.pad]
-        return formatter.string(from: duration) ?? "-"
+        RunDisplayFormatter.duration(duration)
     }
 
     var heartRateText: String {
-        guard let averageHeartRate else { return "-" }
-        return averageHeartRate.formatted(.number.precision(.fractionLength(0))) + " bpm"
+        RunDisplayFormatter.heartRate(averageHeartRate) ?? "-"
     }
 
     var cadenceText: String {
-        guard let averageCadence else { return "-" }
-        return averageCadence.formatted(.number.precision(.fractionLength(0))) + " spm"
+        RunDisplayFormatter.cadence(averageCadence) ?? "-"
     }
 }
 
@@ -591,11 +548,11 @@ enum MileageHistoryRange: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .currentYear:
-            return "올해"
+            return L10n.tr("올해")
         case .recentThreeYears:
-            return "최근 3년"
+            return L10n.tr("최근 3년")
         case .all:
-            return "전체"
+            return L10n.tr("전체")
         }
     }
 }
@@ -638,7 +595,7 @@ struct RunningShoe: Identifiable, Codable, Equatable {
 
     var brandModelText: String {
         let combined = [brand, model].filter { !$0.isEmpty }.joined(separator: " ")
-        return combined.isEmpty ? "브랜드/모델 미입력" : combined
+        return combined.isEmpty ? L10n.tr("브랜드/모델 미입력") : combined
     }
 }
 

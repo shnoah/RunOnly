@@ -215,9 +215,9 @@ struct ShoeImportSummary {
     var message: String {
         switch strategy {
         case .merge:
-            return "신발 \(shoeCount)개와 연결 \(assignmentCount)건을 병합했습니다."
+            return L10n.format("신발 %d개와 연결 %d건을 병합했습니다.", shoeCount, assignmentCount)
         case .replace:
-            return "신발 \(shoeCount)개와 연결 \(assignmentCount)건으로 교체했습니다."
+            return L10n.format("신발 %d개와 연결 %d건으로 교체했습니다.", shoeCount, assignmentCount)
         }
     }
 }
@@ -229,9 +229,9 @@ private enum ShoeBackupError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsupportedSchemaVersion(let version):
-            return "이 백업 파일은 더 새로운 형식(v\(version))이라 현재 앱에서 가져올 수 없습니다."
+            return L10n.format("이 백업 파일은 더 새로운 형식(v%d)이라 현재 앱에서 가져올 수 없습니다.", version)
         case .emptyBackup:
-            return "가져올 신발 데이터가 없습니다."
+            return L10n.tr("가져올 신발 데이터가 없습니다.")
         }
     }
 }
@@ -243,33 +243,63 @@ private struct ShoeStoreSnapshot: Codable {
 
 @MainActor
 final class AppSettingsStore: ObservableObject {
+    static let defaultAppleOnlyFilterKey = "runonly.settings.defaultAppleOnlyFilter"
+    static let hasCompletedHealthKitIntroKey = "runonly.settings.hasCompletedHealthKitIntro"
+    static let appLanguagePreferenceKey = "runonly.settings.appLanguagePreference"
+    static let distanceUnitPreferenceKey = "runonly.settings.distanceUnitPreference"
+
     @Published var defaultAppleOnlyFilter: Bool {
         didSet {
-            UserDefaults.standard.set(defaultAppleOnlyFilter, forKey: defaultAppleOnlyFilterKey)
+            UserDefaults.standard.set(defaultAppleOnlyFilter, forKey: Self.defaultAppleOnlyFilterKey)
         }
     }
 
     @Published var hasCompletedHealthKitIntro: Bool {
         didSet {
-            UserDefaults.standard.set(hasCompletedHealthKitIntro, forKey: hasCompletedHealthKitIntroKey)
+            UserDefaults.standard.set(hasCompletedHealthKitIntro, forKey: Self.hasCompletedHealthKitIntroKey)
         }
     }
 
     @Published var isPresentingHealthKitIntro = false
 
-    private let defaultAppleOnlyFilterKey = "runonly.settings.defaultAppleOnlyFilter"
-    private let hasCompletedHealthKitIntroKey = "runonly.settings.hasCompletedHealthKitIntro"
+    @Published var appLanguagePreference: AppLanguagePreference {
+        didSet {
+            UserDefaults.standard.set(appLanguagePreference.rawValue, forKey: Self.appLanguagePreferenceKey)
+        }
+    }
+
+    @Published var distanceUnitPreference: DistanceUnitPreference {
+        didSet {
+            UserDefaults.standard.set(distanceUnitPreference.rawValue, forKey: Self.distanceUnitPreferenceKey)
+        }
+    }
+
+    var appLocale: Locale {
+        RunDisplayFormatter.locale(for: appLanguagePreference)
+    }
 
     init() {
-        let hadExistingDefaultAppleOnlySetting = UserDefaults.standard.object(forKey: defaultAppleOnlyFilterKey) != nil
-        if UserDefaults.standard.object(forKey: defaultAppleOnlyFilterKey) == nil {
-            UserDefaults.standard.set(true, forKey: defaultAppleOnlyFilterKey)
+        let hadExistingDefaultAppleOnlySetting = UserDefaults.standard.object(forKey: Self.defaultAppleOnlyFilterKey) != nil
+        if UserDefaults.standard.object(forKey: Self.defaultAppleOnlyFilterKey) == nil {
+            UserDefaults.standard.set(true, forKey: Self.defaultAppleOnlyFilterKey)
         }
-        if UserDefaults.standard.object(forKey: hasCompletedHealthKitIntroKey) == nil {
-            UserDefaults.standard.set(hadExistingDefaultAppleOnlySetting, forKey: hasCompletedHealthKitIntroKey)
+        if UserDefaults.standard.object(forKey: Self.hasCompletedHealthKitIntroKey) == nil {
+            UserDefaults.standard.set(hadExistingDefaultAppleOnlySetting, forKey: Self.hasCompletedHealthKitIntroKey)
         }
-        self.defaultAppleOnlyFilter = UserDefaults.standard.bool(forKey: defaultAppleOnlyFilterKey)
-        self.hasCompletedHealthKitIntro = UserDefaults.standard.bool(forKey: hasCompletedHealthKitIntroKey)
+        if UserDefaults.standard.object(forKey: Self.appLanguagePreferenceKey) == nil {
+            UserDefaults.standard.set(AppLanguagePreference.korean.rawValue, forKey: Self.appLanguagePreferenceKey)
+        }
+        if UserDefaults.standard.object(forKey: Self.distanceUnitPreferenceKey) == nil {
+            UserDefaults.standard.set(DistanceUnitPreference.system.rawValue, forKey: Self.distanceUnitPreferenceKey)
+        }
+        self.defaultAppleOnlyFilter = UserDefaults.standard.bool(forKey: Self.defaultAppleOnlyFilterKey)
+        self.hasCompletedHealthKitIntro = UserDefaults.standard.bool(forKey: Self.hasCompletedHealthKitIntroKey)
+        self.appLanguagePreference = AppLanguagePreference(
+            rawValue: UserDefaults.standard.string(forKey: Self.appLanguagePreferenceKey) ?? ""
+        ) ?? .korean
+        self.distanceUnitPreference = DistanceUnitPreference(
+            rawValue: UserDefaults.standard.string(forKey: Self.distanceUnitPreferenceKey) ?? ""
+        ) ?? .system
     }
 
     func presentHealthKitIntro() {

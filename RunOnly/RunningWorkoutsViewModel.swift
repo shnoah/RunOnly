@@ -235,23 +235,12 @@ final class RunningWorkoutsViewModel: ObservableObject {
     }
 
     var selectedMonthLabelText: String {
-        selectedRecordMonth.formatted(
-            .dateTime
-                .locale(Locale(identifier: "ko_KR"))
-                .year()
-                .month(.wide)
-        )
+        RunDisplayFormatter.monthLabel(selectedRecordMonth)
     }
 
     var selectedDateLabelText: String? {
         guard let selectedRecordDate else { return nil }
-        return selectedRecordDate.formatted(
-            .dateTime
-                .locale(Locale(identifier: "ko_KR"))
-                .month(.wide)
-                .day()
-                .weekday(.abbreviated)
-        )
+        return RunDisplayFormatter.dayLabel(selectedRecordDate)
     }
 
     var canMoveToNextRecordMonth: Bool {
@@ -443,11 +432,11 @@ final class RunningWorkoutsViewModel: ObservableObject {
 
         let trainingStatus: (String, String)
         if last7Distance >= previous7Distance * 1.2, last7Distance > 0 {
-            trainingStatus = ("빌드업", "최근 7일 거리가 직전 주보다 늘었습니다.")
+            trainingStatus = (L10n.tr("빌드업"), L10n.tr("최근 7일 거리가 직전 주보다 늘었습니다."))
         } else if last7Distance > 0 {
-            trainingStatus = ("유지", "최근 2주 훈련량이 안정적으로 유지되고 있습니다.")
+            trainingStatus = (L10n.tr("유지"), L10n.tr("최근 2주 훈련량이 안정적으로 유지되고 있습니다."))
         } else {
-            trainingStatus = ("회복", "최근 7일 러닝이 적어 회복 상태로 보입니다.")
+            trainingStatus = (L10n.tr("회복"), L10n.tr("최근 7일 러닝이 적어 회복 상태로 보입니다."))
         }
 
         let predicted5K = predictTime(for: 5_000, from: runs)
@@ -463,7 +452,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
             trainingStatus: trainingStatus.0,
             trainingStatusDetail: trainingStatus.1,
             vo2MaxText: vo2Max.map { $0.value.formatted(.number.precision(.fractionLength(1))) } ?? "-",
-            vo2MaxDateText: vo2Max.map { "업데이트 \(formatShortKoreanDate($0.date))" } ?? "VO2 Max 데이터 없음",
+            vo2MaxDateText: vo2Max.map { L10n.format("업데이트 %@", formatShortDate($0.date)) } ?? L10n.tr("VO2 Max 데이터 없음"),
             predicted5KText: predicted5K,
             predicted10KText: predicted10K,
             predictedHalfText: predictedHalf,
@@ -472,16 +461,11 @@ final class RunningWorkoutsViewModel: ObservableObject {
     }
 
     private static func formatDistance(_ kilometers: Double) -> String {
-        kilometers.formatted(.number.precision(.fractionLength(1))) + " km"
+        RunDisplayFormatter.distance(kilometers: kilometers, fractionLength: 1)
     }
 
-    private static func formatShortKoreanDate(_ date: Date) -> String {
-        date.formatted(
-            .dateTime
-                .locale(Locale(identifier: "ko_KR"))
-                .month(.wide)
-                .day()
-        )
+    private static func formatShortDate(_ date: Date) -> String {
+        RunDisplayFormatter.shortMonthDay(date)
     }
 
     private static func predictTime(for targetDistance: Double, from runs: [RunningWorkout]) -> String {
@@ -514,8 +498,8 @@ final class RunningWorkoutsViewModel: ObservableObject {
             let distance = grouped[monthDate, default: []].reduce(0) { $0 + $1.distanceInKilometers }
             return MileagePeriod(
                 id: "month-\(monthDate.timeIntervalSince1970)",
-                title: monthDate.formatted(.dateTime.year().month(.wide)),
-                subtitle: "\(grouped[monthDate, default: []].count)회 러닝",
+                title: RunDisplayFormatter.monthLabel(monthDate),
+                subtitle: L10n.format("%d회 러닝", grouped[monthDate, default: []].count),
                 distanceText: Self.formatDistance(distance)
             )
         }
@@ -533,7 +517,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
             return MileagePeriod(
                 id: "year-\(yearDate.timeIntervalSince1970)",
                 title: yearDate.formatted(.dateTime.year()),
-                subtitle: "\(grouped[yearDate, default: []].count)회 러닝",
+                subtitle: L10n.format("%d회 러닝", grouped[yearDate, default: []].count),
                 distanceText: Self.formatDistance(distance)
             )
         }
@@ -620,30 +604,25 @@ final class RunningWorkoutsViewModel: ObservableObject {
     private func mileageHelperText(for range: MileageHistoryRange, isFullyLoaded: Bool) -> String {
         switch range {
         case .currentYear:
-            return "올해 범위는 앱 첫 로딩 데이터로 바로 볼 수 있습니다."
+            return L10n.tr("올해 범위는 앱 첫 로딩 데이터로 바로 볼 수 있습니다.")
         case .recentThreeYears:
             if isFullyLoaded {
-                return "최근 3년 범위까지 반영했습니다."
+                return L10n.tr("최근 3년 범위까지 반영했습니다.")
             }
             if let targetStartDate = mileageStartDate(for: range) {
-                return "\(formatMonthYear(targetStartDate))까지 과거 기록을 추가로 불러오는 중입니다."
+                return L10n.format("%@까지 과거 기록을 추가로 불러오는 중입니다.", formatMonthYear(targetStartDate))
             }
-            return "최근 3년 범위를 위해 과거 기록을 불러오는 중입니다."
+            return L10n.tr("최근 3년 범위를 위해 과거 기록을 불러오는 중입니다.")
         case .all:
             if let earliestLoadedDate = allRuns.map(\.startDate).min(), isFullyLoaded {
-                return "\(formatMonthYear(earliestLoadedDate))부터 전체 기록을 반영했습니다."
+                return L10n.format("%@부터 전체 기록을 반영했습니다.", formatMonthYear(earliestLoadedDate))
             }
-            return "전체 기간을 보려면 과거 기록을 순차적으로 더 불러옵니다."
+            return L10n.tr("전체 기간을 보려면 과거 기록을 순차적으로 더 불러옵니다.")
         }
     }
 
     private func formatMonthYear(_ date: Date) -> String {
-        date.formatted(
-            .dateTime
-                .locale(Locale(identifier: "ko_KR"))
-                .year()
-                .month(.wide)
-        )
+        RunDisplayFormatter.monthLabel(date)
     }
 
     private func updatePersonalRecords(

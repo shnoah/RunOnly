@@ -20,6 +20,9 @@
 		00100000000000000000000C /* Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000010E /* Stores.swift */; };
 		00100000000000000000000D /* RunDetailViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000010F /* RunDetailViews.swift */; };
 		00100000000000000000000E /* FeatureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000110 /* FeatureViews.swift */; };
+		00100000000000000000000F /* DisplayFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000111 /* DisplayFormatting.swift */; };
+		001000000000000000000010 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000112 /* Localizable.strings */; };
+		001000000000000000000011 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000114 /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +42,9 @@
 		00100000000000000000010E /* Stores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stores.swift; sourceTree = "<group>"; };
 		00100000000000000000010F /* RunDetailViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailViews.swift; sourceTree = "<group>"; };
 		001000000000000000000110 /* FeatureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureViews.swift; sourceTree = "<group>"; };
+		001000000000000000000111 /* DisplayFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayFormatting.swift; sourceTree = "<group>"; };
+		001000000000000000000113 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		001000000000000000000115 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,12 +74,15 @@
 				00100000000000000000010C /* RunShareViews.swift */,
 				00100000000000000000010D /* SharedViews.swift */,
 				00100000000000000000010E /* Stores.swift */,
+				001000000000000000000111 /* DisplayFormatting.swift */,
 				00100000000000000000010F /* RunDetailViews.swift */,
 				001000000000000000000110 /* FeatureViews.swift */,
 				001000000000000000000103 /* RunningWorkout.swift */,
 				001000000000000000000104 /* HealthKitService.swift */,
 				001000000000000000000105 /* RunningWorkoutsViewModel.swift */,
 				001000000000000000000106 /* Info.plist */,
+				001000000000000000000114 /* InfoPlist.strings */,
+				001000000000000000000112 /* Localizable.strings */,
 				001000000000000000000107 /* RunOnly.entitlements */,
 				001000000000000000000108 /* RunDetailViewModel.swift */,
 				001000000000000000000109 /* Assets.xcassets */,
@@ -91,6 +100,25 @@
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
+
+/* Begin PBXVariantGroup section */
+		001000000000000000000112 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				001000000000000000000113 /* en */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+		001000000000000000000114 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				001000000000000000000115 /* en */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin PBXNativeTarget section */
 		0010000000000000000000B0 /* RunOnly */ = {
@@ -127,10 +155,11 @@
 			};
 			buildConfigurationList = 0010000000000000000000D1 /* Build configuration list for PBXProject "RunOnly" */;
 			compatibilityVersion = "Xcode 14.0";
-			developmentRegion = en;
+			developmentRegion = ko;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				ko,
 				Base,
 			);
 			mainGroup = 0010000000000000000000A0;
@@ -149,6 +178,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				001000000000000000000007 /* Assets.xcassets in Resources */,
+				001000000000000000000010 /* Localizable.strings in Resources */,
+				001000000000000000000011 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -169,6 +200,7 @@
 				00100000000000000000000A /* RunShareViews.swift in Sources */,
 				00100000000000000000000B /* SharedViews.swift in Sources */,
 				00100000000000000000000C /* Stores.swift in Sources */,
+				00100000000000000000000F /* DisplayFormatting.swift in Sources */,
 				00100000000000000000000D /* RunDetailViews.swift in Sources */,
 				00100000000000000000000E /* FeatureViews.swift in Sources */,
 			);
@@ -185,6 +217,7 @@
 				CODE_SIGN_ENTITLEMENTS = RunOnly/RunOnly.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y892N6745W;
+				DEVELOPMENT_LANGUAGE = ko;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -214,6 +247,7 @@
 				CODE_SIGN_ENTITLEMENTS = RunOnly/RunOnly.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y892N6745W;
+				DEVELOPMENT_LANGUAGE = ko;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;

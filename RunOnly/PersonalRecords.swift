@@ -19,8 +19,8 @@ enum PersonalRecordDistance: String, CaseIterable, Codable, Identifiable {
         case .kilometer1: return "1K"
         case .kilometers5: return "5K"
         case .kilometers10: return "10K"
-        case .halfMarathon: return "하프"
-        case .marathon: return "풀"
+        case .halfMarathon: return L10n.tr("하프")
+        case .marathon: return L10n.tr("풀")
         }
     }
 
@@ -52,7 +52,7 @@ struct PersonalRecordEntry: Identifiable, Codable {
     }
 
     var detailText: String {
-        guard let date else { return "기록 없음" }
+        guard let date else { return L10n.tr("기록 없음") }
         return date.formatted(date: .abbreviated, time: .omitted)
     }
 

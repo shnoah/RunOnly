@@ -215,9 +215,9 @@ struct RecordTabView: View {
 
     private var emptyRecordMessage: String {
         if let selectedDateText = viewModel.selectedDateLabelText {
-            return "\(selectedDateText)에 기록된 러닝이 없습니다."
+            return L10n.format("%@에 기록된 러닝이 없습니다.", selectedDateText)
         }
-        return "\(viewModel.selectedMonthLabelText)에 기록된 러닝이 없습니다."
+        return L10n.format("%@에 기록된 러닝이 없습니다.", viewModel.selectedMonthLabelText)
     }
 }
 
@@ -304,7 +304,7 @@ struct HealthKitOnboardingView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Text("권한은 언제든 \(AppMetadata.healthPermissionSettingsPath)에서 변경할 수 있습니다.")
+                    Text(L10n.format("권한은 언제든 %@에서 변경할 수 있습니다.", AppMetadata.healthPermissionSettingsPath))
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.58))
                         .multilineTextAlignment(.center)
@@ -349,19 +349,19 @@ private struct RunReviewFallbackView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(spacing: 12) {
-                    Text(title)
+                    Text(LocalizedStringKey(title))
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.white)
 
-                    Text(message)
+                    Text(LocalizedStringKey(message))
                         .font(.body)
                         .foregroundStyle(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
 
-                    Button(buttonTitle, action: action)
+                    Button(LocalizedStringKey(buttonTitle), action: action)
                         .buttonStyle(.borderedProminent)
 
-                    Text("권한은 \(AppMetadata.healthPermissionSettingsPath)에서 다시 변경할 수 있습니다.")
+                    Text(L10n.format("권한은 %@에서 다시 변경할 수 있습니다.", AppMetadata.healthPermissionSettingsPath))
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.58))
                         .multilineTextAlignment(.center)
@@ -401,6 +401,13 @@ private struct RunReviewFallbackView: View {
 }
 
 private struct DemoRunAccessCard: View {
+    private var sampleDistanceText: String {
+        RunDisplayFormatter.distance(
+            meters: RunningWorkout.demoSample.distanceInMeters,
+            fractionLength: 2
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -408,7 +415,7 @@ private struct DemoRunAccessCard: View {
                     Text("샘플 러닝 열기")
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
-                    Text("기본 샘플 3.52 km · 15:00")
+                    Text(L10n.format("기본 샘플 %@ · %@", sampleDistanceText, RunningWorkout.demoSample.durationText))
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.65))
                 }
@@ -492,7 +499,10 @@ private struct RecordMonthHeader: View {
 
             if let selectedDateText {
                 HStack(spacing: 8) {
-                    Label("\(selectedDateText)만 보기", systemImage: "line.3.horizontal.decrease.circle.fill")
+                    Label(
+                        L10n.format("%@만 보기", selectedDateText),
+                        systemImage: "line.3.horizontal.decrease.circle.fill"
+                    )
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
                     Spacer()
@@ -515,12 +525,12 @@ private struct RecordMonthSummaryCard: View {
             CompactMetricChip(
                 title: "이번 달 거리",
                 value: formatKilometers(summary.totalDistanceKilometers),
-                detail: "\(summary.runCount)회 러닝"
+                detail: L10n.format("%d회 러닝", summary.runCount)
             )
             CompactMetricChip(
                 title: "러닝 빈도",
-                value: "\(summary.runningDays)일",
-                detail: "주 평균 \(summary.weeklyRunFrequency.formatted(.number.precision(.fractionLength(1))))회"
+                value: L10n.format("%d일", summary.runningDays),
+                detail: L10n.format("주 평균 %.1f회", summary.weeklyRunFrequency)
             )
             CompactMetricChip(
                 title: "총 시간",
@@ -537,7 +547,7 @@ private struct RecordCalendarSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
-    private let weekdaySymbols = ["일", "월", "화", "수", "목", "금", "토"]
+    private let weekdaySymbols = Calendar.current.veryShortStandaloneWeekdaySymbols
 
     var body: some View {
         NavigationStack {
@@ -611,12 +621,12 @@ private struct RecordCalendarSheet: View {
                         HStack(spacing: 12) {
                             CompactMetricChip(
                                 title: "러닝한 날",
-                                value: "\(viewModel.selectedMonthSummary.runningDays)일",
+                                value: L10n.format("%d일", viewModel.selectedMonthSummary.runningDays),
                                 detail: "뛴 날 / 안 뛴 날 확인"
                             )
                             CompactMetricChip(
                                 title: "총 러닝",
-                                value: "\(viewModel.selectedMonthSummary.runCount)회",
+                                value: L10n.format("%d회", viewModel.selectedMonthSummary.runCount),
                                 detail: "선택 월 기준"
                             )
                         }
@@ -753,7 +763,7 @@ private struct DashboardHeader: View {
                         .foregroundStyle(.white)
 
                     HStack(spacing: 8) {
-                        Label("올해 \(summary.yearDistanceText)", systemImage: "figure.run")
+                        Label(L10n.format("올해 %@", summary.yearDistanceText), systemImage: "figure.run")
                         Label(summary.trainingStatus, systemImage: "chart.line.uptrend.xyaxis")
                         Spacer()
                         Image(systemName: "chevron.right")
@@ -853,6 +863,7 @@ private struct DashboardHeader: View {
 private struct GoalMileageCard: View {
     let currentDistanceKilometers: Double
     let goalKilometers: Double
+    @EnvironmentObject private var appSettings: AppSettingsStore
 
     private var progress: Double {
         guard goalKilometers > 0 else { return 0 }
@@ -860,15 +871,38 @@ private struct GoalMileageCard: View {
     }
 
     private var headlineText: String {
-        "\(currentDistanceKilometers.formatted(.number.precision(.fractionLength(1)))) / \(goalKilometers.formatted(.number.precision(.fractionLength(0)))) km"
+        let currentText = RunDisplayFormatter.distance(
+            kilometers: currentDistanceKilometers,
+            preference: appSettings.distanceUnitPreference,
+            fractionLength: 1
+        )
+        let goalText = RunDisplayFormatter.distance(
+            kilometers: goalKilometers,
+            preference: appSettings.distanceUnitPreference,
+            fractionLength: 0
+        )
+        return "\(currentText) / \(goalText)"
     }
 
     private var statusText: String {
         let remaining = goalKilometers - currentDistanceKilometers
         if remaining > 0 {
-            return "\(remaining.formatted(.number.precision(.fractionLength(1)))) km 남음"
+            let remainingText = RunDisplayFormatter.distance(
+                kilometers: remaining,
+                preference: appSettings.distanceUnitPreference,
+                fractionLength: 1
+            )
+            return L10n.format("%@ 남음", remainingText)
         }
-        return "\(abs(remaining).formatted(.number.precision(.fractionLength(1)))) km 초과 달성"
+        if abs(remaining) < 0.05 {
+            return L10n.tr("목표 달성")
+        }
+        let overText = RunDisplayFormatter.distance(
+            kilometers: abs(remaining),
+            preference: appSettings.distanceUnitPreference,
+            fractionLength: 1
+        )
+        return L10n.format("%@ 초과 달성", overText)
     }
 
     var body: some View {
@@ -896,7 +930,7 @@ private struct GoalMileageCard: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.76))
                 Spacer()
-                Text(Date().formatted(.dateTime.locale(Locale(identifier: "ko_KR")).month(.wide)))
+                Text(RunDisplayFormatter.monthOnly(Date()))
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.5))
             }
@@ -912,11 +946,50 @@ private struct GoalMileageCard: View {
 private struct MileageGoalEditorView: View {
     let currentDistanceKilometers: Double
     @EnvironmentObject private var mileageGoalStore: MileageGoalStore
+    @EnvironmentObject private var appSettings: AppSettingsStore
     @Environment(\.dismiss) private var dismiss
     @State private var draftGoalKilometers: Double = 60
     @State private var didLoadInitialValue = false
 
     private let presetGoals: [Double] = [40, 60, 80, 100, 150]
+
+    private var displayUnit: DisplayDistanceUnit {
+        RunDisplayFormatter.resolvedDistanceUnit(for: appSettings.distanceUnitPreference)
+    }
+
+    private var displayedGoalBinding: Binding<Double> {
+        Binding(
+            get: {
+                RunDisplayFormatter.displayedDistanceValue(
+                    kilometers: draftGoalKilometers,
+                    preference: appSettings.distanceUnitPreference
+                )
+            },
+            set: { newValue in
+                draftGoalKilometers = max(
+                    RunDisplayFormatter.kilometers(
+                        fromDisplayedDistance: newValue,
+                        preference: appSettings.distanceUnitPreference
+                    ),
+                    1
+                )
+            }
+        )
+    }
+
+    private var minimumGoalValue: Double {
+        RunDisplayFormatter.displayedDistanceValue(
+            kilometers: 10,
+            preference: appSettings.distanceUnitPreference
+        )
+    }
+
+    private var maximumGoalValue: Double {
+        RunDisplayFormatter.displayedDistanceValue(
+            kilometers: 500,
+            preference: appSettings.distanceUnitPreference
+        )
+    }
 
     var body: some View {
         NavigationStack {
@@ -938,19 +1011,19 @@ private struct MileageGoalEditorView: View {
                     DetailSection(title: "월간 목표 설정") {
                         VStack(alignment: .leading, spacing: 14) {
                             TextField(
-                                "월간 목표 거리 (km)",
-                                value: $draftGoalKilometers,
+                                L10n.format("월간 목표 거리 (%@)", displayUnit.distanceInputSuffix),
+                                value: displayedGoalBinding,
                                 format: .number.precision(.fractionLength(0...1))
                             )
                             .keyboardType(.decimalPad)
                             .textFieldStyle(.roundedBorder)
 
                             Stepper(
-                                value: $draftGoalKilometers,
-                                in: 10...500,
+                                value: displayedGoalBinding,
+                                in: minimumGoalValue...maximumGoalValue,
                                 step: 5
                             ) {
-                                Text("5 km 단위로 조정")
+                                Text(L10n.format("%d %@ 단위로 조정", 5, displayUnit.distanceInputSuffix))
                                     .foregroundStyle(.white.opacity(0.78))
                             }
                             .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
@@ -964,7 +1037,13 @@ private struct MileageGoalEditorView: View {
                                     Button {
                                         draftGoalKilometers = goal
                                     } label: {
-                                        Text("\(Int(goal)) km")
+                                        Text(
+                                            RunDisplayFormatter.distance(
+                                                kilometers: goal,
+                                                preference: appSettings.distanceUnitPreference,
+                                                fractionLength: 0
+                                            )
+                                        )
                                             .font(.subheadline.weight(.semibold))
                                             .foregroundStyle(.white)
                                             .frame(maxWidth: .infinity)
@@ -1018,9 +1097,14 @@ private struct MileageGoalEditorView: View {
     private var goalStatusText: String {
         let remaining = draftGoalKilometers - currentDistanceKilometers
         if remaining > 0 {
-            return "\(remaining.formatted(.number.precision(.fractionLength(1)))) km 남음"
+            let remainingText = RunDisplayFormatter.distance(
+                kilometers: remaining,
+                preference: appSettings.distanceUnitPreference,
+                fractionLength: 1
+            )
+            return L10n.format("%@ 남음", remainingText)
         }
-        return "이미 달성"
+        return L10n.tr("이미 달성")
     }
 }
 
@@ -1046,8 +1130,8 @@ private struct PredictionSummaryCard: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 PredictionCell(title: "5K", value: predicted5KText)
                 PredictionCell(title: "10K", value: predicted10KText)
-                PredictionCell(title: "하프", value: predictedHalfText)
-                PredictionCell(title: "풀", value: predictedMarathonText)
+                PredictionCell(title: PredictionDistance.half.label, value: predictedHalfText)
+                PredictionCell(title: PredictionDistance.marathon.label, value: predictedMarathonText)
             }
         }
         .padding(16)
@@ -1065,7 +1149,7 @@ private struct PredictionCell: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.5))
             Text(value)
@@ -1109,7 +1193,7 @@ private struct PersonalRecordsCard: View {
                             onDismissCandidate: onDismissCandidate
                         )
                     } label: {
-                        Text("검토 \(pendingCandidates.count)건")
+                        Text(L10n.format("검토 %d건", pendingCandidates.count))
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
                     }
@@ -1147,14 +1231,14 @@ private struct PersonalRecordsCard: View {
     }
 
     private var statusText: String {
-        guard isRefreshing else { return "최근 3년 기준" }
+        guard isRefreshing else { return L10n.tr("최근 3년 기준") }
         let percent = Int(((progress ?? 0) * 100).rounded())
-        return "계산 중 \(percent)%"
+        return L10n.format("계산 중 %d%%", percent)
     }
 
     private var headerStatusText: String {
         if !pendingCandidates.isEmpty {
-            return "검토 \(pendingCandidates.count)건"
+            return L10n.format("검토 %d건", pendingCandidates.count)
         }
         return statusText
     }
@@ -1415,7 +1499,7 @@ private struct VO2MaxTrendView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     SummaryCard(title: "현재", value: latest.map { String(format: "%.1f", $0.value) } ?? "-", detail: latest.map { $0.date.formatted(date: .abbreviated, time: .omitted) } ?? "데이터 없음")
                     SummaryCard(title: "최고", value: best.map { String(format: "%.1f", $0.value) } ?? "-", detail: best.map { $0.date.formatted(date: .abbreviated, time: .omitted) } ?? "데이터 없음")
-                    SummaryCard(title: "변화", value: changeText, detail: "\(selectedRange.label) 기준")
+                    SummaryCard(title: "변화", value: changeText, detail: L10n.format("%@ 기준", selectedRange.label))
                 }
 
                 DetailSection(title: "VO2 Max 추세") {
@@ -1480,9 +1564,9 @@ private enum VO2TrendRange: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .sixMonths: return "6개월"
-        case .oneYear: return "1년"
-        case .all: return "전체"
+        case .sixMonths: return L10n.tr("6개월")
+        case .oneYear: return L10n.tr("1년")
+        case .all: return L10n.tr("전체")
         }
     }
 
@@ -1514,7 +1598,8 @@ private struct TrainingTrendView: View {
         guard let latestPoint, let previousPoint else { return "-" }
         let delta = latestPoint.distanceKilometers - previousPoint.distanceKilometers
         let sign = delta > 0 ? "+" : delta < 0 ? "-" : ""
-        return sign + abs(delta).formatted(.number.precision(.fractionLength(1))) + " km"
+        let distanceText = RunDisplayFormatter.distance(kilometers: abs(delta), fractionLength: 1)
+        return sign + distanceText
     }
 
     private var selectedPoint: TrainingTrendPoint? {
@@ -1581,7 +1666,7 @@ private struct TrainingTrendView: View {
                                         .foregroundStyle(.white.opacity(0.08))
                                     AxisValueLabel {
                                         if let distance = value.as(Double.self) {
-                                            Text(distance.formatted(.number.precision(.fractionLength(0))) + " km")
+                                            Text(RunDisplayFormatter.distance(kilometers: distance, fractionLength: 0))
                                                 .foregroundStyle(.white.opacity(0.45))
                                         }
                                     }
@@ -1648,7 +1733,7 @@ private struct TrainingTrendPoint: Identifiable {
     let distanceKilometers: Double
 
     var distanceText: String {
-        distanceKilometers.formatted(.number.precision(.fractionLength(1))) + " km"
+        RunDisplayFormatter.distance(kilometers: distanceKilometers, fractionLength: 1)
     }
 
     var label: String {
@@ -1665,20 +1750,15 @@ private struct TrainingTrendPoint: Identifiable {
     }
 
     private var monthText: String {
-        "\(Calendar.current.component(.month, from: startDate))월"
+        RunDisplayFormatter.monthOnly(startDate)
     }
 
     private var weekText: String {
-        "\(Calendar.current.component(.weekOfMonth, from: startDate))주차"
+        L10n.format("%d주차", Calendar.current.component(.weekOfMonth, from: startDate))
     }
 
     private func formattedMonthDay(_ date: Date) -> String {
-        date.formatted(
-            .dateTime
-                .locale(Locale(identifier: "ko_KR"))
-                .month()
-                .day()
-        )
+        RunDisplayFormatter.shortMonthDay(date)
     }
 
     static func build(from runs: [RunningWorkout], weeks: Int = 8) -> [TrainingTrendPoint] {
@@ -1831,8 +1911,8 @@ private enum PredictionDistance: String, CaseIterable, Identifiable {
         switch self {
         case .fiveK: return "5K"
         case .tenK: return "10K"
-        case .half: return "하프"
-        case .marathon: return "풀"
+        case .half: return L10n.tr("하프")
+        case .marathon: return L10n.tr("풀")
         }
     }
 
@@ -1938,12 +2018,33 @@ struct SettingsTabView: View {
     @State private var showingDeleteAnalysisCacheConfirmation = false
     @State private var analysisCacheStatusMessage: String?
 
+    private var displayUnit: DisplayDistanceUnit {
+        RunDisplayFormatter.resolvedDistanceUnit(for: appSettings.distanceUnitPreference)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     DetailSection(title: "표시") {
                         VStack(spacing: 14) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("앱 언어")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white)
+
+                                Picker("앱 언어", selection: $appSettings.appLanguagePreference) {
+                                    ForEach(AppLanguagePreference.allCases) { option in
+                                        Text(option.label).tag(option)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+
+                                Text("앱 화면 문구와 날짜 표시에 적용됩니다.")
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.58))
+                            }
+
                             Toggle(isOn: $appSettings.defaultAppleOnlyFilter) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Apple 운동 앱 기록만 보기 기본값")
@@ -1956,8 +2057,25 @@ struct SettingsTabView: View {
                             }
                             .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
 
-                            SettingInfoRow(title: "거리 단위", value: "km")
-                            SettingInfoRow(title: "페이스 단위", value: "/km")
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("거리 단위")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white)
+
+                                Picker("거리 단위", selection: $appSettings.distanceUnitPreference) {
+                                    ForEach(DistanceUnitPreference.allCases) { option in
+                                        Text(option.label).tag(option)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+
+                                Text("거리, 페이스, 상승 고도, 공유 이미지에 함께 적용됩니다.")
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.58))
+                            }
+
+                            SettingInfoRow(title: "페이스 단위", value: displayUnit.paceSymbol)
+                            SettingInfoRow(title: "상승 고도 단위", value: displayUnit.elevationSymbol)
                         }
                     }
 
@@ -2002,7 +2120,7 @@ struct SettingsTabView: View {
                                 do {
                                     backupURL = try shoeStore.exportBackupFile()
                                     backupErrorMessage = nil
-                                    backupStatusMessage = "백업 파일을 준비했습니다."
+                                    backupStatusMessage = L10n.tr("백업 파일을 준비했습니다.")
                                 } catch {
                                     backupErrorMessage = error.localizedDescription
                                 }
@@ -2190,7 +2308,7 @@ struct SettingsTabView: View {
                     shoeStore.clearAllData()
                     backupURL = nil
                     backupErrorMessage = nil
-                    backupStatusMessage = "기존 신발데이터를 삭제했습니다."
+                    backupStatusMessage = L10n.tr("기존 신발데이터를 삭제했습니다.")
                 }
                 Button("취소", role: .cancel) {}
             } message: {
@@ -2199,7 +2317,7 @@ struct SettingsTabView: View {
             .confirmationDialog("분석 캐시 초기화", isPresented: $showingDeleteAnalysisCacheConfirmation, titleVisibility: .visible) {
                 Button("초기화", role: .destructive) {
                     RunSummaryCacheStore.shared.clearAllData()
-                    analysisCacheStatusMessage = "평균 심박, 케이던스, 상승 고도 캐시를 삭제했습니다."
+                    analysisCacheStatusMessage = L10n.tr("평균 심박, 케이던스, 상승 고도 캐시를 삭제했습니다.")
                 }
                 Button("취소", role: .cancel) {}
             } message: {
@@ -2231,9 +2349,9 @@ private struct PrivacyPolicyView: View {
             VStack(alignment: .leading, spacing: 18) {
                 DetailSection(title: "개요") {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("\(AppMetadata.displayName)은 Apple 건강의 러닝 데이터를 iPhone에서 분석하고 보기 쉽게 정리하는 앱입니다.")
+                        Text(L10n.format("%@은 Apple 건강의 러닝 데이터를 iPhone에서 분석하고 보기 쉽게 정리하는 앱입니다.", AppMetadata.displayName))
                         Text("계정 생성, 광고 추적, 외부 분석 SDK 없이 동작하며, 현재는 서버로 데이터를 업로드하지 않습니다.")
-                        Text("HealthKit 권한은 언제든 \(AppMetadata.healthPermissionSettingsPath)에서 다시 변경할 수 있습니다.")
+                        Text(L10n.format("HealthKit 권한은 언제든 %@에서 다시 변경할 수 있습니다.", AppMetadata.healthPermissionSettingsPath))
                     }
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.78))
@@ -2328,10 +2446,10 @@ private struct SettingLinkRow: View {
             Image(systemName: systemImage)
                 .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
-                Text(detail)
+                Text(LocalizedStringKey(detail))
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.58))
             }
@@ -2349,11 +2467,11 @@ private struct SettingInfoRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.72))
             Spacer()
-            Text(value)
+            Text(LocalizedStringKey(value))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.trailing)
@@ -2394,7 +2512,7 @@ private struct ShoeSummaryCard: View {
             HStack(spacing: 12) {
                 RunMetricPill(title: "누적", value: formatKilometers(totalKilometers))
                 RunMetricPill(title: "남은 거리", value: formatKilometers(max(shoe.retirementKilometers - totalKilometers, 0)))
-                RunMetricPill(title: "러닝 수", value: "\(runCount)회")
+                RunMetricPill(title: "러닝 수", value: L10n.format("%d회", runCount))
             }
 
             ProgressView(value: usageRatio)
@@ -2441,7 +2559,7 @@ private struct ShoeDetailView: View {
 
                 HStack(spacing: 12) {
                     SummaryCard(title: "남은 거리", value: formatKilometers(max(currentShoe.retirementKilometers - totalKilometers, 0)), detail: "교체까지 남은 거리")
-                    SummaryCard(title: "착용 러닝", value: "\(assignedRuns.count)회", detail: "현재 불러온 러닝 기준")
+                    SummaryCard(title: "착용 러닝", value: L10n.format("%d회", assignedRuns.count), detail: "현재 불러온 러닝 기준")
                 }
 
                 DetailSection(title: "최근 착용 러닝") {
@@ -2494,6 +2612,7 @@ private struct ShoeDetailView: View {
 private struct AddShoeView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var shoeStore: ShoeStore
+    @EnvironmentObject private var appSettings: AppSettingsStore
 
     let existingShoe: RunningShoe?
 
@@ -2512,6 +2631,64 @@ private struct AddShoeView: View {
         _retirementMileage = State(initialValue: existingShoe?.retirementKilometers ?? 600)
     }
 
+    private var displayUnit: DisplayDistanceUnit {
+        RunDisplayFormatter.resolvedDistanceUnit(for: appSettings.distanceUnitPreference)
+    }
+
+    private var startMileageBinding: Binding<Double> {
+        Binding(
+            get: {
+                RunDisplayFormatter.displayedDistanceValue(
+                    kilometers: startMileage,
+                    preference: appSettings.distanceUnitPreference
+                )
+            },
+            set: { newValue in
+                startMileage = max(
+                    RunDisplayFormatter.kilometers(
+                        fromDisplayedDistance: newValue,
+                        preference: appSettings.distanceUnitPreference
+                    ),
+                    0
+                )
+            }
+        )
+    }
+
+    private var retirementMileageBinding: Binding<Double> {
+        Binding(
+            get: {
+                RunDisplayFormatter.displayedDistanceValue(
+                    kilometers: retirementMileage,
+                    preference: appSettings.distanceUnitPreference
+                )
+            },
+            set: { newValue in
+                retirementMileage = max(
+                    RunDisplayFormatter.kilometers(
+                        fromDisplayedDistance: newValue,
+                        preference: appSettings.distanceUnitPreference
+                    ),
+                    1
+                )
+            }
+        )
+    }
+
+    private var recommendedRetirementRangeText: String {
+        let lower = RunDisplayFormatter.distance(
+            kilometers: 500,
+            preference: appSettings.distanceUnitPreference,
+            fractionLength: 0
+        )
+        let upper = RunDisplayFormatter.distance(
+            kilometers: 800,
+            preference: appSettings.distanceUnitPreference,
+            fractionLength: 0
+        )
+        return "\(lower) - \(upper)"
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -2522,21 +2699,29 @@ private struct AddShoeView: View {
                 }
 
                 Section("마일리지") {
-                    TextField("시작 거리 (km)", value: $startMileage, format: .number)
+                    TextField(
+                        L10n.format("시작 거리 (%@)", displayUnit.distanceInputSuffix),
+                        value: startMileageBinding,
+                        format: .number
+                    )
                         .keyboardType(.decimalPad)
-                    Text("단위는 km입니다. 이미 다른 앱이나 실제 사용으로 누적된 거리가 있다면 입력하고, 새 신발이면 0으로 두면 됩니다.")
+                    Text(L10n.format("단위는 %@입니다. 이미 다른 앱이나 실제 사용으로 누적된 거리가 있다면 입력하고, 새 신발이면 0으로 두면 됩니다.", displayUnit.distanceInputSuffix))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    TextField("목표 수명 거리 (km)", value: $retirementMileage, format: .number)
+                    TextField(
+                        L10n.format("목표 수명 거리 (%@)", displayUnit.distanceInputSuffix),
+                        value: retirementMileageBinding,
+                        format: .number
+                    )
                         .keyboardType(.decimalPad)
-                    Text("단위는 km입니다. 교체를 고려할 기준 거리이며, 보통 500~800km 범위에서 잡습니다.")
+                    Text(L10n.format("단위는 %@입니다. 교체를 고려할 기준 거리이며, 보통 %@ 범위에서 잡습니다.", displayUnit.distanceInputSuffix, recommendedRetirementRangeText))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
             }
             .scrollContentBackground(.hidden)
             .background(AppBackground())
-            .navigationTitle(existingShoe == nil ? "신발 추가" : "신발 수정")
+            .navigationTitle(existingShoe == nil ? L10n.tr("신발 추가") : L10n.tr("신발 수정"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -2545,7 +2730,7 @@ private struct AddShoeView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(existingShoe == nil ? "저장" : "완료") {
+                    Button(existingShoe == nil ? L10n.tr("저장") : L10n.tr("완료")) {
                         let updatedShoe = RunningShoe(
                             id: existingShoe?.id ?? UUID(),
                             nickname: nickname.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -2607,7 +2792,7 @@ private struct MileageBreakdownView: View {
                     SummaryCard(
                         title: "누적 거리",
                         value: formatKilometers(summary.totalDistanceKilometers),
-                        detail: "\(summary.runCount)회 러닝"
+                        detail: L10n.format("%d회 러닝", summary.runCount)
                     )
                     SummaryCard(
                         title: "데이터 범위",

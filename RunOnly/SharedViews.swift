@@ -6,7 +6,7 @@ struct MetricView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(value)
@@ -24,14 +24,14 @@ struct StatusView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
-            Text(message)
+            Text(LocalizedStringKey(message))
                 .font(.body)
                 .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
-            Button(buttonTitle, action: action)
+            Button(LocalizedStringKey(buttonTitle), action: action)
                 .buttonStyle(.borderedProminent)
         }
         .padding(24)
@@ -46,13 +46,13 @@ struct SummaryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.6))
             Text(value)
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
-            Text(detail)
+            Text(LocalizedStringKey(detail))
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.7))
                 .fixedSize(horizontal: false, vertical: true)
@@ -73,7 +73,7 @@ struct CompactMetricChip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.55))
             Text(value)
@@ -82,7 +82,7 @@ struct CompactMetricChip: View {
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-            Text(detail)
+            Text(LocalizedStringKey(detail))
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.5))
                 .lineLimit(1)
@@ -119,7 +119,7 @@ struct RunMetricPill: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.55))
             Text(value)
@@ -190,7 +190,7 @@ struct DetailSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.headline)
                 .foregroundStyle(.white)
             content
@@ -219,18 +219,13 @@ struct AppBackground: View {
 }
 
 func formatKilometers(_ kilometers: Double) -> String {
-    kilometers.formatted(.number.precision(.fractionLength(1))) + " km"
+    RunDisplayFormatter.distance(kilometers: kilometers, fractionLength: 1)
 }
 
 func formatDuration(_ seconds: Double) -> String {
-    let formatter = DateComponentsFormatter()
-    formatter.allowedUnits = seconds >= 3_600 ? [.hour, .minute, .second] : [.minute, .second]
-    formatter.unitsStyle = .positional
-    formatter.zeroFormattingBehavior = [.pad]
-    return formatter.string(from: seconds) ?? "-"
+    RunDisplayFormatter.duration(seconds)
 }
 
 func formatSignedDuration(_ seconds: Double) -> String {
-    let sign = seconds > 0 ? "+" : seconds < 0 ? "-" : ""
-    return sign + formatDuration(abs(seconds))
+    RunDisplayFormatter.signedDuration(seconds)
 }
