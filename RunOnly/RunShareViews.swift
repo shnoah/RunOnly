@@ -7,7 +7,6 @@ import UIKit
 private enum RunShareTemplate: String, CaseIterable, Identifiable {
     case sticker
     case square
-    case story
 
     var id: String { rawValue }
 
@@ -17,8 +16,6 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
             return L10n.tr("스티커")
         case .square:
             return L10n.tr("정사각형")
-        case .story:
-            return L10n.tr("스토리")
         }
     }
 
@@ -28,8 +25,6 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
             return L10n.tr("투명 배경 PNG로 복사/공유하기 좋습니다.")
         case .square:
             return L10n.tr("피드용 카드에 가까운 정사각형 이미지입니다.")
-        case .story:
-            return L10n.tr("세로 비율이 긴 스토리형 포스터입니다.")
         }
     }
 
@@ -39,8 +34,6 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
             return CGSize(width: 520, height: 860)
         case .square:
             return CGSize(width: 1080, height: 1080)
-        case .story:
-            return CGSize(width: 1080, height: 1680)
         }
     }
 
@@ -50,8 +43,6 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
             return 0
         case .square:
             return 34
-        case .story:
-            return 0
         }
     }
 
@@ -62,11 +53,9 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
     var composerPreviewWidth: CGFloat {
         switch self {
         case .sticker:
-            return 190
+            return 172
         case .square:
-            return 208
-        case .story:
-            return 164
+            return 184
         }
     }
 }
@@ -264,23 +253,38 @@ struct RunShareComposerView: View {
         stickerDebugSettings.artworkStyle
     }
 
-    private var previewWidth: CGFloat {
-        min(UIScreen.main.bounds.width - 32, selectedTemplate.composerPreviewWidth)
+    private func usesCompactTopRow(for availableWidth: CGFloat) -> Bool {
+        availableWidth >= 340
     }
 
-    private var previewHeight: CGFloat {
-        selectedTemplate.previewHeight(for: previewWidth)
+    private func previewColumnWidth(for availableWidth: CGFloat) -> CGFloat {
+        let preferredWidth = selectedTemplate.composerPreviewWidth + 24
+        guard usesCompactTopRow(for: availableWidth) else {
+            return min(preferredWidth, availableWidth)
+        }
+
+        return min(max(availableWidth * 0.48, 170), preferredWidth)
     }
 
-    private var previewCanvasSize: CGSize {
+    private func previewWidth(for availableWidth: CGFloat) -> CGFloat {
+        max(previewColumnWidth(for: availableWidth) - 24, 120)
+    }
+
+    private func previewHeight(for availableWidth: CGFloat) -> CGFloat {
+        selectedTemplate.previewHeight(for: previewWidth(for: availableWidth))
+    }
+
+    private func previewCanvasSize(for availableWidth: CGFloat) -> CGSize {
+        let maxPreviewWidth = previewWidth(for: availableWidth)
+
         guard selectedTemplate == .sticker, let previewImage = backgroundPreviewPhotoImage ?? backgroundPhotoImage else {
-            return CGSize(width: previewWidth, height: previewHeight)
+            return CGSize(width: maxPreviewWidth, height: previewHeight(for: availableWidth))
         }
 
         return fittedSize(
             for: previewImage.size,
-            maxWidth: min(UIScreen.main.bounds.width - 32, 360),
-            maxHeight: 480
+            maxWidth: maxPreviewWidth,
+            maxHeight: previewHeight(for: availableWidth)
         )
     }
 
@@ -314,286 +318,22 @@ struct RunShareComposerView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+            GeometryReader { geometry in
+                let availableWidth = max(geometry.size.width - 32, 280)
+
+                ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("미리보기")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                            Spacer()
-                            Text(selectedTemplate.label)
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.white.opacity(0.62))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.white.opacity(0.08))
-                                )
-                        }
-
-                        shareCanvasView(canvasSize: previewCanvasSize, interactive: true)
-                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                            .frame(width: previewCanvasSize.width, height: previewCanvasSize.height)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: previewCanvasSize.height)
-                    }
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(Color.white.opacity(0.05))
-                    )
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("템플릿")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-
-                            Picker("공유 템플릿", selection: $selectedTemplate) {
-                                ForEach(RunShareTemplate.allCases) { template in
-                                    Text(template.label).tag(template)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-
-                            Text(selectedTemplate.descriptionText)
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.62))
-                        }
+                        compactEditorDashboard(availableWidth: availableWidth)
 
                         if selectedTemplate == .sticker {
-                            Divider()
-                                .overlay(Color.white.opacity(0.08))
-
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    Text("스티커 디버그")
-                                        .font(.headline)
-                                        .foregroundStyle(.white)
-                                    Spacer()
-                                    Button("초기화") {
-                                        stickerDebugSettings = RunShareStickerDebugSettings()
-                                    }
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(runOnlyShareAccent)
-                                }
-
-                                Text("폰트와 크기를 손보면 스티커 프리뷰와 내보내기 결과에 바로 반영됩니다.")
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.62))
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text("폰트 크기")
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(.white)
-                                        Spacer()
-                                        Text("\(Int(stickerDebugSettings.fontScale * 100))%")
-                                            .font(.caption.weight(.bold))
-                                            .foregroundStyle(.white.opacity(0.5))
-                                    }
-
-                                    Slider(value: $stickerDebugSettings.fontScale, in: 0.75...1.6)
-                                        .tint(artworkStyle.accentColor)
-                                }
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("폰트")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.white)
-
-                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 8)], spacing: 8) {
-                                        ForEach(RunShareFontChoice.allCases) { choice in
-                                            Button {
-                                                stickerDebugSettings.fontChoice = choice
-                                            } label: {
-                                                Text(choice.label)
-                                                    .font(choice.font(size: 16, weight: .heavy))
-                                                    .foregroundStyle(.white)
-                                                    .frame(maxWidth: .infinity)
-                                                    .padding(.vertical, 12)
-                                                    .background(
-                                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                                            .fill(
-                                                                stickerDebugSettings.fontChoice == choice
-                                                                    ? artworkStyle.accentColor.opacity(0.22)
-                                                                    : Color.white.opacity(0.06)
-                                                            )
-                                                    )
-                                                    .overlay(
-                                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                                            .stroke(
-                                                                stickerDebugSettings.fontChoice == choice
-                                                                    ? artworkStyle.accentColor.opacity(0.36)
-                                                                    : Color.white.opacity(0.08),
-                                                                lineWidth: 1
-                                                            )
-                                                    )
-                                            }
-                                            .buttonStyle(.plain)
-                                        }
-                                    }
-                                }
-                            }
+                            stickerPhotoPanel
                         }
 
-                        Divider()
-                            .overlay(Color.white.opacity(0.08))
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("포함 데이터")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
-                                ForEach(availableFields) { field in
-                                    Button {
-                                        toggleField(field)
-                                    } label: {
-                                        HStack(spacing: 7) {
-                                            Image(systemName: field.systemImage)
-                                            Text(field.label)
-                                                .lineLimit(1)
-                                        }
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 10)
-                                        .padding(.horizontal, 10)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                                .fill(
-                                                    effectiveFields.contains(field)
-                                                        ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.22)
-                                                        : Color.white.opacity(0.06)
-                                                )
-                                        )
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                                .stroke(
-                                                    effectiveFields.contains(field)
-                                                        ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.32)
-                                                        : Color.white.opacity(0.08),
-                                                    lineWidth: 1
-                                                )
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-
-                        if selectedTemplate == .sticker {
-                            Divider()
-                                .overlay(Color.white.opacity(0.08))
-
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    Text("사진 위에 붙이기")
-                                        .font(.headline)
-                                        .foregroundStyle(.white)
-                                    Spacer()
-                                    if backgroundPhotoImage != nil {
-                                        Button("제거") {
-                                            clearBackgroundPhoto()
-                                        }
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(runOnlyShareAccent)
-                                    }
-                                }
-
-                                PhotosPicker(selection: $selectedBackgroundPhotoItem, matching: .images, photoLibrary: .shared()) {
-                                    Label(LocalizedStringKey(backgroundPhotoButtonTitle), systemImage: "photo.on.rectangle.angled")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 12)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                .fill(Color.white.opacity(0.06))
-                                        )
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                                        )
-                                }
-                                .buttonStyle(.plain)
-
-                                if backgroundPhotoImage != nil {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        HStack {
-                                            Text("스티커 크기")
-                                                .font(.subheadline.weight(.semibold))
-                                                .foregroundStyle(.white)
-                                            Spacer()
-                                            Text("\(Int(stickerPlacement.scale * 100))%")
-                                                .font(.caption.weight(.bold))
-                                                .foregroundStyle(.white.opacity(0.5))
-                                        }
-
-                                        Slider(
-                                            value: Binding(
-                                                get: { stickerPlacement.scale },
-                                                set: { stickerPlacement.scale = $0 }
-                                            ),
-                                            in: 0.55...1.7
-                                        )
-                                        .tint(artworkStyle.accentColor)
-
-                                        Button("위치/크기 초기화") {
-                                            stickerPlacement = RunShareStickerPlacement()
-                                        }
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(runOnlyShareAccent)
-                                    }
-
-                                    Text("미리보기에서 스티커를 직접 드래그해서 위치를 맞출 수 있습니다.")
-                                        .font(.caption)
-                                        .foregroundStyle(.white.opacity(0.62))
-                                } else {
-                                    Text("배경 사진을 고르면 그 위에 스티커를 바로 올려 보고 저장하거나 공유할 수 있습니다.")
-                                        .font(.caption)
-                                        .foregroundStyle(.white.opacity(0.62))
-                                }
-
-                                if isLoadingBackgroundPhoto {
-                                    Text("사진을 불러오는 중입니다.")
-                                        .font(.caption)
-                                        .foregroundStyle(.white.opacity(0.58))
-                                } else if let backgroundPhotoErrorMessage {
-                                    Text(backgroundPhotoErrorMessage)
-                                        .font(.caption)
-                                        .foregroundStyle(.orange)
-                                }
-                            }
-                        }
-
-                        if let exportStatusMessage {
-                            Text(exportStatusMessage)
-                                .font(.caption)
-                                .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
-                        }
-
-                        if let exportErrorMessage {
-                            Text(exportErrorMessage)
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
-
-                        Text("투명 스티커는 앱마다 alpha 처리 방식이 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다.")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.58))
+                        footerPanel
                     }
                     .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(Color.white.opacity(0.05))
-                    )
+                    .padding(.bottom, 20)
                 }
-                .padding(16)
-                .padding(.bottom, 20)
             }
             .background(AppBackground())
             .navigationTitle("공유 이미지")
@@ -670,6 +410,328 @@ struct RunShareComposerView: View {
         } else {
             enabledFields.insert(field)
         }
+    }
+
+    @ViewBuilder
+    private func compactEditorDashboard(availableWidth: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if usesCompactTopRow(for: availableWidth) {
+                HStack(alignment: .top, spacing: 12) {
+                    previewPanel(availableWidth: availableWidth)
+                        .frame(width: previewColumnWidth(for: availableWidth), alignment: .top)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        templatePanel
+
+                        if selectedTemplate == .sticker {
+                            stickerDebugPanel
+                        }
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    previewPanel(availableWidth: availableWidth)
+                    templatePanel
+
+                    if selectedTemplate == .sticker {
+                        stickerDebugPanel
+                    }
+                }
+            }
+
+            includedDataPanel(availableWidth: availableWidth)
+        }
+        .padding(14)
+        .background(editorPanelBackground(cornerRadius: 24))
+    }
+
+    private func previewPanel(availableWidth: CGFloat) -> some View {
+        let canvasSize = previewCanvasSize(for: availableWidth)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("미리보기")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Spacer(minLength: 8)
+
+                Text(selectedTemplate.label)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.08))
+                    )
+            }
+
+            shareCanvasView(canvasSize: canvasSize, interactive: true)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .frame(width: canvasSize.width, height: canvasSize.height)
+                .frame(maxWidth: .infinity)
+                .frame(height: canvasSize.height)
+        }
+        .padding(12)
+        .background(editorPanelBackground(cornerRadius: 20))
+    }
+
+    private var templatePanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("템플릿")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Picker("공유 템플릿", selection: $selectedTemplate) {
+                ForEach(RunShareTemplate.allCases) { template in
+                    Text(template.label).tag(template)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Text(selectedTemplate.descriptionText)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.62))
+        }
+        .padding(12)
+        .background(editorPanelBackground(cornerRadius: 20))
+    }
+
+    private var stickerDebugPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("스티커 디버그")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                Button("초기화") {
+                    stickerDebugSettings = RunShareStickerDebugSettings()
+                }
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(runOnlyShareAccent)
+            }
+
+            HStack(spacing: 10) {
+                Text("폰트 크기")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Text("\(Int(stickerDebugSettings.fontScale * 100))%")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.54))
+                    .monospacedDigit()
+
+                Spacer(minLength: 0)
+            }
+
+            Slider(value: $stickerDebugSettings.fontScale, in: 0.75...1.6)
+                .tint(artworkStyle.accentColor)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 6)], spacing: 6) {
+                ForEach(RunShareFontChoice.allCases) { choice in
+                    Button {
+                        stickerDebugSettings.fontChoice = choice
+                    } label: {
+                        Text(choice.label)
+                            .font(choice.font(size: 14, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(
+                                        stickerDebugSettings.fontChoice == choice
+                                            ? artworkStyle.accentColor.opacity(0.22)
+                                            : Color.white.opacity(0.06)
+                                    )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(
+                                        stickerDebugSettings.fontChoice == choice
+                                            ? artworkStyle.accentColor.opacity(0.34)
+                                            : Color.white.opacity(0.08),
+                                        lineWidth: 1
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(12)
+        .background(editorPanelBackground(cornerRadius: 20))
+    }
+
+    private func includedDataPanel(availableWidth: CGFloat) -> some View {
+        let minimumWidth = availableWidth > 520 ? 104.0 : 80.0
+
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("포함 데이터")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumWidth), spacing: 8)], spacing: 8) {
+                ForEach(availableFields) { field in
+                    Button {
+                        toggleField(field)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: field.systemImage)
+                                .font(.caption.weight(.semibold))
+                            Text(field.label)
+                                .lineLimit(1)
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .padding(.horizontal, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(
+                                    effectiveFields.contains(field)
+                                        ? runOnlyShareAccent.opacity(0.22)
+                                        : Color.white.opacity(0.06)
+                                )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(
+                                    effectiveFields.contains(field)
+                                        ? runOnlyShareAccent.opacity(0.34)
+                                        : Color.white.opacity(0.08),
+                                    lineWidth: 1
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(12)
+        .background(editorPanelBackground(cornerRadius: 20))
+    }
+
+    private var stickerPhotoPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("사진 위에 붙이기")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Spacer()
+                if backgroundPhotoImage != nil {
+                    Button("제거") {
+                        clearBackgroundPhoto()
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(runOnlyShareAccent)
+                }
+            }
+
+            PhotosPicker(selection: $selectedBackgroundPhotoItem, matching: .images, photoLibrary: .shared()) {
+                Label(LocalizedStringKey(backgroundPhotoButtonTitle), systemImage: "photo.on.rectangle.angled")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.white.opacity(0.06))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+
+            if backgroundPhotoImage != nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("스티커 크기")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Text("\(Int(stickerPlacement.scale * 100))%")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+
+                    Slider(
+                        value: Binding(
+                            get: { stickerPlacement.scale },
+                            set: { stickerPlacement.scale = $0 }
+                        ),
+                        in: 0.55...1.7
+                    )
+                    .tint(artworkStyle.accentColor)
+
+                    Button("위치/크기 초기화") {
+                        stickerPlacement = RunShareStickerPlacement()
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(runOnlyShareAccent)
+                }
+
+                Text("미리보기에서 스티커를 직접 드래그해서 위치를 맞출 수 있습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.62))
+            } else {
+                Text("배경 사진을 고르면 그 위에 스티커를 바로 올려 보고 저장하거나 공유할 수 있습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.62))
+            }
+
+            if isLoadingBackgroundPhoto {
+                Text("사진을 불러오는 중입니다.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.58))
+            } else if let backgroundPhotoErrorMessage {
+                Text(backgroundPhotoErrorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding(16)
+        .background(editorPanelBackground(cornerRadius: 24))
+    }
+
+    @ViewBuilder
+    private var footerPanel: some View {
+        if exportStatusMessage != nil || exportErrorMessage != nil || selectedTemplate == .sticker {
+            VStack(alignment: .leading, spacing: 8) {
+                if let exportStatusMessage {
+                    Text(exportStatusMessage)
+                        .font(.caption)
+                        .foregroundStyle(runOnlyShareAccent)
+                }
+
+                if let exportErrorMessage {
+                    Text(exportErrorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                if selectedTemplate == .sticker {
+                    Text("투명 스티커는 앱마다 alpha 처리 방식이 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다.")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.58))
+                }
+            }
+            .padding(16)
+            .background(editorPanelBackground(cornerRadius: 24))
+        }
+    }
+
+    private func editorPanelBackground(cornerRadius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color.white.opacity(0.05))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            )
     }
 
     @ViewBuilder
@@ -996,9 +1058,7 @@ private struct RunShareArtworkView: View {
         case .sticker:
             return 315
         case .square:
-            return 230
-        case .story:
-            return 520
+            return 315
         }
     }
 
@@ -1012,8 +1072,6 @@ private struct RunShareArtworkView: View {
             return 24
         case .square:
             return 40
-        case .story:
-            return 48
         }
     }
 
@@ -1023,37 +1081,47 @@ private struct RunShareArtworkView: View {
             return 18
         case .square:
             return 20
-        case .story:
-            return 24
         }
-    }
-
-    private var metricColumns: [GridItem] {
-        let spacing: CGFloat = template == .sticker ? 8 : 12
-        return Array(repeating: GridItem(.flexible(), spacing: spacing, alignment: .leading), count: 3)
     }
 
     private var stickerRouteWidth: CGFloat {
         472
     }
 
-    private var metricSpacing: CGFloat {
-        switch template {
-        case .sticker:
-            return 12
-        case .square:
-            return 12
-        case .story:
-            return 16
-        }
+    private var squareContentPadding: CGFloat {
+        36
+    }
+
+    private var squareRouteCardSize: CGSize {
+        isDenseSquareLayout ? CGSize(width: 420, height: 420) : CGSize(width: 460, height: 460)
+    }
+
+    private var squareMetricColumns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: 16, alignment: .leading),
+            GridItem(.flexible(), spacing: 16, alignment: .leading)
+        ]
+    }
+
+    private var squarePrimaryMetric: RunShareMetric? {
+        metrics.first
+    }
+
+    private var squareSecondaryMetrics: [RunShareMetric] {
+        Array(metrics.dropFirst())
+    }
+
+    private var isDenseSquareLayout: Bool {
+        squareSecondaryMetrics.count >= 5
     }
 
     var body: some View {
         Group {
-            if template == .sticker {
+            switch template {
+            case .sticker:
                 stickerLayout
-            } else {
-                standardLayout
+            case .square:
+                squareLayout
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1082,41 +1150,44 @@ private struct RunShareArtworkView: View {
         }
     }
 
-    private var standardLayout: some View {
+    private var squareLayout: some View {
         ZStack(alignment: .topLeading) {
             RunShareTemplateBackground(template: template, style: style)
                 .clipShape(
                     RoundedRectangle(cornerRadius: template.cornerRadius, style: .continuous)
                 )
 
-            VStack(alignment: .leading, spacing: template == .story ? 20 : 14) {
-                header
-
+            VStack(alignment: .leading, spacing: 18) {
                 if enabledFields.contains(.route) {
-                    RunShareRouteCanvas(route: detail.route, style: style)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: routeHeight)
+                    HStack(alignment: .top, spacing: 18) {
+                        squareIntroColumn(expandsTo: squareRouteCardSize.height)
+
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                                .fill(Color.white.opacity(0.04))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                )
+
+                            RunShareRouteCanvas(route: detail.route, style: style)
+                                .padding(26)
+                        }
+                        .frame(width: squareRouteCardSize.width, height: squareRouteCardSize.height)
+                    }
+                } else {
+                    squareIntroColumn()
                 }
 
-                if !metrics.isEmpty {
-                    LazyVGrid(columns: metricColumns, alignment: .leading, spacing: metricSpacing) {
-                        ForEach(metrics) { metric in
-                            RunShareMetricTile(metric: metric, template: template, centered: false, style: style)
+                if !squareSecondaryMetrics.isEmpty {
+                    LazyVGrid(columns: squareMetricColumns, alignment: .leading, spacing: 16) {
+                        ForEach(squareSecondaryMetrics) { metric in
+                            RunShareSquareMetricCard(metric: metric, style: style, dense: isDenseSquareLayout)
                         }
                     }
                 }
-
-                if !metaPills.isEmpty {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: template == .story ? 220 : 132), alignment: .leading)], spacing: 10) {
-                        ForEach(metaPills, id: \.self) { item in
-                            ShareMetaPill(text: item, centered: false, style: style)
-                        }
-                    }
-                }
-
-                Spacer(minLength: 0)
             }
-            .padding(contentPadding)
+            .padding(squareContentPadding)
         }
     }
 
@@ -1155,6 +1226,29 @@ private struct RunShareArtworkView: View {
             Spacer(minLength: 0)
         }
         .padding(contentPadding)
+    }
+
+    private func squareIntroColumn(expandsTo height: CGFloat? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            header
+
+            if !metaPills.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(metaPills, id: \.self) { item in
+                        RunShareMetaCapsule(text: item, style: style)
+                    }
+                }
+            }
+
+            if height != nil {
+                Spacer(minLength: 0)
+            }
+
+            if let squarePrimaryMetric {
+                RunShareSquarePrimaryMetricCard(metric: squarePrimaryMetric, style: style, dense: isDenseSquareLayout)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: height ?? 0, alignment: .topLeading)
     }
 
     private var metaPills: [String] {
@@ -1197,14 +1291,14 @@ private struct RunShareTemplateBackground: View {
             )
 
             Circle()
-                .fill(style.accentColor.opacity(template == .story ? 0.22 : 0.14))
-                .frame(width: template == .story ? 560 : 320)
+                .fill(style.accentColor.opacity(template == .square ? 0.22 : 0.14))
+                .frame(width: template == .square ? 460 : 320)
                 .blur(radius: 24)
                 .offset(x: 180, y: -220)
 
             Circle()
-                .fill(Color.white.opacity(0.08))
-                .frame(width: template == .story ? 420 : 260)
+                .fill(Color.white.opacity(template == .square ? 0.1 : 0.08))
+                .frame(width: template == .square ? 320 : 260)
                 .blur(radius: 18)
                 .offset(x: -160, y: 260)
         }
@@ -1421,8 +1515,6 @@ private struct RunShareMetricTile: View {
             return 64
         case .square:
             return 38
-        case .story:
-            return 44
         }
     }
 
@@ -1432,8 +1524,6 @@ private struct RunShareMetricTile: View {
             return 24
         case .square:
             return 18
-        case .story:
-            return 20
         }
     }
 
@@ -1456,6 +1546,72 @@ private struct RunShareMetricTile: View {
     }
 }
 
+private struct RunShareSquarePrimaryMetricCard: View {
+    let metric: RunShareMetric
+    let style: RunShareArtworkStyle
+    let dense: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(metric.title)
+                .font(style.fontChoice.font(size: style.scaled(22), weight: .bold))
+                .foregroundStyle(.white.opacity(0.72))
+                .tracking(0.3)
+
+            Text(metric.value)
+                .font(style.fontChoice.font(size: style.scaled(dense ? 82 : 92), weight: .heavy))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .minimumScaleFactor(0.42)
+                .lineLimit(1)
+                .shadow(color: .black.opacity(0.28), radius: 10, y: 4)
+        }
+        .frame(maxWidth: .infinity, minHeight: dense ? 220 : 250, alignment: .leading)
+        .padding(28)
+        .background(
+            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct RunShareSquareMetricCard: View {
+    let metric: RunShareMetric
+    let style: RunShareArtworkStyle
+    let dense: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(metric.title)
+                .font(style.fontChoice.font(size: style.scaled(18), weight: .bold))
+                .foregroundStyle(.white.opacity(0.72))
+                .tracking(0.2)
+
+            Text(metric.value)
+                .font(style.fontChoice.font(size: style.scaled(dense ? 34 : 38), weight: .heavy))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .minimumScaleFactor(0.42)
+                .lineLimit(1)
+                .shadow(color: .black.opacity(0.24), radius: 6, y: 2)
+        }
+        .frame(maxWidth: .infinity, minHeight: dense ? 132 : 148, alignment: .leading)
+        .padding(dense ? 20 : 22)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
+    }
+}
+
 private struct ShareMetaPill: View {
     let text: String
     let centered: Bool
@@ -1469,6 +1625,27 @@ private struct ShareMetaPill: View {
             .foregroundStyle(style.accentColor.opacity(0.94))
             .shadow(color: .black.opacity(0.18), radius: 4, y: 1)
             .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
+    }
+}
+
+private struct RunShareMetaCapsule: View {
+    let text: String
+    let style: RunShareArtworkStyle
+
+    var body: some View {
+        Text(text)
+            .font(style.fontChoice.font(size: style.scaled(16), weight: .semibold))
+            .foregroundStyle(style.accentColor.opacity(0.96))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.05))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+            )
     }
 }
 
