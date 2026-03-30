@@ -759,6 +759,7 @@ private struct RunOverviewMetricsSection: View {
             CompactMetricChip(title: "평균 페이스", value: run.paceText, detail: "러닝 전체")
             CompactMetricChip(title: "평균 심박", value: averageHeartRateText, detail: "러닝 전체")
             CompactMetricChip(title: "평균 케이던스", value: averageCadenceText, detail: "러닝 전체")
+            CompactMetricChip(title: "상승 고도", value: elevationGainText, detail: "러닝 전체")
         }
     }
 
@@ -783,6 +784,10 @@ private struct RunOverviewMetricsSection: View {
         guard !detail.runningMetrics.cadence.isEmpty else { return "-" }
         let avg = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
         return avg.formatted(.number.precision(.fractionLength(0))) + " spm"
+    }
+
+    private var elevationGainText: String {
+        detail.elevationGainText ?? "-"
     }
 }
 

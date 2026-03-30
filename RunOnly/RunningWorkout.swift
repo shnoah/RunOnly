@@ -255,6 +255,87 @@ struct RunDetail {
         self.heartRateZoneProfile = heartRateZoneProfile
     }
 
+    // route 고도는 샘플이 촘촘해 미세 상승이 잘게 쪼개질 수 있어,
+    // 거리 버킷 평균을 만든 뒤 valley/peak 기준으로 누적 상승고도를 계산한다.
+    var elevationGainMeters: Double? {
+        let altitudeSamples = bucketedAltitudeSamples
+        guard altitudeSamples.count >= 2 else { return nil }
+
+        let minimumClimbMeters = 1.0
+        var totalGain: Double = 0
+        var valley = altitudeSamples[0]
+        var peak = altitudeSamples[0]
+
+        for altitude in altitudeSamples.dropFirst() {
+            if altitude > peak {
+                peak = altitude
+            }
+
+            // valley에서 1m 이상 오른 뒤 다시 1m 이상 내려오면 한 번의 climb으로 확정한다.
+            if peak - valley >= minimumClimbMeters, altitude <= peak - minimumClimbMeters {
+                totalGain += peak - valley
+                valley = altitude
+                peak = altitude
+                continue
+            }
+
+            if altitude < valley {
+                valley = altitude
+                peak = altitude
+            }
+        }
+
+        let trailingClimb = peak - valley
+        if trailingClimb >= minimumClimbMeters {
+            totalGain += trailingClimb
+        }
+
+        return totalGain >= minimumClimbMeters ? totalGain : nil
+    }
+
+    var elevationGainText: String? {
+        guard let elevationGainMeters else { return nil }
+        return elevationGainMeters.formatted(.number.precision(.fractionLength(0))) + " m"
+    }
+
+    private var bucketedAltitudeSamples: [Double] {
+        let samples = route.compactMap { point -> (distanceMeters: Double, altitudeMeters: Double)? in
+            guard let altitudeMeters = point.altitudeMeters else { return nil }
+            return (point.distanceMeters, altitudeMeters)
+        }
+
+        guard samples.count >= 2 else {
+            return samples.map(\.altitudeMeters)
+        }
+
+        let bucketSizeMeters = 20.0
+        var bucketAverages: [Double] = []
+        var currentBucketIndex = Int(floor(samples[0].distanceMeters / bucketSizeMeters))
+        var altitudeSum = 0.0
+        var altitudeCount = 0
+
+        func flushCurrentBucket() {
+            guard altitudeCount > 0 else { return }
+            bucketAverages.append(altitudeSum / Double(altitudeCount))
+            altitudeSum = 0
+            altitudeCount = 0
+        }
+
+        for sample in samples {
+            let bucketIndex = Int(floor(sample.distanceMeters / bucketSizeMeters))
+            if bucketIndex != currentBucketIndex {
+                flushCurrentBucket()
+                currentBucketIndex = bucketIndex
+            }
+
+            altitudeSum += sample.altitudeMeters
+            altitudeCount += 1
+        }
+
+        flushCurrentBucket()
+        return bucketAverages.count >= 2 ? bucketAverages : samples.map(\.altitudeMeters)
+    }
+
     static let empty = RunDetail(
         route: [],
         distanceTimeline: [],
@@ -525,11 +606,11 @@ extension RunDetail {
 
     static let mockMissingHeartRate = RunDetail(
         route: [
-            RunRoutePoint(latitude: 37.5664, longitude: 126.9780, timestamp: .now.addingTimeInterval(-900), distanceMeters: 0),
-            RunRoutePoint(latitude: 37.5675, longitude: 126.9792, timestamp: .now.addingTimeInterval(-700), distanceMeters: 650),
-            RunRoutePoint(latitude: 37.5681, longitude: 126.9806, timestamp: .now.addingTimeInterval(-500), distanceMeters: 1_420),
-            RunRoutePoint(latitude: 37.5690, longitude: 126.9820, timestamp: .now.addingTimeInterval(-300), distanceMeters: 2_180),
-            RunRoutePoint(latitude: 37.5698, longitude: 126.9831, timestamp: .now, distanceMeters: 2_940)
+            RunRoutePoint(latitude: 37.5664, longitude: 126.9780, timestamp: .now.addingTimeInterval(-900), distanceMeters: 0, altitudeMeters: 11),
+            RunRoutePoint(latitude: 37.5675, longitude: 126.9792, timestamp: .now.addingTimeInterval(-700), distanceMeters: 650, altitudeMeters: 15),
+            RunRoutePoint(latitude: 37.5681, longitude: 126.9806, timestamp: .now.addingTimeInterval(-500), distanceMeters: 1_420, altitudeMeters: 18),
+            RunRoutePoint(latitude: 37.5690, longitude: 126.9820, timestamp: .now.addingTimeInterval(-300), distanceMeters: 2_180, altitudeMeters: 22),
+            RunRoutePoint(latitude: 37.5698, longitude: 126.9831, timestamp: .now, distanceMeters: 2_940, altitudeMeters: 24)
         ],
         distanceTimeline: [
             DistanceTimelinePoint(date: .now.addingTimeInterval(-900), elapsed: 0, distanceMeters: 0, segmentIndex: 0),
@@ -553,12 +634,12 @@ extension RunDetail {
 
     static let mockCompleteMetrics = RunDetail(
         route: [
-            RunRoutePoint(latitude: 37.5664, longitude: 126.9780, timestamp: .now.addingTimeInterval(-900), distanceMeters: 0),
-            RunRoutePoint(latitude: 37.5671, longitude: 126.9791, timestamp: .now.addingTimeInterval(-720), distanceMeters: 620),
-            RunRoutePoint(latitude: 37.5678, longitude: 126.9804, timestamp: .now.addingTimeInterval(-540), distanceMeters: 1_300),
-            RunRoutePoint(latitude: 37.5686, longitude: 126.9818, timestamp: .now.addingTimeInterval(-360), distanceMeters: 2_080),
-            RunRoutePoint(latitude: 37.5694, longitude: 126.9830, timestamp: .now.addingTimeInterval(-180), distanceMeters: 2_860),
-            RunRoutePoint(latitude: 37.5701, longitude: 126.9841, timestamp: .now, distanceMeters: 3_520)
+            RunRoutePoint(latitude: 37.5664, longitude: 126.9780, timestamp: .now.addingTimeInterval(-900), distanceMeters: 0, altitudeMeters: 18),
+            RunRoutePoint(latitude: 37.5671, longitude: 126.9791, timestamp: .now.addingTimeInterval(-720), distanceMeters: 620, altitudeMeters: 22),
+            RunRoutePoint(latitude: 37.5678, longitude: 126.9804, timestamp: .now.addingTimeInterval(-540), distanceMeters: 1_300, altitudeMeters: 27),
+            RunRoutePoint(latitude: 37.5686, longitude: 126.9818, timestamp: .now.addingTimeInterval(-360), distanceMeters: 2_080, altitudeMeters: 31),
+            RunRoutePoint(latitude: 37.5694, longitude: 126.9830, timestamp: .now.addingTimeInterval(-180), distanceMeters: 2_860, altitudeMeters: 34),
+            RunRoutePoint(latitude: 37.5701, longitude: 126.9841, timestamp: .now, distanceMeters: 3_520, altitudeMeters: 33)
         ],
         distanceTimeline: [
             DistanceTimelinePoint(date: .now.addingTimeInterval(-900), elapsed: 0, distanceMeters: 0, segmentIndex: 0),
@@ -595,12 +676,12 @@ extension RunDetail {
 
     static let mockPausedWorkout = RunDetail(
         route: [
-            RunRoutePoint(latitude: 37.5659, longitude: 126.9775, timestamp: .now.addingTimeInterval(-1_080), distanceMeters: 0),
-            RunRoutePoint(latitude: 37.5668, longitude: 126.9788, timestamp: .now.addingTimeInterval(-840), distanceMeters: 760),
-            RunRoutePoint(latitude: 37.5676, longitude: 126.9802, timestamp: .now.addingTimeInterval(-660), distanceMeters: 1_380),
-            RunRoutePoint(latitude: 37.5682, longitude: 126.9812, timestamp: .now.addingTimeInterval(-300), distanceMeters: 1_380),
-            RunRoutePoint(latitude: 37.5692, longitude: 126.9828, timestamp: .now.addingTimeInterval(-150), distanceMeters: 2_100),
-            RunRoutePoint(latitude: 37.5700, longitude: 126.9842, timestamp: .now, distanceMeters: 2_920)
+            RunRoutePoint(latitude: 37.5659, longitude: 126.9775, timestamp: .now.addingTimeInterval(-1_080), distanceMeters: 0, altitudeMeters: 12),
+            RunRoutePoint(latitude: 37.5668, longitude: 126.9788, timestamp: .now.addingTimeInterval(-840), distanceMeters: 760, altitudeMeters: 18),
+            RunRoutePoint(latitude: 37.5676, longitude: 126.9802, timestamp: .now.addingTimeInterval(-660), distanceMeters: 1_380, altitudeMeters: 24),
+            RunRoutePoint(latitude: 37.5682, longitude: 126.9812, timestamp: .now.addingTimeInterval(-300), distanceMeters: 1_380, altitudeMeters: 24),
+            RunRoutePoint(latitude: 37.5692, longitude: 126.9828, timestamp: .now.addingTimeInterval(-150), distanceMeters: 2_100, altitudeMeters: 31),
+            RunRoutePoint(latitude: 37.5700, longitude: 126.9842, timestamp: .now, distanceMeters: 2_920, altitudeMeters: 35)
         ],
         distanceTimeline: [
             DistanceTimelinePoint(date: .now.addingTimeInterval(-1_080), elapsed: 0, distanceMeters: 0, segmentIndex: 0),
@@ -662,11 +743,11 @@ extension RunDetail {
 
     static let mockMissingAdvancedMetrics = RunDetail(
         route: [
-            RunRoutePoint(latitude: 37.5657, longitude: 126.9771, timestamp: .now.addingTimeInterval(-840), distanceMeters: 0),
-            RunRoutePoint(latitude: 37.5666, longitude: 126.9789, timestamp: .now.addingTimeInterval(-630), distanceMeters: 710),
-            RunRoutePoint(latitude: 37.5675, longitude: 126.9806, timestamp: .now.addingTimeInterval(-420), distanceMeters: 1_490),
-            RunRoutePoint(latitude: 37.5684, longitude: 126.9821, timestamp: .now.addingTimeInterval(-210), distanceMeters: 2_250),
-            RunRoutePoint(latitude: 37.5691, longitude: 126.9833, timestamp: .now, distanceMeters: 2_980)
+            RunRoutePoint(latitude: 37.5657, longitude: 126.9771, timestamp: .now.addingTimeInterval(-840), distanceMeters: 0, altitudeMeters: 9),
+            RunRoutePoint(latitude: 37.5666, longitude: 126.9789, timestamp: .now.addingTimeInterval(-630), distanceMeters: 710, altitudeMeters: 14),
+            RunRoutePoint(latitude: 37.5675, longitude: 126.9806, timestamp: .now.addingTimeInterval(-420), distanceMeters: 1_490, altitudeMeters: 19),
+            RunRoutePoint(latitude: 37.5684, longitude: 126.9821, timestamp: .now.addingTimeInterval(-210), distanceMeters: 2_250, altitudeMeters: 25),
+            RunRoutePoint(latitude: 37.5691, longitude: 126.9833, timestamp: .now, distanceMeters: 2_980, altitudeMeters: 28)
         ],
         distanceTimeline: [
             DistanceTimelinePoint(date: .now.addingTimeInterval(-840), elapsed: 0, distanceMeters: 0, segmentIndex: 0),

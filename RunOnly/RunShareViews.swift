@@ -80,6 +80,7 @@ private enum RunShareField: String, CaseIterable, Identifiable {
     case distance
     case duration
     case pace
+    case elevationGain
     case heartRate
     case cadence
     case shoe
@@ -104,6 +105,8 @@ private enum RunShareField: String, CaseIterable, Identifiable {
             return "시간"
         case .pace:
             return "페이스"
+        case .elevationGain:
+            return "상승 고도"
         case .heartRate:
             return "심박"
         case .cadence:
@@ -131,6 +134,8 @@ private enum RunShareField: String, CaseIterable, Identifiable {
             return "timer"
         case .pace:
             return "speedometer"
+        case .elevationGain:
+            return "mountain.2.fill"
         case .heartRate:
             return "heart.fill"
         case .cadence:
@@ -236,7 +241,7 @@ struct RunShareComposerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTemplate: RunShareTemplate = .sticker
-    @State private var enabledFields: Set<RunShareField> = [.logo, .route, .weather, .distance, .duration, .pace]
+    @State private var enabledFields: Set<RunShareField> = [.logo, .route, .weather, .distance, .duration, .pace, .elevationGain]
     @State private var stickerDebugSettings = RunShareStickerDebugSettings()
     @State private var selectedBackgroundPhotoItem: PhotosPickerItem?
     @State private var backgroundPhotoImage: UIImage?
@@ -784,6 +789,8 @@ struct RunShareComposerView: View {
             return averageHeartRateText != nil
         case .cadence:
             return averageCadenceText != nil
+        case .elevationGain:
+            return detail.elevationGainText != nil
         case .shoe, .environment:
             return false
         case .date, .distance, .duration, .pace:
@@ -1034,6 +1041,9 @@ private struct RunShareArtworkView: View {
         if enabledFields.contains(.pace) {
             items.append(RunShareMetric(field: .pace, title: "페이스", value: run.paceText))
         }
+        if enabledFields.contains(.elevationGain), let elevationGainText {
+            items.append(RunShareMetric(field: .elevationGain, title: "상승", value: elevationGainText))
+        }
         if enabledFields.contains(.heartRate), let averageHeartRateText {
             items.append(RunShareMetric(field: .heartRate, title: "심박", value: averageHeartRateText))
         }
@@ -1053,6 +1063,10 @@ private struct RunShareArtworkView: View {
         case .story:
             return 520
         }
+    }
+
+    private var elevationGainText: String? {
+        detail.elevationGainText
     }
 
     private var contentPadding: CGFloat {
