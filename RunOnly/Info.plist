@@ -17,13 +17,13 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>러닝 workout, 경로, 심박, 안정시 심박, VO2 Max, 거리/걸음 수와 러닝 메트릭을 읽어와 iPhone에서 러닝 기록을 분석하고 요약하기 위해 필요합니다.</string>
+	<string>러닝 workout, 경로, 심박, VO2 Max 등 러닝 데이터를 iPhone 안에서 분석하고 상세 화면을 빠르게 보여주기 위해 필요합니다.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>공유용 러닝 이미지를 사진 앱에 저장하기 위해 필요합니다.</string>
 	<key>UIApplicationSceneManifest</key>

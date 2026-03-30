@@ -13,18 +13,29 @@ final class RunDetailViewModel: ObservableObject {
 
     @Published private(set) var state: State = .idle
     @Published private(set) var isLoadingSupplementary = false
+    @Published private(set) var cachedSummary: RunSummaryMetrics?
 
     private let healthKitService = HealthKitService()
+    private let summaryCacheStore = RunSummaryCacheStore.shared
     private let run: RunningWorkout
+    private let initialScenario: DebugScenario?
+    private var hasAppliedInitialScenario = false
     private var loadGeneration = 0
 
-    init(run: RunningWorkout) {
+    init(run: RunningWorkout, initialScenario: DebugScenario? = nil) {
         self.run = run
+        self.initialScenario = initialScenario
+        cachedSummary = summaryCacheStore.summary(for: run.id)
     }
 
     // 화면이 처음 나타났을 때만 실제 상세 데이터를 요청한다.
     func loadIfNeeded() async {
         guard case .idle = state else { return }
+        if let initialScenario, !hasAppliedInitialScenario {
+            hasAppliedInitialScenario = true
+            await applyDebugScenario(initialScenario)
+            return
+        }
         await load()
     }
 
@@ -38,6 +49,7 @@ final class RunDetailViewModel: ObservableObject {
         do {
             let detail = try await healthKitService.fetchRunDetail(for: run)
             guard currentGeneration == loadGeneration else { return }
+            updateCachedSummary(from: detail)
             state = .loaded(detail)
             await loadSupplementary(for: detail, generation: currentGeneration)
         } catch {
@@ -67,16 +79,22 @@ final class RunDetailViewModel: ObservableObject {
             await load()
         case .completeMetrics:
             state = .loaded(.mockCompleteMetrics)
+            cachedSummary = RunDetail.mockCompleteMetrics.summaryMetrics
         case .pausedWorkout:
             state = .loaded(.mockPausedWorkout)
+            cachedSummary = RunDetail.mockPausedWorkout.summaryMetrics
         case .missingRoute:
             state = .loaded(.mockMissingRoute)
+            cachedSummary = RunDetail.mockMissingRoute.summaryMetrics
         case .missingHeartRate:
             state = .loaded(.mockMissingHeartRate)
+            cachedSummary = RunDetail.mockMissingHeartRate.summaryMetrics
         case .missingAdvancedMetrics:
             state = .loaded(.mockMissingAdvancedMetrics)
+            cachedSummary = RunDetail.mockMissingAdvancedMetrics.summaryMetrics
         case .empty:
             state = .loaded(.empty)
+            cachedSummary = nil
         }
     }
 
@@ -105,11 +123,18 @@ final class RunDetailViewModel: ObservableObject {
         guard generation == loadGeneration else { return }
         guard case .loaded(let currentDetail) = state else { return }
 
-        state = .loaded(
-            currentDetail.updatingSupplementary(
-                route: route,
-                heartRateZoneProfile: heartRateZoneProfile
-            )
+        let updatedDetail = currentDetail.updatingSupplementary(
+            route: route,
+            heartRateZoneProfile: heartRateZoneProfile
         )
+        updateCachedSummary(from: updatedDetail)
+        state = .loaded(updatedDetail)
+    }
+
+    private func updateCachedSummary(from detail: RunDetail) {
+        let mergedSummary = detail.summaryMetrics.mergingMissingValues(from: cachedSummary)
+        guard mergedSummary.hasAnyValue else { return }
+        cachedSummary = mergedSummary
+        summaryCacheStore.save(mergedSummary, for: run.id)
     }
 }

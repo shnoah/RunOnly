@@ -249,13 +249,36 @@ final class AppSettingsStore: ObservableObject {
         }
     }
 
+    @Published var hasCompletedHealthKitIntro: Bool {
+        didSet {
+            UserDefaults.standard.set(hasCompletedHealthKitIntro, forKey: hasCompletedHealthKitIntroKey)
+        }
+    }
+
+    @Published var isPresentingHealthKitIntro = false
+
     private let defaultAppleOnlyFilterKey = "runonly.settings.defaultAppleOnlyFilter"
+    private let hasCompletedHealthKitIntroKey = "runonly.settings.hasCompletedHealthKitIntro"
 
     init() {
+        let hadExistingDefaultAppleOnlySetting = UserDefaults.standard.object(forKey: defaultAppleOnlyFilterKey) != nil
         if UserDefaults.standard.object(forKey: defaultAppleOnlyFilterKey) == nil {
             UserDefaults.standard.set(true, forKey: defaultAppleOnlyFilterKey)
         }
+        if UserDefaults.standard.object(forKey: hasCompletedHealthKitIntroKey) == nil {
+            UserDefaults.standard.set(hadExistingDefaultAppleOnlySetting, forKey: hasCompletedHealthKitIntroKey)
+        }
         self.defaultAppleOnlyFilter = UserDefaults.standard.bool(forKey: defaultAppleOnlyFilterKey)
+        self.hasCompletedHealthKitIntro = UserDefaults.standard.bool(forKey: hasCompletedHealthKitIntroKey)
+    }
+
+    func presentHealthKitIntro() {
+        isPresentingHealthKitIntro = true
+    }
+
+    func completeHealthKitIntro() {
+        hasCompletedHealthKitIntro = true
+        isPresentingHealthKitIntro = false
     }
 }
 
@@ -275,5 +298,69 @@ final class MileageGoalStore: ObservableObject {
             UserDefaults.standard.set(60.0, forKey: monthlyGoalKilometersKey)
         }
         self.monthlyGoalKilometers = UserDefaults.standard.double(forKey: monthlyGoalKilometersKey)
+    }
+}
+
+private struct RunSummaryCacheSnapshot: Codable {
+    let version: Int
+    let entries: [RunSummaryCacheEntry]
+}
+
+private struct RunSummaryCacheEntry: Codable {
+    let runID: UUID
+    let metrics: RunSummaryMetrics
+    let cachedAt: Date
+}
+
+@MainActor
+final class RunSummaryCacheStore {
+    static let shared = RunSummaryCacheStore()
+
+    private let storageFilename = "run-summary-cache.json"
+    private let version = 1
+    private var metricsByRunID: [UUID: RunSummaryMetrics] = [:]
+
+    private init() {
+        load()
+    }
+
+    func summary(for runID: UUID) -> RunSummaryMetrics? {
+        metricsByRunID[runID]
+    }
+
+    func save(_ metrics: RunSummaryMetrics, for runID: UUID) {
+        guard metrics.hasAnyValue else { return }
+        metricsByRunID[runID] = metrics
+        persist()
+    }
+
+    func clearAllData() {
+        metricsByRunID = [:]
+        persist()
+    }
+
+    private func load() {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        guard
+            let snapshot = try? AppStorage.load(RunSummaryCacheSnapshot.self, from: storageFilename, decoder: decoder),
+            snapshot.version == version
+        else {
+            metricsByRunID = [:]
+            return
+        }
+
+        metricsByRunID = Dictionary(uniqueKeysWithValues: snapshot.entries.map { ($0.runID, $0.metrics) })
+    }
+
+    private func persist() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let entries = metricsByRunID
+            .map { RunSummaryCacheEntry(runID: $0.key, metrics: $0.value, cachedAt: .now) }
+            .sorted { $0.runID.uuidString < $1.runID.uuidString }
+        let snapshot = RunSummaryCacheSnapshot(version: version, entries: entries)
+        try? AppStorage.save(snapshot, to: storageFilename, encoder: encoder)
     }
 }

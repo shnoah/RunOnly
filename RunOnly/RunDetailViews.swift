@@ -75,10 +75,14 @@ struct RunDetailView: View {
     @StateObject private var viewModel: RunDetailViewModel
     @State private var showingShareComposer = false
 
-    init(run: RunningWorkout, personalRecordAchievements: [PersonalRecordDistance] = []) {
+    init(
+        run: RunningWorkout,
+        personalRecordAchievements: [PersonalRecordDistance] = [],
+        initialDebugScenario: RunDetailViewModel.DebugScenario? = nil
+    ) {
         self.run = run
         self.personalRecordAchievements = personalRecordAchievements
-        _viewModel = StateObject(wrappedValue: RunDetailViewModel(run: run))
+        _viewModel = StateObject(wrappedValue: RunDetailViewModel(run: run, initialScenario: initialDebugScenario))
     }
 
     var body: some View {
@@ -100,10 +104,13 @@ struct RunDetailView: View {
                     }
                 }
 
-                DebugScenarioPanel(viewModel: viewModel)
+                if run.isDemoWorkout {
+                    DemoScenarioPanel(viewModel: viewModel)
+                }
 
                 switch viewModel.state {
                 case .idle, .loading:
+                    RunOverviewMetricsSection(run: run, summary: viewModel.cachedSummary)
                     DetailSection(title: "러닝 경로") {
                         ProgressView("상세 데이터를 불러오는 중")
                             .tint(.white)
@@ -125,7 +132,10 @@ struct RunDetailView: View {
                     }
 
                 case .loaded(let detail):
-                    RunOverviewMetricsSection(run: run, detail: detail)
+                    RunOverviewMetricsSection(
+                        run: run,
+                        summary: detail.summaryMetrics.mergingMissingValues(from: viewModel.cachedSummary)
+                    )
                     RunSplitSection(detail: detail)
                     PerformanceChartSection(run: run, detail: detail)
                     HeartRateZoneSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
@@ -156,7 +166,8 @@ struct RunDetailView: View {
             if let loadedDetail {
                 RunShareComposerView(
                     run: run,
-                    detail: loadedDetail
+                    detail: loadedDetail,
+                    summary: loadedDetail.summaryMetrics.mergingMissingValues(from: viewModel.cachedSummary)
                 )
             }
         }
@@ -750,7 +761,7 @@ private struct RunSplitSection: View {
 
 private struct RunOverviewMetricsSection: View {
     let run: RunningWorkout
-    let detail: RunDetail
+    let summary: RunSummaryMetrics?
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -764,30 +775,15 @@ private struct RunOverviewMetricsSection: View {
     }
 
     private var averageHeartRateText: String {
-        guard !detail.heartRates.isEmpty else { return "-" }
-        let avg = detail.heartRates.map(\.bpm).reduce(0, +) / Double(detail.heartRates.count)
-        return avg.formatted(.number.precision(.fractionLength(0))) + " bpm"
+        summary?.averageHeartRateText ?? "-"
     }
 
     private var averageCadenceText: String {
-        let weightedCadence = detail.splits.reduce(into: (weighted: 0.0, duration: 0.0)) { partial, split in
-            guard let cadence = split.averageCadence else { return }
-            partial.weighted += cadence * split.duration
-            partial.duration += split.duration
-        }
-
-        if weightedCadence.duration > 0 {
-            let average = weightedCadence.weighted / weightedCadence.duration
-            return average.formatted(.number.precision(.fractionLength(0))) + " spm"
-        }
-
-        guard !detail.runningMetrics.cadence.isEmpty else { return "-" }
-        let avg = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
-        return avg.formatted(.number.precision(.fractionLength(0))) + " spm"
+        summary?.averageCadenceText ?? "-"
     }
 
     private var elevationGainText: String {
-        detail.elevationGainText ?? "-"
+        summary?.elevationGainText ?? "-"
     }
 }
 
@@ -1280,56 +1276,57 @@ private struct HeartRateChartPoint: Identifiable {
     }
 }
 
-private struct DebugScenarioPanel: View {
+private struct DemoScenarioPanel: View {
     @ObservedObject var viewModel: RunDetailViewModel
 
     var body: some View {
-        Menu {
-            Button("실데이터") {
-                Task {
-                    await viewModel.applyDebugScenario(.live)
-                }
-            }
-            Button("정상 메트릭") {
-                Task {
-                    await viewModel.applyDebugScenario(.completeMetrics)
-                }
-            }
-            Button("pause 포함") {
-                Task {
-                    await viewModel.applyDebugScenario(.pausedWorkout)
-                }
-            }
-            Button("빈 경로") {
-                Task {
-                    await viewModel.applyDebugScenario(.missingRoute)
-                }
-            }
-            Button("빈 심박") {
-                Task {
-                    await viewModel.applyDebugScenario(.missingHeartRate)
-                }
-            }
-            Button("고급 메트릭 없음") {
-                Task {
-                    await viewModel.applyDebugScenario(.missingAdvancedMetrics)
-                }
-            }
-            Button("빈 상세") {
-                Task {
-                    await viewModel.applyDebugScenario(.empty)
-                }
-            }
-        } label: {
-            Label("테스트 데이터", systemImage: "ladybug")
+        VStack(alignment: .leading, spacing: 8) {
+            Text("샘플 러닝")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.82))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.08))
-                )
+                .foregroundStyle(.white.opacity(0.55))
+
+            Menu {
+                Button("기본 샘플") {
+                    Task {
+                        await viewModel.applyDebugScenario(.completeMetrics)
+                    }
+                }
+                Button("pause 포함") {
+                    Task {
+                        await viewModel.applyDebugScenario(.pausedWorkout)
+                    }
+                }
+                Button("빈 경로") {
+                    Task {
+                        await viewModel.applyDebugScenario(.missingRoute)
+                    }
+                }
+                Button("빈 심박") {
+                    Task {
+                        await viewModel.applyDebugScenario(.missingHeartRate)
+                    }
+                }
+                Button("고급 메트릭 없음") {
+                    Task {
+                        await viewModel.applyDebugScenario(.missingAdvancedMetrics)
+                    }
+                }
+                Button("빈 상세") {
+                    Task {
+                        await viewModel.applyDebugScenario(.empty)
+                    }
+                }
+            } label: {
+                Label("다른 샘플 보기", systemImage: "sparkles.rectangle.stack")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.08))
+                    )
+            }
         }
     }
 }

@@ -21,6 +21,40 @@ struct RunningWorkout: Identifiable {
         sourceBundleIdentifier = workout.sourceRevision.source.bundleIdentifier
     }
 
+    init(
+        id: UUID = UUID(),
+        startDate: Date,
+        duration: TimeInterval,
+        distanceInMeters: Double,
+        sourceName: String,
+        sourceBundleIdentifier: String,
+        isIndoorWorkout: Bool?
+    ) {
+        let endDate = startDate.addingTimeInterval(duration)
+        var metadata: [String: Any] = [:]
+        if let isIndoorWorkout {
+            metadata[HKMetadataKeyIndoorWorkout] = NSNumber(value: isIndoorWorkout)
+        }
+
+        let workout = HKWorkout(
+            activityType: .running,
+            start: startDate,
+            end: endDate,
+            duration: duration,
+            totalEnergyBurned: nil,
+            totalDistance: HKQuantity(unit: .meter(), doubleValue: distanceInMeters),
+            metadata: metadata.isEmpty ? nil : metadata
+        )
+
+        self.id = id
+        self.workout = workout
+        self.startDate = startDate
+        self.duration = duration
+        self.distanceInMeters = distanceInMeters
+        self.sourceName = sourceName
+        self.sourceBundleIdentifier = sourceBundleIdentifier
+    }
+
     var distanceText: String {
         let distanceInKilometers = distanceInMeters / 1_000
         return distanceInKilometers.formatted(.number.precision(.fractionLength(2))) + " km"
@@ -50,6 +84,10 @@ struct RunningWorkout: Identifiable {
 
     var isAppleWorkout: Bool {
         sourceBundleIdentifier.lowercased().hasPrefix("com.apple.health")
+    }
+
+    var isDemoWorkout: Bool {
+        sourceBundleIdentifier == "com.shnoah.RunOnly.demo"
     }
 
     var isIndoorWorkout: Bool? {
@@ -106,6 +144,16 @@ struct RunningWorkout: Identifiable {
         formatter.dateFormat = "yyyy년 M월 d일 (E) a h:mm"
         return formatter
     }()
+
+    static let demoSample = RunningWorkout(
+        id: UUID(uuidString: "8A6D2A35-4222-4E7E-A4E1-7D3B57F593A1") ?? UUID(),
+        startDate: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 3, day: 15, hour: 7, minute: 30)) ?? .now,
+        duration: 900,
+        distanceInMeters: 3_520,
+        sourceName: "RunOnly Demo",
+        sourceBundleIdentifier: "com.shnoah.RunOnly.demo",
+        isIndoorWorkout: false
+    )
 }
 
 // 홈 대시보드에 표시할 핵심 요약 수치 묶음이다.
@@ -182,6 +230,40 @@ struct RunningMetrics {
         verticalOscillation: [],
         groundContactTime: []
     )
+}
+
+// 상세 화면 상단 요약에 필요한 파생 수치를 공용 구조로 묶는다.
+struct RunSummaryMetrics: Codable, Equatable {
+    let averageHeartRate: Double?
+    let averageCadence: Double?
+    let elevationGainMeters: Double?
+
+    var hasAnyValue: Bool {
+        averageHeartRate != nil || averageCadence != nil || elevationGainMeters != nil
+    }
+
+    var averageHeartRateText: String? {
+        guard let averageHeartRate else { return nil }
+        return averageHeartRate.formatted(.number.precision(.fractionLength(0))) + " bpm"
+    }
+
+    var averageCadenceText: String? {
+        guard let averageCadence else { return nil }
+        return averageCadence.formatted(.number.precision(.fractionLength(0))) + " spm"
+    }
+
+    var elevationGainText: String? {
+        guard let elevationGainMeters else { return nil }
+        return elevationGainMeters.formatted(.number.precision(.fractionLength(0))) + " m"
+    }
+
+    func mergingMissingValues(from fallback: RunSummaryMetrics?) -> RunSummaryMetrics {
+        RunSummaryMetrics(
+            averageHeartRate: averageHeartRate ?? fallback?.averageHeartRate,
+            averageCadence: averageCadence ?? fallback?.averageCadence,
+            elevationGainMeters: elevationGainMeters ?? fallback?.elevationGainMeters
+        )
+    }
 }
 
 // 심박 존 계산 기준은 데이터 가용성에 따라 달라진다.
@@ -296,6 +378,34 @@ struct RunDetail {
     var elevationGainText: String? {
         guard let elevationGainMeters else { return nil }
         return elevationGainMeters.formatted(.number.precision(.fractionLength(0))) + " m"
+    }
+
+    var averageHeartRate: Double? {
+        guard !heartRates.isEmpty else { return nil }
+        return heartRates.map(\.bpm).reduce(0, +) / Double(heartRates.count)
+    }
+
+    var averageCadence: Double? {
+        let weightedCadence = splits.reduce(into: (weighted: 0.0, duration: 0.0)) { partial, split in
+            guard let cadence = split.averageCadence else { return }
+            partial.weighted += cadence * split.duration
+            partial.duration += split.duration
+        }
+
+        if weightedCadence.duration > 0 {
+            return weightedCadence.weighted / weightedCadence.duration
+        }
+
+        guard !runningMetrics.cadence.isEmpty else { return nil }
+        return runningMetrics.cadence.map(\.value).reduce(0, +) / Double(runningMetrics.cadence.count)
+    }
+
+    var summaryMetrics: RunSummaryMetrics {
+        RunSummaryMetrics(
+            averageHeartRate: averageHeartRate,
+            averageCadence: averageCadence,
+            elevationGainMeters: elevationGainMeters
+        )
     }
 
     private var bucketedAltitudeSamples: [Double] {

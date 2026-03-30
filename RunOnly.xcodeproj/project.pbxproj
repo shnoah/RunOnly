@@ -15,7 +15,6 @@
 		001000000000000000000006 /* RunDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000108 /* RunDetailViewModel.swift */; };
 		001000000000000000000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000109 /* Assets.xcassets */; };
 		001000000000000000000008 /* PersonalRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000010A /* PersonalRecords.swift */; };
-		001000000000000000000009 /* RunWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000010B /* RunWeatherService.swift */; };
 		00100000000000000000000A /* RunShareViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000010C /* RunShareViews.swift */; };
 		00100000000000000000000B /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000010D /* SharedViews.swift */; };
 		00100000000000000000000C /* Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000010E /* Stores.swift */; };
@@ -35,7 +34,6 @@
 		001000000000000000000108 /* RunDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailViewModel.swift; sourceTree = "<group>"; };
 		001000000000000000000109 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		00100000000000000000010A /* PersonalRecords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalRecords.swift; sourceTree = "<group>"; };
-		00100000000000000000010B /* RunWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunWeatherService.swift; sourceTree = "<group>"; };
 		00100000000000000000010C /* RunShareViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunShareViews.swift; sourceTree = "<group>"; };
 		00100000000000000000010D /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
 		00100000000000000000010E /* Stores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stores.swift; sourceTree = "<group>"; };
@@ -80,7 +78,6 @@
 				001000000000000000000108 /* RunDetailViewModel.swift */,
 				001000000000000000000109 /* Assets.xcassets */,
 				00100000000000000000010A /* PersonalRecords.swift */,
-				00100000000000000000010B /* RunWeatherService.swift */,
 			);
 			path = RunOnly;
 			sourceTree = "<group>";
@@ -169,7 +166,6 @@
 				001000000000000000000005 /* RunningWorkoutsViewModel.swift in Sources */,
 				001000000000000000000006 /* RunDetailViewModel.swift in Sources */,
 				001000000000000000000008 /* PersonalRecords.swift in Sources */,
-				001000000000000000000009 /* RunWeatherService.swift in Sources */,
 				00100000000000000000000A /* RunShareViews.swift in Sources */,
 				00100000000000000000000B /* SharedViews.swift in Sources */,
 				00100000000000000000000C /* Stores.swift in Sources */,
@@ -199,7 +195,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shnoah.RunOnly;
 				PRODUCT_NAME = RunOnly;
 				SDKROOT = iphoneos;
@@ -228,7 +224,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shnoah.RunOnly;
 				PRODUCT_NAME = RunOnly;
 				SDKROOT = iphoneos;

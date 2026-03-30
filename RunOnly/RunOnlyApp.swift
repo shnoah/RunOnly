@@ -5,6 +5,9 @@ import SwiftUI
 enum AppMetadata {
     static let supportEmail = "shnoah@gmail.com"
     static let repositoryURL = URL(string: "https://github.com/shnoah/RunOnly")!
+    static let privacyPolicyURL = URL(string: "https://github.com/shnoah/RunOnly/blob/main/APP_STORE/PRIVACY_POLICY.md")!
+    static let reviewNotesURL = URL(string: "https://github.com/shnoah/RunOnly/blob/main/APP_STORE/REVIEW_NOTES.md")!
+    static let healthPermissionSettingsPath = "설정 > 건강 > 데이터 접근 및 기기 > RunOnly"
 
     static var displayName: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "RunOnly"

@@ -23,7 +23,7 @@ struct HomeTabView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 case .empty:
-                    StatusView(
+                    RunReviewFallbackView(
                         title: "러닝 기록이 없습니다",
                         message: viewModel.showAppleWorkoutOnly
                             ? "Apple 운동 앱에서 기록된 러닝이 아직 보이지 않습니다."
@@ -36,7 +36,7 @@ struct HomeTabView: View {
                     }
 
                 case .failed(let message):
-                    StatusView(
+                    RunReviewFallbackView(
                         title: "불러오기에 실패했습니다",
                         message: message,
                         buttonTitle: "다시 시도"
@@ -81,7 +81,7 @@ struct HomeTabView: View {
             .toolbar(.hidden, for: .navigationBar)
         }
         .task {
-            await viewModel.load()
+            await viewModel.loadIfNeeded()
         }
     }
 }
@@ -102,7 +102,7 @@ struct RecordTabView: View {
                         .tint(.white)
                         .foregroundStyle(.white)
                 case .empty:
-                    StatusView(
+                    RunReviewFallbackView(
                         title: "러닝 기록이 없습니다",
                         message: "표시할 러닝 기록이 없습니다.",
                         buttonTitle: "새로고침"
@@ -112,7 +112,7 @@ struct RecordTabView: View {
                         }
                     }
                 case .failed(let message):
-                    StatusView(
+                    RunReviewFallbackView(
                         title: "불러오기에 실패했습니다",
                         message: message,
                         buttonTitle: "다시 시도"
@@ -151,22 +151,30 @@ struct RecordTabView: View {
                             RecordMonthSummaryCard(summary: viewModel.selectedMonthSummary)
                                 .padding(.horizontal, 16)
 
-                            Group {
+                            VStack(spacing: 14) {
+                                NavigationLink {
+                                    RunDetailView(
+                                        run: .demoSample,
+                                        initialDebugScenario: .completeMetrics
+                                    )
+                                } label: {
+                                    DemoRunAccessCard()
+                                }
+                                .buttonStyle(.plain)
+
                                 if viewModel.recordRuns.isEmpty {
                                     DetailSection(title: emptyRecordTitle) {
                                         Text(emptyRecordMessage)
                                             .foregroundStyle(.white.opacity(0.72))
                                     }
                                 } else {
-                                    VStack(spacing: 14) {
-                                        ForEach(viewModel.recordRuns) { run in
-                                            NavigationLink {
-                                                RunDetailView(run: run)
-                                            } label: {
-                                                RunRowCard(run: run)
-                                            }
-                                            .buttonStyle(.plain)
+                                    ForEach(viewModel.recordRuns) { run in
+                                        NavigationLink {
+                                            RunDetailView(run: run)
+                                        } label: {
+                                            RunRowCard(run: run)
                                         }
+                                        .buttonStyle(.plain)
                                     }
                                 }
                             }
@@ -197,7 +205,7 @@ struct RecordTabView: View {
             .navigationBarTitleDisplayMode(.large)
         }
         .task {
-            await viewModel.load()
+            await viewModel.loadIfNeeded()
         }
     }
 
@@ -210,6 +218,219 @@ struct RecordTabView: View {
             return "\(selectedDateText)에 기록된 러닝이 없습니다."
         }
         return "\(viewModel.selectedMonthLabelText)에 기록된 러닝이 없습니다."
+    }
+}
+
+struct HealthKitOnboardingView: View {
+    let showsDismissButton: Bool
+    let onContinue: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var workoutsViewModel: RunningWorkoutsViewModel
+    @EnvironmentObject private var shoeStore: ShoeStore
+    @State private var showingSampleRun = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(AppMetadata.displayName)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .tracking(0.2)
+
+                    Text("HealthKit 연결 전에 확인할 점")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+
+                    Text("러닝 workout, 경로, 심박, VO2 Max 같은 데이터를 iPhone 안에서 읽어 러닝을 더 빠르게 정리하고 분석합니다.")
+                        .font(.body)
+                        .foregroundStyle(.white.opacity(0.72))
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+
+                DetailSection(title: "앱이 하는 일") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("• 거리, 시간, 평균 페이스, 심박, 케이던스, 상승 고도를 한눈에 정리합니다.")
+                        Text("• 경로, 차트, 스플릿, PR, 신발 기록을 러너 기준으로 다시 묶어 보여줍니다.")
+                        Text("• 평균 심박, 평균 케이던스, 상승 고도 같은 파생 요약값만 기기 내부 저장소에 캐시합니다.")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.78))
+                }
+
+                DetailSection(title: "개인정보와 저장 방식") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("• 현재 서버 업로드, 광고 추적, 외부 분석 SDK는 없습니다.")
+                        Text("• HealthKit에서 읽은 원본 러닝 데이터는 앱 서버로 복제하지 않습니다.")
+                        Text("• 로컬 보조 데이터는 자동 iCloud/Finder 백업 대상에서 제외됩니다.")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.78))
+                }
+
+                DetailSection(title: "바로 확인하기") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("권한을 주기 전에 샘플 러닝으로 상세 차트와 공유 화면을 먼저 볼 수 있습니다.")
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.72))
+
+                        Button {
+                            showingSampleRun = true
+                        } label: {
+                            DemoRunAccessCard()
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                VStack(spacing: 12) {
+                    Button {
+                        onContinue()
+                        if showsDismissButton {
+                            dismiss()
+                        }
+                    } label: {
+                        Text("HealthKit 연결하고 시작")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color(red: 0.29, green: 0.88, blue: 0.63))
+                            )
+                    }
+                    .buttonStyle(.plain)
+
+                    Text("권한은 언제든 \(AppMetadata.healthPermissionSettingsPath)에서 변경할 수 있습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.58))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
+            }
+        }
+        .background(AppBackground())
+        .navigationTitle("HealthKit 안내")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("닫기") {
+                        dismiss()
+                    }
+                    .foregroundStyle(.white)
+                }
+            }
+        }
+        .sheet(isPresented: $showingSampleRun) {
+            NavigationStack {
+                RunDetailView(
+                    run: .demoSample,
+                    initialDebugScenario: .completeMetrics
+                )
+                .environmentObject(workoutsViewModel)
+                .environmentObject(shoeStore)
+            }
+        }
+    }
+}
+
+private struct RunReviewFallbackView: View {
+    let title: String
+    let message: String
+    let buttonTitle: String
+    let action: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(spacing: 12) {
+                    Text(title)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+
+                    Text(message)
+                        .font(.body)
+                        .foregroundStyle(.white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+
+                    Button(buttonTitle, action: action)
+                        .buttonStyle(.borderedProminent)
+
+                    Text("권한은 \(AppMetadata.healthPermissionSettingsPath)에서 다시 변경할 수 있습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.58))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.white.opacity(0.05))
+                )
+
+                DetailSection(title: "샘플 러닝으로 둘러보기") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("HealthKit 데이터가 없어도 샘플 러닝으로 상세 차트, 심박 존, 공유 화면을 바로 확인할 수 있습니다.")
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.72))
+
+                        NavigationLink {
+                            RunDetailView(
+                                run: .demoSample,
+                                initialDebugScenario: .completeMetrics
+                            )
+                        } label: {
+                            DemoRunAccessCard()
+                        }
+                        .buttonStyle(.plain)
+
+                        Text("상세 화면의 '다른 샘플 보기' 메뉴에서 pause 포함, 빈 경로 같은 다른 시나리오도 볼 수 있습니다.")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.58))
+                    }
+                }
+            }
+            .padding(16)
+        }
+    }
+}
+
+private struct DemoRunAccessCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("샘플 러닝 열기")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Text("기본 샘플 3.52 km · 15:00")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.65))
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+
+            Text("심박, 케이던스, 상승 고도, 스플릿, 지도, 공유 이미지를 한 번에 확인할 수 있습니다.")
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.72))
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -1714,6 +1935,8 @@ struct SettingsTabView: View {
     @State private var showingBackupImporter = false
     @State private var showingDeleteShoeDataConfirmation = false
     @State private var selectedImportStrategy: ShoeImportStrategy = .merge
+    @State private var showingDeleteAnalysisCacheConfirmation = false
+    @State private var analysisCacheStatusMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -1866,6 +2089,9 @@ struct SettingsTabView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             SettingInfoRow(title: "권한", value: "HealthKit 읽기")
                             SettingInfoRow(title: "네트워크 업로드", value: "없음")
+                            SettingInfoRow(title: "파생 분석 캐시", value: "기기 내부 전용 저장소")
+                            SettingInfoRow(title: "권한 변경", value: AppMetadata.healthPermissionSettingsPath)
+                            SettingInfoRow(title: "앱 삭제 시", value: "로컬 보조 데이터 함께 제거")
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("읽는 데이터")
                                     .font(.subheadline.weight(.semibold))
@@ -1876,9 +2102,51 @@ struct SettingsTabView: View {
                                         .foregroundStyle(.white.opacity(0.78))
                                 }
                             }
-                            Text("이 앱은 Apple 건강 데이터 중 러닝과 관련된 항목만 읽습니다. 현재는 서버 업로드 없이 기기 안에서만 표시합니다.")
+                            Text("이 앱은 Apple 건강 데이터 중 러닝과 관련된 항목만 읽습니다. 평균 심박, 평균 케이던스, 상승 고도 같은 요약값은 상세 화면을 더 빠르게 보여주기 위해 기기 내부에만 저장하며 서버로 업로드하지 않습니다.")
                                 .font(.footnote)
                                 .foregroundStyle(.white.opacity(0.62))
+
+                            Button {
+                                appSettings.presentHealthKitIntro()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "heart.text.square")
+                                    Text("HealthKit 안내 다시 보기")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(Color.white.opacity(0.08))
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            Button(role: .destructive) {
+                                showingDeleteAnalysisCacheConfirmation = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "trash")
+                                    Text("분석 캐시 초기화")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.red)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(Color.red.opacity(0.10))
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            if let analysisCacheStatusMessage {
+                                Text(analysisCacheStatusMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.62))
+                            }
                         }
                     }
 
@@ -1928,6 +2196,15 @@ struct SettingsTabView: View {
             } message: {
                 Text("등록한 신발 정보와 러닝 연결 정보가 모두 삭제됩니다. HealthKit 원본 러닝 데이터는 삭제되지 않습니다.")
             }
+            .confirmationDialog("분석 캐시 초기화", isPresented: $showingDeleteAnalysisCacheConfirmation, titleVisibility: .visible) {
+                Button("초기화", role: .destructive) {
+                    RunSummaryCacheStore.shared.clearAllData()
+                    analysisCacheStatusMessage = "평균 심박, 케이던스, 상승 고도 캐시를 삭제했습니다."
+                }
+                Button("취소", role: .cancel) {}
+            } message: {
+                Text("상세 화면을 빠르게 보여주기 위해 저장한 파생 요약값만 삭제합니다. HealthKit 원본 러닝 데이터와 신발 데이터는 그대로 유지됩니다.")
+            }
             .fileImporter(
                 isPresented: $showingBackupImporter,
                 allowedContentTypes: [UTType.json],
@@ -1956,6 +2233,7 @@ private struct PrivacyPolicyView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("\(AppMetadata.displayName)은 Apple 건강의 러닝 데이터를 iPhone에서 분석하고 보기 쉽게 정리하는 앱입니다.")
                         Text("계정 생성, 광고 추적, 외부 분석 SDK 없이 동작하며, 현재는 서버로 데이터를 업로드하지 않습니다.")
+                        Text("HealthKit 권한은 언제든 \(AppMetadata.healthPermissionSettingsPath)에서 다시 변경할 수 있습니다.")
                     }
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.78))
@@ -1973,9 +2251,10 @@ private struct PrivacyPolicyView: View {
 
                 DetailSection(title: "저장 및 보호") {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("신발 데이터, 설정값, PR 계산 결과 같은 보조 데이터는 기기 내부 저장소에만 저장됩니다.")
+                        Text("신발 데이터, 설정값, PR 계산 결과와 평균 심박/평균 케이던스/상승 고도 같은 보조 분석 데이터는 기기 내부 저장소에만 저장됩니다.")
                         Text("HealthKit에서 읽은 원본 데이터를 서버로 복제하지 않으며, 앱이 저장하는 보조 파일은 자동 클라우드 백업 대상에서 제외됩니다.")
                         Text("신발 백업 파일은 사용자가 직접 공유 버튼을 눌렀을 때만 외부 앱으로 전달됩니다.")
+                        Text("앱을 삭제하면 앱 내부에 저장한 보조 데이터와 설정도 함께 제거됩니다.")
                     }
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.78))
@@ -1984,6 +2263,8 @@ private struct PrivacyPolicyView: View {
                 DetailSection(title: "문의") {
                     VStack(alignment: .leading, spacing: 12) {
                         Link("지원 메일 보내기", destination: AppMetadata.supportMailURL)
+                            .font(.subheadline.weight(.semibold))
+                        Link("웹 개인정보처리방침 열기", destination: AppMetadata.privacyPolicyURL)
                             .font(.subheadline.weight(.semibold))
                         Link("프로젝트 저장소 열기", destination: AppMetadata.repositoryURL)
                             .font(.subheadline.weight(.semibold))
@@ -2007,6 +2288,10 @@ private struct SupportCenterView: View {
                 DetailSection(title: "문의 방법") {
                     VStack(alignment: .leading, spacing: 12) {
                         Link("메일로 문의하기", destination: AppMetadata.supportMailURL)
+                            .font(.subheadline.weight(.semibold))
+                        Link("웹 개인정보처리방침 열기", destination: AppMetadata.privacyPolicyURL)
+                            .font(.subheadline.weight(.semibold))
+                        Link("앱 리뷰 노트 초안 열기", destination: AppMetadata.reviewNotesURL)
                             .font(.subheadline.weight(.semibold))
                         Link("프로젝트 저장소 열기", destination: AppMetadata.repositoryURL)
                             .font(.subheadline.weight(.semibold))

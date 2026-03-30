@@ -75,7 +75,6 @@ private enum RunShareField: String, CaseIterable, Identifiable {
     case logo
     case route
     case date
-    case weather
     case environment
     case distance
     case duration
@@ -95,8 +94,6 @@ private enum RunShareField: String, CaseIterable, Identifiable {
             return "경로"
         case .date:
             return "날짜"
-        case .weather:
-            return "날씨"
         case .environment:
             return "실내/실외"
         case .distance:
@@ -124,8 +121,6 @@ private enum RunShareField: String, CaseIterable, Identifiable {
             return "point.topleft.down.curvedto.point.bottomright.up"
         case .date:
             return "calendar"
-        case .weather:
-            return "cloud.sun.fill"
         case .environment:
             return "figure.run"
         case .distance:
@@ -238,10 +233,11 @@ private struct RunShareStickerPlacement {
 struct RunShareComposerView: View {
     let run: RunningWorkout
     let detail: RunDetail
+    let summary: RunSummaryMetrics?
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTemplate: RunShareTemplate = .sticker
-    @State private var enabledFields: Set<RunShareField> = [.logo, .route, .weather, .distance, .duration, .pace, .elevationGain]
+    @State private var enabledFields: Set<RunShareField> = [.logo, .route, .distance, .duration, .pace, .elevationGain]
     @State private var stickerDebugSettings = RunShareStickerDebugSettings()
     @State private var selectedBackgroundPhotoItem: PhotosPickerItem?
     @State private var backgroundPhotoImage: UIImage?
@@ -254,9 +250,6 @@ struct RunShareComposerView: View {
     @State private var showingShareSheet = false
     @State private var exportStatusMessage: String?
     @State private var exportErrorMessage: String?
-    @State private var weatherSnapshot: RunWeatherSnapshot?
-    @State private var weatherErrorMessage: String?
-    @State private var isLoadingWeather = false
     private let hiddenFields: Set<RunShareField> = [.environment, .shoe]
 
     private var availableFields: [RunShareField] {
@@ -305,12 +298,10 @@ struct RunShareComposerView: View {
 
     private var previewStickerRenderKey: String {
         let fieldKey = effectiveFields.map(\.rawValue).sorted().joined(separator: ",")
-        let weatherKey = weatherSnapshot?.shareText ?? "none"
         let photoKey = backgroundPhotoImage == nil ? "no-photo" : "photo"
         return [
             selectedTemplate.rawValue,
             fieldKey,
-            weatherKey,
             stickerDebugSettings.fontChoice.rawValue,
             String(format: "%.3f", stickerDebugSettings.fontScale),
             photoKey
@@ -587,16 +578,6 @@ struct RunShareComposerView: View {
                                 .foregroundStyle(.orange)
                         }
 
-                        if isLoadingWeather {
-                            Text("러닝 시각 기준 날씨를 불러오는 중입니다.")
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.58))
-                        } else if let weatherErrorMessage {
-                            Text(weatherErrorMessage)
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.58))
-                        }
-
                         Text("투명 스티커는 앱마다 alpha 처리 방식이 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다.")
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.58))
@@ -613,9 +594,6 @@ struct RunShareComposerView: View {
             .background(AppBackground())
             .navigationTitle("공유 이미지")
             .navigationBarTitleDisplayMode(.inline)
-            .task(id: weatherLookupKey) {
-                await loadWeatherIfNeeded()
-            }
             .task(id: previewStickerRenderKey) {
                 refreshPreviewStickerImageIfNeeded()
             }
@@ -783,14 +761,12 @@ struct RunShareComposerView: View {
             return true
         case .route:
             return !detail.route.isEmpty
-        case .weather:
-            return weatherSnapshot != nil
         case .heartRate:
             return averageHeartRateText != nil
         case .cadence:
             return averageCadenceText != nil
         case .elevationGain:
-            return detail.elevationGainText != nil
+            return elevationGainText != nil
         case .shoe, .environment:
             return false
         case .date, .distance, .duration, .pace:
@@ -799,58 +775,15 @@ struct RunShareComposerView: View {
     }
 
     private var averageHeartRateText: String? {
-        guard !detail.heartRates.isEmpty else { return nil }
-        let average = detail.heartRates.map(\.bpm).reduce(0, +) / Double(detail.heartRates.count)
-        return average.formatted(.number.precision(.fractionLength(0))) + " bpm"
+        summary?.averageHeartRateText
     }
 
     private var averageCadenceText: String? {
-        let weightedCadence = detail.splits.reduce(into: (weighted: 0.0, duration: 0.0)) { partial, split in
-            guard let cadence = split.averageCadence else { return }
-            partial.weighted += cadence * split.duration
-            partial.duration += split.duration
-        }
-
-        if weightedCadence.duration > 0 {
-            let average = weightedCadence.weighted / weightedCadence.duration
-            return average.formatted(.number.precision(.fractionLength(0))) + " spm"
-        }
-
-        guard !detail.runningMetrics.cadence.isEmpty else { return nil }
-        let average = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
-        return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+        summary?.averageCadenceText
     }
 
-    private var weatherLookupPoint: RunRoutePoint? {
-        guard !detail.route.isEmpty else { return nil }
-        return detail.route[detail.route.count / 2]
-    }
-
-    private var weatherLookupKey: String {
-        guard let weatherLookupPoint else { return "weather-unavailable" }
-        return "\(run.id.uuidString)-\(weatherLookupPoint.latitude)-\(weatherLookupPoint.longitude)"
-    }
-
-    @MainActor
-    private func loadWeatherIfNeeded() async {
-        guard !isLoadingWeather else { return }
-        guard weatherSnapshot == nil else { return }
-        guard let weatherLookupPoint else { return }
-
-        isLoadingWeather = true
-        weatherErrorMessage = nil
-
-        do {
-            weatherSnapshot = try await RunWeatherService.shared.fetchWeather(
-                latitude: weatherLookupPoint.latitude,
-                longitude: weatherLookupPoint.longitude,
-                referenceDate: run.startDate
-            )
-        } catch {
-            weatherErrorMessage = error.localizedDescription
-        }
-
-        isLoadingWeather = false
+    private var elevationGainText: String? {
+        summary?.elevationGainText
     }
 
     @ViewBuilder
@@ -861,7 +794,7 @@ struct RunShareComposerView: View {
                 detail: detail,
                 template: selectedTemplate,
                 enabledFields: effectiveFields,
-                weatherSnapshot: weatherSnapshot,
+                summary: summary,
                 style: artworkStyle,
                 backgroundImage: interactive ? (backgroundPreviewPhotoImage ?? backgroundPhotoImage) : backgroundPhotoImage,
                 stickerPreviewImage: interactive ? previewStickerImage : nil,
@@ -880,7 +813,7 @@ struct RunShareComposerView: View {
                     detail: detail,
                     template: selectedTemplate,
                     enabledFields: effectiveFields,
-                    weatherSnapshot: weatherSnapshot,
+                    summary: summary,
                     style: artworkStyle
                 )
                 .frame(
@@ -957,7 +890,7 @@ struct RunShareComposerView: View {
             detail: detail,
             template: selectedTemplate,
             enabledFields: effectiveFields,
-            weatherSnapshot: weatherSnapshot,
+            summary: summary,
             style: artworkStyle
         )
         .frame(
@@ -1026,7 +959,7 @@ private struct RunShareArtworkView: View {
     let detail: RunDetail
     let template: RunShareTemplate
     let enabledFields: Set<RunShareField>
-    let weatherSnapshot: RunWeatherSnapshot?
+    let summary: RunSummaryMetrics?
     let style: RunShareArtworkStyle
 
     private var metrics: [RunShareMetric] {
@@ -1066,7 +999,7 @@ private struct RunShareArtworkView: View {
     }
 
     private var elevationGainText: String? {
-        detail.elevationGainText
+        summary?.elevationGainText
     }
 
     private var contentPadding: CGFloat {
@@ -1227,34 +1160,15 @@ private struct RunShareArtworkView: View {
             items.append(shareDateText)
         }
 
-        if enabledFields.contains(.weather), let weatherSnapshot {
-            items.append(weatherSnapshot.shareText)
-        }
-
         return items
     }
 
     private var averageHeartRateText: String? {
-        guard !detail.heartRates.isEmpty else { return nil }
-        let average = detail.heartRates.map(\.bpm).reduce(0, +) / Double(detail.heartRates.count)
-        return average.formatted(.number.precision(.fractionLength(0))) + " bpm"
+        summary?.averageHeartRateText
     }
 
     private var averageCadenceText: String? {
-        let weightedCadence = detail.splits.reduce(into: (weighted: 0.0, duration: 0.0)) { partial, split in
-            guard let cadence = split.averageCadence else { return }
-            partial.weighted += cadence * split.duration
-            partial.duration += split.duration
-        }
-
-        if weightedCadence.duration > 0 {
-            let average = weightedCadence.weighted / weightedCadence.duration
-            return average.formatted(.number.precision(.fractionLength(0))) + " spm"
-        }
-
-        guard !detail.runningMetrics.cadence.isEmpty else { return nil }
-        let average = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
-        return average.formatted(.number.precision(.fractionLength(0))) + " spm"
+        summary?.averageCadenceText
     }
 
     private var shareDateText: String {
@@ -1306,7 +1220,7 @@ private struct RunSharePhotoCompositeView: View {
     let detail: RunDetail
     let template: RunShareTemplate
     let enabledFields: Set<RunShareField>
-    let weatherSnapshot: RunWeatherSnapshot?
+    let summary: RunSummaryMetrics?
     let style: RunShareArtworkStyle
     let backgroundImage: UIImage
     let stickerPreviewImage: UIImage?
@@ -1372,7 +1286,7 @@ private struct RunSharePhotoCompositeView: View {
                 detail: detail,
                 template: template,
                 enabledFields: enabledFields,
-                weatherSnapshot: weatherSnapshot,
+                summary: summary,
                 style: style
             )
             .frame(width: size.width, height: size.height)

@@ -66,6 +66,11 @@ final class RunningWorkoutsViewModel: ObservableObject {
         selectedRecordDate = nil
     }
 
+    func loadIfNeeded() async {
+        guard case .idle = state else { return }
+        await load()
+    }
+
     // 최초 진입 시 올해 러닝과 요약 지표를 함께 읽어온다.
     func load() async {
         state = .loading

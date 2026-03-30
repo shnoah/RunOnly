@@ -8,6 +8,44 @@ struct ContentView: View {
     @StateObject private var mileageGoalStore = MileageGoalStore()
 
     var body: some View {
+        Group {
+            if appSettings.hasCompletedHealthKitIntro {
+                mainTabs
+            } else {
+                HealthKitOnboardingView(
+                    showsDismissButton: false,
+                    onContinue: {
+                        appSettings.completeHealthKitIntro()
+                    }
+                )
+                .environmentObject(viewModel)
+                .environmentObject(shoeStore)
+            }
+        }
+        .fullScreenCover(isPresented: $appSettings.isPresentingHealthKitIntro) {
+            NavigationStack {
+                HealthKitOnboardingView(
+                    showsDismissButton: true,
+                    onContinue: {
+                        appSettings.completeHealthKitIntro()
+                    }
+                )
+            }
+            .environmentObject(viewModel)
+            .environmentObject(shoeStore)
+        }
+        .environmentObject(viewModel)
+        .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+        .onAppear {
+            viewModel.showAppleWorkoutOnly = appSettings.defaultAppleOnlyFilter
+        }
+        .onChange(of: appSettings.defaultAppleOnlyFilter) {
+            viewModel.showAppleWorkoutOnly = appSettings.defaultAppleOnlyFilter
+            viewModel.applyFilter()
+        }
+    }
+
+    private var mainTabs: some View {
         TabView {
             HomeTabView(viewModel: viewModel)
                 .environmentObject(shoeStore)
@@ -34,15 +72,6 @@ struct ContentView: View {
                 .tabItem {
                     Label("설정", systemImage: "gearshape.fill")
                 }
-        }
-        .environmentObject(viewModel)
-        .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
-        .onAppear {
-            viewModel.showAppleWorkoutOnly = appSettings.defaultAppleOnlyFilter
-        }
-        .onChange(of: appSettings.defaultAppleOnlyFilter) {
-            viewModel.showAppleWorkoutOnly = appSettings.defaultAppleOnlyFilter
-            viewModel.applyFilter()
         }
     }
 }
