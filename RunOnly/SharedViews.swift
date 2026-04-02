@@ -50,8 +50,9 @@ struct SummaryCard: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.6))
             Text(value)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .font(.system(.title3, design: .rounded).weight(.bold))
                 .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
             Text(LocalizedStringKey(detail))
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.7))
@@ -63,6 +64,10 @@ struct SummaryCard: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(Color.white.opacity(0.06))
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(LocalizedStringKey(title)))
+        .accessibilityValue(Text(value))
+        .accessibilityHint(Text(LocalizedStringKey(detail)))
     }
 }
 
@@ -77,15 +82,16 @@ struct CompactMetricChip: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.55))
             Text(value)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(.headline, design: .rounded).weight(.bold))
                 .foregroundStyle(.white)
                 .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Text(LocalizedStringKey(detail))
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.5))
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
@@ -94,6 +100,10 @@ struct CompactMetricChip: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.white.opacity(0.06))
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(LocalizedStringKey(title)))
+        .accessibilityValue(Text(value))
+        .accessibilityHint(Text(LocalizedStringKey(detail)))
     }
 }
 
@@ -132,6 +142,9 @@ struct RunMetricPill: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.black.opacity(0.18))
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(LocalizedStringKey(title)))
+        .accessibilityValue(Text(value))
     }
 }
 
@@ -160,10 +173,10 @@ struct RunRowCard: View {
                     .foregroundStyle(.white.opacity(0.5))
             }
 
-            HStack(spacing: 10) {
-                RunMetricPill(title: "거리", value: run.distanceText)
-                RunMetricPill(title: "시간", value: run.durationText)
-                RunMetricPill(title: "페이스", value: run.paceText)
+            HStack(spacing: 8) {
+                RecordMetricPill(title: "거리", value: run.distanceText)
+                RecordMetricPill(title: "시간", value: run.durationText)
+                RecordMetricPill(title: "페이스", value: run.paceText)
             }
 
             if let shoe = shoeStore.shoe(for: run.id) {
@@ -181,6 +194,38 @@ struct RunRowCard: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct RecordMetricPill: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.55))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(value)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.black.opacity(0.18))
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(LocalizedStringKey(title)))
+        .accessibilityValue(Text(value))
     }
 }
 
@@ -193,6 +238,7 @@ struct DetailSection<Content: View>: View {
             Text(LocalizedStringKey(title))
                 .font(.headline)
                 .foregroundStyle(.white)
+                .accessibilityAddTraits(.isHeader)
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)

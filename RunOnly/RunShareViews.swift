@@ -22,9 +22,9 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
     var descriptionText: String {
         switch self {
         case .sticker:
-            return L10n.tr("투명 배경 PNG로 복사/공유하기 좋습니다.")
+            return L10n.tr("투명 배경 PNG라 메신저, 노트, 스토리 편집 앱에 붙여 넣기 좋습니다.")
         case .square:
-            return L10n.tr("피드용 카드에 가까운 정사각형 이미지입니다.")
+            return L10n.tr("배경과 메트릭을 함께 담는 정사각형 카드입니다.")
         }
     }
 
@@ -328,6 +328,8 @@ struct RunShareComposerView: View {
                         if selectedTemplate == .sticker {
                             stickerPhotoPanel
                         }
+
+                        shareActionGuidePanel
 
                         footerPanel
                     }
@@ -679,7 +681,7 @@ struct RunShareComposerView: View {
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.62))
             } else {
-                Text("배경 사진을 고르면 그 위에 스티커를 바로 올려 보고 저장하거나 공유할 수 있습니다.")
+                Text("배경 사진은 선택 사항입니다. 고르면 그 위에 스티커를 올려 보고 저장하거나 공유할 수 있습니다.")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.62))
             }
@@ -693,6 +695,28 @@ struct RunShareComposerView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+        }
+        .padding(16)
+        .background(editorPanelBackground(cornerRadius: 24))
+    }
+
+    private var shareActionGuidePanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("내보내기 방법")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Text("• 저장: 사진 앱에 PNG를 저장하며, 이때만 사진 권한을 요청합니다.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.7))
+
+            Text("• 복사: PNG를 클립보드에 복사해 메신저나 노트에 바로 붙여넣을 수 있습니다.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.7))
+
+            Text("• 공유: 시스템 공유 시트로 다른 앱에 보냅니다.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.7))
         }
         .padding(16)
         .background(editorPanelBackground(cornerRadius: 24))
@@ -783,7 +807,7 @@ struct RunShareComposerView: View {
             let authorizationStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
             guard authorizationStatus == .authorized || authorizationStatus == .limited else {
                 exportStatusMessage = nil
-                exportErrorMessage = L10n.tr("사진 앱 저장 권한이 필요합니다.")
+                exportErrorMessage = L10n.tr("사진 앱 저장 권한이 필요합니다. 저장 대신 복사나 공유는 바로 사용할 수 있습니다.")
                 return
             }
 

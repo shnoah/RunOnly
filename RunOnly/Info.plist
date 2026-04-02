@@ -23,7 +23,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>러닝 workout, 경로, 심박, VO2 Max 등 러닝 데이터를 iPhone 안에서 분석하고 상세 화면을 빠르게 보여주기 위해 필요합니다.</string>
+	<string>러닝 workout, 경로, 심박, VO2 Max 같은 HealthKit 데이터를 iPhone 안에서 보기 쉽게 정리해 보여주기 위해 필요합니다.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>공유용 러닝 이미지를 사진 앱에 저장하기 위해 필요합니다.</string>
 	<key>UIApplicationSceneManifest</key>

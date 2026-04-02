@@ -26,7 +26,7 @@ If the review device has Apple Health running data:
 If the review device does not have running data:
 
 1. Open `RunOnly`
-2. Tap `샘플 러닝 보기`, or
+2. Tap `샘플 러닝 열기`, or
 3. After entering the app, open the `샘플 러닝 열기` card pinned at the top of `기록`
 4. In the detail screen, open `다른 샘플 보기` to inspect alternate scenarios such as paused runs, missing route, and missing heart rate
 
@@ -44,4 +44,4 @@ If the review device does not have running data:
 ## Notes for Review
 
 - The app is intended for iPhone
-- Demo/sample mode is included specifically so the review team can inspect the core experience even without local HealthKit workout data
+- Sample mode is included specifically so the review team can inspect the core experience even without local HealthKit workout data

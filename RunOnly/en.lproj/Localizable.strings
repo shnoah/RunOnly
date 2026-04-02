@@ -7,6 +7,7 @@
 "%@부터 전체 기록을 반영했습니다." = "Included full history from %@.";
 "%@에 기록된 러닝이 없습니다." = "No runs were recorded on %@.";
 "%@은 Apple 건강의 러닝 데이터를 iPhone에서 분석하고 보기 쉽게 정리하는 앱입니다." = "%@ analyzes your running data from Apple Health on your iPhone and organizes it into an easy-to-read experience.";
+"%@은 Apple 건강의 러닝 데이터를 iPhone에서 보기 쉽게 정리하는 앱입니다." = "%@ organizes your running data from Apple Health on your iPhone into an easy-to-read experience.";
 "%d %@ 단위로 조정" = "Adjust in %d %@ increments";
 "%d일" = "%d days";
 "%d주차" = "Week %d";
@@ -26,6 +27,16 @@
 "HealthKit 연결하고 시작" = "Connect HealthKit and continue";
 "HealthKit 읽기" = "HealthKit read access";
 "HealthKit에서 읽은 원본 데이터를 서버로 복제하지 않으며, 앱이 저장하는 보조 파일은 자동 클라우드 백업 대상에서 제외됩니다." = "Original data read from HealthKit is not copied to a server, and helper files stored by the app are excluded from automatic cloud backups.";
+"데이터 관리" = "Data Management";
+"데이터" = "Data";
+"내보내기 방법" = "Export options";
+"러닝 workout, 경로, 심박, VO2 Max 같은 HealthKit 데이터를 iPhone 안에서 보여주고 분석합니다." = "Shows and analyzes HealthKit running workouts, routes, heart rate, and VO2 Max on your iPhone.";
+"러닝 workout, 경로, 심박, VO2 Max 같은 HealthKit 데이터를 iPhone 안에서 보기 쉽게 정리합니다." = "Organizes HealthKit running workouts, routes, heart rate, and VO2 Max into an easy-to-read view on your iPhone.";
+"분석" = "Insights";
+"사용률" = "Usage";
+"신발 백업 및 복원" = "Shoe Backup & Restore";
+"투명 배경 PNG라 메신저, 노트, 스토리 편집 앱에 붙여 넣기 좋습니다." = "A transparent PNG that's easy to paste into messaging, notes, and story editing apps.";
+"핵심 요약" = "Core Summary";
 "PNG를 클립보드에 복사했습니다." = "Copied the PNG to the clipboard.";
 "PR 검토" = "PR Review";
 "VO2 Max 데이터 없음" = "No VO2 Max data";
@@ -54,6 +65,7 @@
 "거리 및 걸음 수" = "Distance and step count";
 "거리" = "Distance";
 "거리, 페이스, 상승 고도, 공유 이미지에 함께 적용됩니다." = "Applies to distance, pace, elevation, and share images together.";
+"기록 관리" = "Records";
 "검토 %d건" = "%d pending reviews";
 "검토 대기 없음" = "No items waiting for review";
 "검토 대기" = "Pending Review";
@@ -74,6 +86,8 @@
 "공유용 PNG를 준비했습니다." = "Prepared the PNG for sharing.";
 "과거 마일리지 데이터를 불러오는 중" = "Loading older mileage data";
 "교체까지 남은 거리" = "Distance left until replacement";
+"교체 기준 도달" = "Reached replacement threshold";
+"교체 시점이 가까워졌습니다." = "Replacement time is getting close.";
 "권한 변경" = "Change permissions";
 "권한" = "Permissions";
 "권한은 %@에서 다시 변경할 수 있습니다." = "You can change permissions again in %@.";
@@ -96,6 +110,7 @@
 "남은 거리" = "Remaining Distance";
 "네트워크 업로드" = "Network upload";
 "누적 거리" = "Total Distance";
+"누적 %@, 남은 거리 %@, %d회 러닝" = "Total %@, remaining %@, %d runs.";
 "누적" = "Total";
 "다른 샘플 보기" = "View other samples";
 "다시 시도" = "Try Again";
@@ -104,6 +119,7 @@
 "닫기" = "Close";
 "달력" = "Calendar";
 "데이터 및 권한" = "Data & Permissions";
+"HealthKit 권한과 저장 방식을 확인합니다." = "Review HealthKit permissions and how data is stored.";
 "데이터 범위" = "Data Range";
 "데이터 소스" = "Data Source";
 "데이터 없음" = "No data";
@@ -144,7 +160,10 @@
 "미확인" = "Unknown";
 "바로 확인하기" = "Try it now";
 "배경 사진을 고르면 그 위에 스티커를 바로 올려 보고 저장하거나 공유할 수 있습니다." = "Choose a background photo to preview the sticker on top of it, then save or share it.";
+"배경 사진은 선택 사항입니다. 고르면 그 위에 스티커를 올려 보고 저장하거나 공유할 수 있습니다." = "A background photo is optional. Choose one to preview the sticker on top, then save or share it.";
+"배경과 메트릭을 함께 담는 정사각형 카드입니다." = "A square card that presents the background and metrics together.";
 "백업 파일 공유" = "Share backup file";
+"백업 파일을 준비하거나 가져옵니다." = "Prepare or import backup files.";
 "백업 파일에는 신발 이름, 브랜드/모델, 시작 거리, 목표 수명, 생성일과 러닝 UUID 연결만 들어갑니다. 심박, 경로, 페이스 같은 HealthKit 원본 데이터는 포함되지 않습니다. 러닝 연결은 같은 HealthKit workout UUID가 있는 기기에서 가장 잘 복원됩니다." = "Backup files include only shoe name, brand/model, starting mileage, target lifespan, creation date, and run UUID links. Original HealthKit data such as heart rate, route, and pace is not included. Run links restore best on devices that contain the same HealthKit workout UUIDs.";
 "백업 파일을 준비했습니다." = "Prepared the backup file.";
 "백업 포함 범위" = "Included in backup";
@@ -155,6 +174,9 @@
 "병합 가져오기" = "Merge import";
 "병합은 같은 ID만 갱신하고 나머지는 유지합니다. 교체는 현재 신발 데이터와 연결 정보를 백업 파일 내용으로 바꿉니다." = "Merge updates only matching IDs and keeps the rest. Replace swaps the current shoe data and links with the backup contents.";
 "복사" = "Copy";
+"• 공유: 시스템 공유 시트로 다른 앱에 보냅니다." = "• Share: opens the system share sheet to send it to another app.";
+"• 복사: PNG를 클립보드에 복사해 메신저나 노트에 바로 붙여넣을 수 있습니다." = "• Copy: copies the PNG to the clipboard so you can paste it into messaging or notes right away.";
+"• 저장: 사진 앱에 PNG를 저장하며, 이때만 사진 권한을 요청합니다." = "• Save: stores the PNG in Photos and only requests photo permission at that moment.";
 "분석 캐시 초기화" = "Clear analysis cache";
 "불러오기에 실패했습니다" = "Failed to load";
 "불러오는 범위" = "Loaded range";
@@ -168,6 +190,7 @@
 "빠른 선택" = "Quick picks";
 "사진 다시 고르기" = "Choose another photo";
 "사진 불러오기" = "Choose photo";
+"사진 앱 저장 권한이 필요합니다. 저장 대신 복사나 공유는 바로 사용할 수 있습니다." = "Photo Library permission is required to save. You can still copy or share right away.";
 "사진 앱 저장 권한이 필요합니다." = "Photo Library permission is required to save.";
 "사진 앱에 저장하지 못했습니다." = "Couldn't save to Photos.";
 "사진 위에 붙이기" = "Place over photo";
@@ -177,6 +200,7 @@
 "상세 데이터를 불러오는 중" = "Loading details";
 "상세 데이터를 불러오지 못했습니다" = "Couldn't load details";
 "상세 화면을 빠르게 보여주기 위해 저장한 파생 요약값만 삭제합니다. HealthKit 원본 러닝 데이터와 신발 데이터는 그대로 유지됩니다." = "Only derived summary values stored to speed up the detail screen will be removed. Original HealthKit run data and shoe data will remain.";
+"신발 데이터 삭제와 분석 캐시 초기화를 관리합니다." = "Manage shoe data deletion and analysis cache reset.";
 "상세 화면의 '다른 샘플 보기' 메뉴에서 pause 포함, 빈 경로 같은 다른 시나리오도 볼 수 있습니다." = "From the detail screen's 'View other samples' menu, you can also preview scenarios like pauses or a missing route.";
 "상승 고도 단위" = "Elevation unit";
 "상승 고도" = "Elevation Gain";
@@ -243,6 +267,7 @@
 "심박" = "Heart Rate";
 "심박, 케이던스, 상승 고도, 스플릿, 지도, 공유 이미지를 한 번에 확인할 수 있습니다." = "Preview heart rate, cadence, elevation gain, splits, map, and share image all at once.";
 "아래 주간 그래프는 최근 5주를 달력 기준 주차별로 보여줍니다." = "The weekly graph below shows the last 5 weeks by calendar week.";
+"아직 여유가 있습니다." = "There is still plenty of lifespan left.";
 "안정시 심박" = "Resting heart rate";
 "애플워치나 iPhone의 Workout 앱에서 기록한 러닝이 아직 보이지 않습니다." = "No runs recorded by Apple Watch or the Workout app on iPhone are visible yet.";
 "앱 리뷰 노트 초안 열기" = "Open review notes draft";
@@ -355,8 +380,10 @@
 "템플릿" = "Template";
 "투명 배경 PNG로 복사/공유하기 좋습니다." = "Best for copying or sharing as a transparent PNG.";
 "투명 스티커는 앱마다 alpha 처리 방식이 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다." = "Transparent stickers may be handled differently by each app, so checking actual upload behavior on the device is the most accurate.";
+"추세" = "Trend";
 "파생 분석 캐시" = "Derived analysis cache";
 "퍼포먼스 차트" = "Performance Charts";
+"러닝 차트" = "Run Charts";
 "페이스 단위" = "Pace unit";
 "페이스" = "Pace";
 "평균 심박" = "Average Heart Rate";

@@ -6,7 +6,7 @@ private struct CompactSelectionRow: View {
     let metrics: SelectedMetrics
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             CompactMetricChip(title: "거리", value: metrics.distanceText, detail: metrics.elapsedText)
             CompactMetricChip(title: "페이스", value: metrics.paceText, detail: "선택 구간")
             CompactMetricChip(title: "심박", value: metrics.heartRateText, detail: "선택 시점")
@@ -46,8 +46,8 @@ private struct RunPersonalRecordBanner: View {
             Text(message)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
@@ -309,7 +309,7 @@ private struct PerformanceChartSection: View {
     @State private var selectedDistance: Double?
 
     var body: some View {
-        DetailSection(title: "퍼포먼스 차트") {
+        DetailSection(title: "러닝 차트") {
             if heartSeries.isEmpty && paceSeries.isEmpty && cadenceSeries.isEmpty && altitudeSeries.isEmpty {
                 Text("그래프를 그릴 경로 또는 심박 데이터가 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
@@ -762,13 +762,18 @@ private struct RunOverviewMetricsSection: View {
     let summary: RunSummaryMetrics?
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            CompactMetricChip(title: "거리", value: run.distanceText, detail: "총 거리")
-            CompactMetricChip(title: "시간", value: run.durationText, detail: "총 운동 시간")
-            CompactMetricChip(title: "평균 페이스", value: run.paceText, detail: "러닝 전체")
-            CompactMetricChip(title: "평균 심박", value: averageHeartRateText, detail: "러닝 전체")
-            CompactMetricChip(title: "평균 케이던스", value: averageCadenceText, detail: "러닝 전체")
-            CompactMetricChip(title: "상승 고도", value: elevationGainText, detail: "러닝 전체")
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                RunOverviewMetricPill(title: "거리", value: run.distanceText, detail: "총 거리")
+                RunOverviewMetricPill(title: "시간", value: run.durationText, detail: "총 운동 시간")
+                RunOverviewMetricPill(title: "평균 페이스", value: run.paceText, detail: "러닝 전체")
+            }
+
+            HStack(spacing: 10) {
+                RunOverviewMetricPill(title: "심박", value: averageHeartRateText, detail: "평균")
+                RunOverviewMetricPill(title: "케이던스", value: averageCadenceText, detail: "평균")
+                RunOverviewMetricPill(title: "상승 고도", value: elevationGainText, detail: "러닝 전체")
+            }
         }
     }
 
@@ -782,6 +787,44 @@ private struct RunOverviewMetricsSection: View {
 
     private var elevationGainText: String {
         summary?.elevationGainText ?? "-"
+    }
+}
+
+private struct RunOverviewMetricPill: View {
+    let title: String
+    let value: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.55))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(value)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .monospacedDigit()
+            Text(LocalizedStringKey(detail))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.45))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(LocalizedStringKey(title)))
+        .accessibilityValue(Text(value))
+        .accessibilityHint(Text(LocalizedStringKey(detail)))
     }
 }
 
