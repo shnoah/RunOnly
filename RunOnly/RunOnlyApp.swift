@@ -32,6 +32,18 @@ enum AppMetadata {
         L10n.tr("러닝 workout, 경로, 심박, VO2 Max 같은 HealthKit 데이터를 iPhone 안에서 보기 쉽게 정리합니다.")
     }
 
+    static var homeIntroSummary: String {
+        L10n.tr("애플워치 러닝 기록을 한눈에 정리해 보여주는 앱입니다.")
+    }
+
+    static var homeIntroDetails: [String] {
+        [
+            L10n.tr("• 거리, 시간, 평균 페이스, 심박 같은 핵심 기록을 빠르게 확인할 수 있습니다."),
+            L10n.tr("• 차트, 스플릿, 신발 기록까지 한 흐름으로 이어서 볼 수 있습니다."),
+            L10n.tr("• 샘플 러닝은 기록 탭에서 바로 확인할 수 있습니다.")
+        ]
+    }
+
     static var onboardingFeatureHighlights: [String] {
         [
             L10n.tr("• 거리, 시간, 평균 페이스, 심박, 케이던스, 상승 고도를 한눈에 정리합니다."),

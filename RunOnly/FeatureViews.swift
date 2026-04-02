@@ -23,17 +23,13 @@ struct HomeTabView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 case .empty:
-                    RunReviewFallbackView(
-                        title: "러닝 기록이 없습니다",
-                        message: viewModel.showAppleWorkoutOnly
-                            ? "Apple 운동 앱에서 기록된 러닝이 아직 보이지 않습니다."
-                            : "애플워치나 iPhone의 Workout 앱에서 기록한 러닝이 아직 보이지 않습니다.",
-                        buttonTitle: "새로고침"
-                    ) {
-                        Task {
-                            await viewModel.load()
+                    HomeEmptyStateView(
+                        action: {
+                            Task {
+                                await viewModel.load()
+                            }
                         }
-                    }
+                    )
 
                 case .failed(let message):
                     RunReviewFallbackView(
@@ -60,12 +56,6 @@ struct HomeTabView: View {
                                 summary: viewModel.summary,
                                 runs: runs,
                                 vo2MaxSamples: viewModel.vo2MaxSamples,
-                                personalRecords: viewModel.personalRecords,
-                                pendingCandidates: viewModel.pendingPersonalRecordCandidates,
-                                isRefreshingPersonalRecords: viewModel.isRefreshingPersonalRecords,
-                                personalRecordProgress: viewModel.personalRecordProgress,
-                                onApproveCandidate: viewModel.approvePersonalRecordCandidate,
-                                onDismissCandidate: viewModel.dismissPersonalRecordCandidate,
                                 showAppleWorkoutOnly: $viewModel.showAppleWorkoutOnly
                             ) {
                                 viewModel.applyFilter()
@@ -90,6 +80,7 @@ struct HomeTabView: View {
 struct RecordTabView: View {
     @ObservedObject var viewModel: RunningWorkoutsViewModel
     @State private var showingCalendar = false
+    @State private var showingPersonalRecords = false
 
     var body: some View {
         NavigationStack {
@@ -129,6 +120,7 @@ struct RecordTabView: View {
                                 selectedDateText: viewModel.selectedDateLabelText,
                                 canMoveNext: viewModel.canMoveToNextRecordMonth,
                                 isLoading: viewModel.isLoadingMoreHistory,
+                                pendingRecordCount: viewModel.pendingPersonalRecordCandidates.count,
                                 onPreviousMonth: {
                                     Task {
                                         await viewModel.moveRecordMonth(by: -1)
@@ -141,6 +133,9 @@ struct RecordTabView: View {
                                 },
                                 onOpenCalendar: {
                                     showingCalendar = true
+                                },
+                                onOpenPersonalRecords: {
+                                    showingPersonalRecords = true
                                 },
                                 onClearDate: {
                                     viewModel.clearRecordDateSelection()
@@ -198,6 +193,16 @@ struct RecordTabView: View {
                     }
                     .sheet(isPresented: $showingCalendar) {
                         RecordCalendarSheet(viewModel: viewModel)
+                    }
+                    .sheet(isPresented: $showingPersonalRecords) {
+                        NavigationStack {
+                            PersonalRecordsManagementView(
+                                currentRecords: viewModel.personalRecords,
+                                pendingCandidates: viewModel.pendingPersonalRecordCandidates,
+                                onApproveCandidate: viewModel.approvePersonalRecordCandidate,
+                                onDismissCandidate: viewModel.dismissPersonalRecordCandidate
+                            )
+                        }
                     }
                 }
             }
@@ -358,29 +363,11 @@ private struct RunReviewFallbackView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                VStack(spacing: 12) {
-                    Text(LocalizedStringKey(title))
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.white)
-
-                    Text(LocalizedStringKey(message))
-                        .font(.body)
-                        .foregroundStyle(.white.opacity(0.7))
-                        .multilineTextAlignment(.center)
-
-                    Button(LocalizedStringKey(buttonTitle), action: action)
-                        .buttonStyle(.borderedProminent)
-
-                    Text(L10n.format("권한은 %@에서 다시 변경할 수 있습니다.", AppMetadata.healthPermissionSettingsPath))
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.58))
-                        .multilineTextAlignment(.center)
-                }
-                .padding(24)
-                .frame(maxWidth: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.white.opacity(0.05))
+                RunReviewStatusCard(
+                    title: title,
+                    message: message,
+                    buttonTitle: buttonTitle,
+                    action: action
                 )
 
                 DetailSection(title: "샘플 러닝으로 둘러보기") {
@@ -406,7 +393,141 @@ private struct RunReviewFallbackView: View {
                 }
             }
             .padding(16)
+            .padding(.bottom, 104)
         }
+    }
+}
+
+private struct HomeEmptyStateView: View {
+    @State private var isExpanded = false
+    let action: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(AppMetadata.displayName)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.white)
+                    .tracking(0.2)
+                    .padding(.horizontal, 4)
+
+                RunReviewStatusCard(
+                    title: "러닝 기록이 없습니다",
+                    buttonTitle: "새로고침",
+                    action: action
+                )
+
+                DetailSection(title: "RunOnly 소개") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(AppMetadata.homeIntroSummary)
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.78))
+                            .lineLimit(isExpanded ? nil : 2)
+
+                        if isExpanded {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(AppMetadata.homeIntroDetails, id: \.self) { item in
+                                    Text(item)
+                                }
+                            }
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.74))
+                        }
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                isExpanded.toggle()
+                            }
+                        } label: {
+                            Text(isExpanded ? "접기" : "더 보기")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                HomeEmptyDashboardPreview()
+            }
+            .padding(16)
+            .padding(.bottom, 104)
+        }
+    }
+}
+
+private struct HomeEmptyDashboardPreview: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            DashboardSectionHeader(title: "핵심 요약")
+
+            HStack(spacing: 10) {
+                DashboardCompactSummaryLink(
+                    title: "거리",
+                    value: "0 km",
+                    detail: "이번 달 데이터 없음"
+                )
+                DashboardCompactSummaryLink(
+                    title: "추세",
+                    value: "기록 대기",
+                    detail: "러닝 1회 이상 필요"
+                )
+                DashboardCompactSummaryLink(
+                    title: "VO2 Max",
+                    value: "--",
+                    detail: "측정 데이터 없음"
+                )
+            }
+
+            PredictionSummaryCard(
+                predicted5KText: "--:--",
+                predicted10KText: "--:--",
+                predictedHalfText: "--:--:--",
+                predictedMarathonText: "--:--:--"
+            )
+        }
+    }
+}
+
+private struct RunReviewStatusCard: View {
+    let title: String
+    let message: String?
+    let buttonTitle: String
+    let action: () -> Void
+
+    init(title: String, message: String? = nil, buttonTitle: String, action: @escaping () -> Void) {
+        self.title = title
+        self.message = message
+        self.buttonTitle = buttonTitle
+        self.action = action
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(LocalizedStringKey(title))
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.white)
+
+            if let message {
+                Text(LocalizedStringKey(message))
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(LocalizedStringKey(buttonTitle), action: action)
+                .buttonStyle(.borderedProminent)
+
+            Text(L10n.format("권한은 %@에서 다시 변경할 수 있습니다.", AppMetadata.healthPermissionSettingsPath))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.58))
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white.opacity(0.05))
+        )
     }
 }
 
@@ -457,9 +578,11 @@ private struct RecordMonthHeader: View {
     let selectedDateText: String?
     let canMoveNext: Bool
     let isLoading: Bool
+    let pendingRecordCount: Int
     let onPreviousMonth: () -> Void
     let onNextMonth: () -> Void
     let onOpenCalendar: () -> Void
+    let onOpenPersonalRecords: () -> Void
     let onClearDate: () -> Void
 
     var body: some View {
@@ -495,6 +618,26 @@ private struct RecordMonthHeader: View {
                         .background(Capsule().fill(Color.white.opacity(0.08)))
                 }
                 .buttonStyle(.plain)
+
+                Button(action: onOpenPersonalRecords) {
+                    Image(systemName: "flag.checkered")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(pendingRecordCount > 0 ? Color(red: 0.29, green: 0.88, blue: 0.63) : .white)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(Color.white.opacity(0.08)))
+                        .overlay(alignment: .topTrailing) {
+                            if pendingRecordCount > 0 {
+                                Text("\(min(pendingRecordCount, 9))")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.black)
+                                    .frame(width: 16, height: 16)
+                                    .background(Circle().fill(Color(red: 0.29, green: 0.88, blue: 0.63)))
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("최고 기록"))
+                .accessibilityHint(Text("최고 기록과 검토 대기 기록을 확인합니다."))
 
                 Button(action: onNextMonth) {
                     Image(systemName: "chevron.right")
@@ -768,12 +911,6 @@ private struct DashboardHeader: View {
     let summary: RunningSummary
     let runs: [RunningWorkout]
     let vo2MaxSamples: [VO2MaxSample]
-    let personalRecords: [PersonalRecordEntry]
-    let pendingCandidates: [PersonalRecordCandidate]
-    let isRefreshingPersonalRecords: Bool
-    let personalRecordProgress: Double?
-    let onApproveCandidate: (PersonalRecordDistance) -> Void
-    let onDismissCandidate: (PersonalRecordDistance) -> Void
     @Binding var showAppleWorkoutOnly: Bool
     let onToggle: () -> Void
     @EnvironmentObject private var mileageGoalStore: MileageGoalStore
@@ -811,17 +948,6 @@ private struct DashboardHeader: View {
                 )
             }
             .buttonStyle(.plain)
-
-            DashboardSectionHeader(title: "기록 관리")
-
-            PersonalRecordsCard(
-                records: personalRecords,
-                pendingCandidates: pendingCandidates,
-                isRefreshing: isRefreshingPersonalRecords,
-                progress: personalRecordProgress,
-                onApproveCandidate: onApproveCandidate,
-                onDismissCandidate: onDismissCandidate
-            )
 
             VStack(alignment: .leading, spacing: 10) {
                 Text("표시")
@@ -2082,14 +2208,34 @@ struct ShoesTabView: View {
     @EnvironmentObject private var shoeStore: ShoeStore
     @State private var showingAddShoe = false
 
+    private var samplePreviewItems: [SampleShoePreview] {
+        SampleShoePreview.items
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if shoeStore.shoes.isEmpty {
-                        DetailSection(title: "신발") {
-                            Text("러닝화를 등록하면 신발별 누적 거리와 남은 수명을 볼 수 있습니다.")
-                                .foregroundStyle(.white.opacity(0.72))
+                        DetailSection(title: "러닝화 추가하기") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("러닝화를 등록하면 신발별 누적 거리와 남은 수명을 볼 수 있습니다.")
+                                    .foregroundStyle(.white.opacity(0.72))
+                                Text("아래 샘플 카드에서 어떤 식으로 관리되는지 먼저 볼 수 있습니다.")
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.58))
+                            }
+                        }
+
+                        DetailSection(title: "샘플 미리보기") {
+                            VStack(alignment: .leading, spacing: 14) {
+                                ForEach(samplePreviewItems) { item in
+                                    ShoeSummaryCard(
+                                        shoe: item.shoe,
+                                        distanceKilometers: item.distanceKilometers
+                                    )
+                                }
+                            }
                         }
                     } else {
                         VStack(spacing: 14) {
@@ -2099,8 +2245,7 @@ struct ShoesTabView: View {
                                 } label: {
                                     ShoeSummaryCard(
                                         shoe: shoe,
-                                        distanceKilometers: shoeStore.distance(for: shoe.id, runs: runs),
-                                        runCount: shoeStore.runCount(for: shoe.id)
+                                        distanceKilometers: shoeStore.distance(for: shoe.id, runs: runs)
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -2133,36 +2278,37 @@ struct ShoesTabView: View {
 struct SettingsTabView: View {
     @EnvironmentObject private var appSettings: AppSettingsStore
 
-    private var displayUnit: DisplayDistanceUnit {
-        RunDisplayFormatter.resolvedDistanceUnit(for: appSettings.distanceUnitPreference)
-    }
-
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     DetailSection(title: "표시") {
                         VStack(spacing: 14) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("앱 언어")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
-
-                                Picker("앱 언어", selection: $appSettings.appLanguagePreference) {
-                                    ForEach(AppLanguagePreference.allCases) { option in
-                                        Text(option.label).tag(option)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-
-                                Text("앱 화면 문구와 날짜 표시에 적용됩니다.")
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.58))
+                            NavigationLink {
+                                AppLanguageSettingsView()
+                            } label: {
+                                SettingSelectionRow(
+                                    title: "앱 언어",
+                                    value: appSettings.appLanguagePreference.label,
+                                    detail: "앱 화면 문구와 날짜 표시에 적용됩니다."
+                                )
                             }
+                            .buttonStyle(.plain)
+
+                            NavigationLink {
+                                DistanceUnitSettingsView()
+                            } label: {
+                                SettingSelectionRow(
+                                    title: "거리 단위",
+                                    value: appSettings.distanceUnitPreference.label,
+                                    detail: "거리, 페이스, 상승 고도, 공유 이미지에 함께 적용됩니다."
+                                )
+                            }
+                            .buttonStyle(.plain)
 
                             Toggle(isOn: $appSettings.defaultAppleOnlyFilter) {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Apple 운동 앱 기록만 보기 기본값")
+                                    Text("Apple 운동 앱 기록 기본 표시")
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(.white)
                                     Text("앱을 열었을 때 홈/기록 탭에서 기본으로 적용됩니다.")
@@ -2171,26 +2317,6 @@ struct SettingsTabView: View {
                                 }
                             }
                             .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("거리 단위")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
-
-                                Picker("거리 단위", selection: $appSettings.distanceUnitPreference) {
-                                    ForEach(DistanceUnitPreference.allCases) { option in
-                                        Text(option.label).tag(option)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-
-                                Text("거리, 페이스, 상승 고도, 공유 이미지에 함께 적용됩니다.")
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.58))
-                            }
-
-                            SettingInfoRow(title: "페이스 단위", value: displayUnit.paceSymbol)
-                            SettingInfoRow(title: "상승 고도 단위", value: displayUnit.elevationSymbol)
                         }
                     }
 
@@ -2276,6 +2402,7 @@ struct SettingsTabView: View {
                     }
                 }
                 .padding(16)
+                .padding(.bottom, 104)
             }
             .background(AppBackground())
             .navigationTitle("설정")
@@ -2703,6 +2830,38 @@ private struct SettingLinkRow: View {
     }
 }
 
+private struct SettingSelectionRow: View {
+    let title: String
+    let value: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                Text(LocalizedStringKey(title))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Spacer(minLength: 12)
+
+                Text(LocalizedStringKey(value))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.72))
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.38))
+            }
+
+            Text(LocalizedStringKey(detail))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.58))
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 // 설정 정보의 제목/값 행은 긴 값도 줄바꿈해서 표시할 수 있게 만든다.
 private struct SettingInfoRow: View {
     let title: String
@@ -2735,18 +2894,153 @@ private struct SettingInfoRow: View {
     }
 }
 
+private struct SettingOptionRow: View {
+    let title: String
+    let detail: String
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(LocalizedStringKey(title))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(LocalizedStringKey(detail))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+
+            Spacer()
+
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.headline)
+                .foregroundStyle(isSelected ? Color(red: 0.29, green: 0.88, blue: 0.63) : .white.opacity(0.22))
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+
+private struct AppLanguageSettingsView: View {
+    @EnvironmentObject private var appSettings: AppSettingsStore
+
+    private func detail(for option: AppLanguagePreference) -> String {
+        switch option {
+        case .korean:
+            return "앱 화면 문구와 날짜를 한국어 기준으로 표시합니다."
+        case .english:
+            return "앱 화면 문구와 날짜를 영어 기준으로 표시합니다."
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                DetailSection(title: "앱 언어") {
+                    VStack(spacing: 12) {
+                        ForEach(AppLanguagePreference.allCases) { option in
+                            Button {
+                                appSettings.appLanguagePreference = option
+                            } label: {
+                                SettingOptionRow(
+                                    title: option.label,
+                                    detail: detail(for: option),
+                                    isSelected: appSettings.appLanguagePreference == option
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(AppBackground())
+        .navigationTitle("앱 언어")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct DistanceUnitSettingsView: View {
+    @EnvironmentObject private var appSettings: AppSettingsStore
+
+    private func detail(for option: DistanceUnitPreference) -> String {
+        switch option {
+        case .system:
+            return "기기 설정에 맞춰 km 또는 mi를 자동으로 사용합니다."
+        case .kilometers:
+            return "거리와 페이스를 km 기준으로 고정합니다."
+        case .miles:
+            return "거리와 페이스를 mi 기준으로 고정합니다."
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                DetailSection(title: "거리 단위") {
+                    VStack(spacing: 12) {
+                        ForEach(DistanceUnitPreference.allCases) { option in
+                            Button {
+                                appSettings.distanceUnitPreference = option
+                            } label: {
+                                SettingOptionRow(
+                                    title: option.label,
+                                    detail: detail(for: option),
+                                    isSelected: appSettings.distanceUnitPreference == option
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(AppBackground())
+        .navigationTitle("거리 단위")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct SampleShoePreview: Identifiable {
+    let id = UUID()
+    let shoe: RunningShoe
+    let distanceKilometers: Double
+
+    static let items: [SampleShoePreview] = [
+        SampleShoePreview(
+            shoe: RunningShoe(
+                nickname: "데일리 러너",
+                brand: "브랜드 A",
+                model: "트레이너 01",
+                startMileageKilometers: 552.0,
+                retirementKilometers: 600
+            ),
+            distanceKilometers: 7.6
+        ),
+        SampleShoePreview(
+            shoe: RunningShoe(
+                nickname: "스피드 페어",
+                brand: "브랜드 B",
+                model: "레이서 02",
+                startMileageKilometers: 220.0,
+                retirementKilometers: 600
+            ),
+            distanceKilometers: 35.8
+        )
+    ]
+}
+
 // 신발 목록 카드 하나는 누적 거리와 교체까지 남은 거리를 요약한다.
 private struct ShoeSummaryCard: View {
     let shoe: RunningShoe
     let distanceKilometers: Double
-    let runCount: Int
 
     private var totalKilometers: Double {
         shoe.startMileageKilometers + distanceKilometers
-    }
-
-    private var remainingKilometers: Double {
-        max(shoe.retirementKilometers - totalKilometers, 0)
     }
 
     private var usageRatio: Double {
@@ -2757,81 +3051,49 @@ private struct ShoeSummaryCard: View {
         "\(Int((usageRatio * 100).rounded()))%"
     }
 
-    private var usageStatusText: String {
-        if usageRatio >= 1 {
-            return L10n.tr("교체 기준 도달")
-        }
-        if usageRatio >= 0.8 {
-            return L10n.tr("교체 시점이 가까워졌습니다.")
-        }
-        return L10n.tr("아직 여유가 있습니다.")
+    private var compactMetricsText: String {
+        L10n.format(
+            "누적 %@ · 총 %@ · 사용률 %@",
+            formatKilometers(totalKilometers),
+            formatKilometers(shoe.retirementKilometers),
+            usagePercentText
+        )
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(shoe.displayName)
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.white)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(shoe.brandModelText)
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.55))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(.white.opacity(0.4))
-            }
+        HStack(spacing: 8) {
+            Text(shoe.displayName)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                RunMetricPill(title: "누적", value: formatKilometers(totalKilometers))
-                RunMetricPill(title: "남은 거리", value: formatKilometers(remainingKilometers))
-                RunMetricPill(title: "러닝 수", value: L10n.format("%d회", runCount))
-                RunMetricPill(title: "사용률", value: usagePercentText)
-            }
+            Text(compactMetricsText)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.74))
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Text(usageStatusText)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.7))
+            Spacer(minLength: 4)
 
-                    Spacer()
-
-                    Text(usagePercentText)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(usageRatio >= 0.8 ? .orange : Color(red: 0.29, green: 0.88, blue: 0.63))
-                        .monospacedDigit()
-                }
-
-                ProgressView(value: usageRatio)
-                    .tint(usageRatio >= 0.8 ? .orange : Color(red: 0.29, green: 0.88, blue: 0.63))
-            }
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white.opacity(0.38))
         }
-        .padding(18)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.white.opacity(0.05))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(shoe.displayName))
-        .accessibilityValue(
-            Text(
-                L10n.format(
-                    "누적 %@, 남은 거리 %@, %d회 러닝",
-                    formatKilometers(totalKilometers),
-                    formatKilometers(remainingKilometers),
-                    runCount
-                )
-            )
-        )
-        .accessibilityHint(Text(usageStatusText))
+        .accessibilityValue(Text(compactMetricsText))
+        .accessibilityHint(Text("탭하면 신발 상세 정보를 볼 수 있습니다."))
     }
 }
 
