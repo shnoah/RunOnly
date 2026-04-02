@@ -140,47 +140,113 @@ struct RunRowCard: View {
     @EnvironmentObject private var shoeStore: ShoeStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(run.recordDateText)
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.white)
-                    HStack(spacing: 8) {
-                        RunEnvironmentBadge(text: run.environmentShortText)
-                        Text(run.sourceName)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.5))
-                            .lineLimit(1)
-                    }
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                RunMetricPill(title: "거리", value: run.distanceText)
-                RunMetricPill(title: "시간", value: run.durationText)
-                RunMetricPill(title: "페이스", value: run.paceText)
+                Text("\(run.recordCompactDateText) / \(run.environmentShortText)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .layoutPriority(1)
+
+                Spacer(minLength: 8)
+
+                Text(shoeDisplayName)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(shoeForegroundColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(shoeBackgroundColor))
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.42))
             }
 
-            if let shoe = shoeStore.shoe(for: run.id) {
-                Label(shoe.displayName, systemImage: "shoeprints.fill")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+            HStack(spacing: 0) {
+                RunRowMetricColumn(title: "거리", value: run.distanceText)
+                metricDivider
+                RunRowMetricColumn(title: "시간", value: run.durationText)
+                metricDivider
+                RunRowMetricColumn(title: "페이스", value: run.paceText)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.black.opacity(0.18))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
         }
-        .padding(18)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(0.05))
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.1),
+                            Color.white.opacity(0.04)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
+                .shadow(color: Color.black.opacity(0.14), radius: 12, y: 6)
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(run.recordCompactDateText), \(run.environmentShortText)"))
+        .accessibilityValue(Text("\(L10n.tr("거리")) \(run.distanceText), \(L10n.tr("시간")) \(run.durationText), \(L10n.tr("페이스")) \(run.paceText), \(shoeDisplayName)"))
+    }
+
+    private var shoeDisplayName: String {
+        shoeStore.shoe(for: run.id)?.displayName ?? L10n.tr("신발 미선택")
+    }
+
+    private var shoeForegroundColor: Color {
+        shoeStore.shoe(for: run.id) == nil ? .white.opacity(0.7) : Color(red: 0.29, green: 0.88, blue: 0.63)
+    }
+
+    private var shoeBackgroundColor: Color {
+        shoeStore.shoe(for: run.id) == nil
+            ? Color.white.opacity(0.08)
+            : Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.14)
+    }
+
+    private var metricDivider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.08))
+            .frame(width: 1, height: 34)
+            .padding(.horizontal, 10)
+    }
+}
+
+private struct RunRowMetricColumn: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.54))
+            Text(value)
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

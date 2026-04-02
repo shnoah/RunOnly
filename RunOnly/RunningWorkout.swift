@@ -112,6 +112,10 @@ struct RunningWorkout: Identifiable {
         RunDisplayFormatter.recordDate(startDate)
     }
 
+    var recordCompactDateText: String {
+        RunDisplayFormatter.recordCompactDate(startDate)
+    }
+
     var detailDateText: String {
         RunDisplayFormatter.detailDate(startDate)
     }

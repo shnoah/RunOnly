@@ -118,6 +118,8 @@
 "단위는 %@입니다. 이미 다른 앱이나 실제 사용으로 누적된 거리가 있다면 입력하고, 새 신발이면 0으로 두면 됩니다." = "The unit is %@. Enter any mileage already accumulated in another app or in real use, or leave it at 0 for a new pair.";
 "닫기" = "Close";
 "달력" = "Calendar";
+"이번 달" = "This Month";
+"이번 달로 이동" = "Jump to current month";
 "데이터 및 권한" = "Data & Permissions";
 "HealthKit 권한과 저장 방식을 확인합니다." = "Review HealthKit permissions and how data is stored.";
 "데이터 범위" = "Data Range";
@@ -355,8 +357,11 @@
 "총 시간" = "Total Time";
 "총 운동 시간" = "Total workout time";
 "최고 기록" = "Personal Records";
+"최고 기록 열기" = "Open personal records";
+"최고 기록과 검토 대기 기록을 확인합니다." = "View personal records and pending record reviews.";
 "최고 예상" = "Best Prediction";
 "최고" = "Best";
+"현재 선택 월: %@" = "Current selected month: %@";
 "최근 2주 훈련량이 안정적으로 유지되고 있습니다." = "Training volume has stayed steady over the last 2 weeks.";
 "최근 3년 기준" = "Based on the last 3 years";
 "최근 3년 범위까지 반영했습니다." = "Included up to the last 3 years.";

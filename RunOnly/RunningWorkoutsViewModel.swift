@@ -247,11 +247,19 @@ final class RunningWorkoutsViewModel: ObservableObject {
         selectedRecordMonth < startOfMonth(Date())
     }
 
+    var isViewingCurrentRecordMonth: Bool {
+        Calendar.current.isDate(selectedRecordMonth, equalTo: startOfMonth(Date()), toGranularity: .month)
+    }
+
     // 달 이동 버튼은 결국 특정 월 선택 로직으로 합류한다.
     func moveRecordMonth(by offset: Int) async {
         guard offset != 0 else { return }
         let targetMonth = Calendar.current.date(byAdding: .month, value: offset, to: selectedRecordMonth) ?? selectedRecordMonth
         await selectRecordMonth(targetMonth)
+    }
+
+    func jumpToCurrentRecordMonth() async {
+        await selectRecordMonth(Date())
     }
 
     // 미래 월로는 이동하지 못하도록 현재 월 상한을 둔다.

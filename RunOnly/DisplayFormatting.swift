@@ -293,6 +293,14 @@ enum RunDisplayFormatter {
         localizedDate(date, locale: locale, template: "M d E a h:mm")
     }
 
+    static func recordCompactDate(_ date: Date, locale: Locale = currentAppLocale) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = .current
+        formatter.dateFormat = "M/d E a h:mm"
+        return formatter.string(from: date)
+    }
+
     static func detailDate(_ date: Date, locale: Locale = currentAppLocale) -> String {
         localizedDate(date, locale: locale, template: "y M d E a h:mm")
     }

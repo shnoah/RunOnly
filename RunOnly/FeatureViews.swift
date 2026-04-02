@@ -119,6 +119,7 @@ struct RecordTabView: View {
                                 monthText: viewModel.selectedMonthLabelText,
                                 selectedDateText: viewModel.selectedDateLabelText,
                                 canMoveNext: viewModel.canMoveToNextRecordMonth,
+                                isViewingCurrentMonth: viewModel.isViewingCurrentRecordMonth,
                                 isLoading: viewModel.isLoadingMoreHistory,
                                 pendingRecordCount: viewModel.pendingPersonalRecordCandidates.count,
                                 onPreviousMonth: {
@@ -136,6 +137,11 @@ struct RecordTabView: View {
                                 },
                                 onOpenPersonalRecords: {
                                     showingPersonalRecords = true
+                                },
+                                onJumpToCurrentMonth: {
+                                    Task {
+                                        await viewModel.jumpToCurrentRecordMonth()
+                                    }
                                 },
                                 onClearDate: {
                                     viewModel.clearRecordDateSelection()
@@ -577,82 +583,39 @@ private struct RecordMonthHeader: View {
     let monthText: String
     let selectedDateText: String?
     let canMoveNext: Bool
+    let isViewingCurrentMonth: Bool
     let isLoading: Bool
     let pendingRecordCount: Int
     let onPreviousMonth: () -> Void
     let onNextMonth: () -> Void
     let onOpenCalendar: () -> Void
     let onOpenPersonalRecords: () -> Void
+    let onJumpToCurrentMonth: () -> Void
     let onClearDate: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Button(action: onPreviousMonth) {
-                    Image(systemName: "chevron.left")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
-                        .background(Circle().fill(Color.white.opacity(0.08)))
-                }
-                .buttonStyle(.plain)
-                .disabled(isLoading)
+            Text(monthText)
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .accessibilityLabel(Text(L10n.format("현재 선택 월: %@", monthText)))
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("선택 월")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.55))
-                    Text(monthText)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
-                }
-
-                Spacer()
-
-                Button(action: onOpenCalendar) {
-                    Label("달력", systemImage: "calendar")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(Capsule().fill(Color.white.opacity(0.08)))
-                }
-                .buttonStyle(.plain)
-
-                Button(action: onOpenPersonalRecords) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "flag.checkered")
-                            .font(.caption.weight(.bold))
-                        Text("최고 기록")
-                            .font(.caption.weight(.semibold))
-                    }
-                        .foregroundStyle(pendingRecordCount > 0 ? Color(red: 0.29, green: 0.88, blue: 0.63) : .white)
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 10)
-                        .background(Capsule().fill(Color.white.opacity(0.08)))
-                        .overlay(alignment: .topTrailing) {
-                            if pendingRecordCount > 0 {
-                                Text("\(min(pendingRecordCount, 9))")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(.black)
-                                    .frame(width: 16, height: 16)
-                                    .background(Circle().fill(Color(red: 0.29, green: 0.88, blue: 0.63)))
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text("최고 기록"))
-                .accessibilityHint(Text("최고 기록과 검토 대기 기록을 확인합니다."))
-
-                Button(action: onNextMonth) {
-                    Image(systemName: "chevron.right")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(canMoveNext ? .white : .white.opacity(0.3))
-                        .frame(width: 42, height: 42)
-                        .background(Circle().fill(Color.white.opacity(0.08)))
-                }
-                .buttonStyle(.plain)
-                .disabled(!canMoveNext || isLoading)
+            ViewThatFits(in: .horizontal) {
+                controlsRow(
+                    buttonFont: .subheadline.weight(.semibold),
+                    verticalPadding: 10,
+                    horizontalPadding: 12,
+                    arrowSize: 38
+                )
+                controlsRow(
+                    buttonFont: .caption.weight(.semibold),
+                    verticalPadding: 8,
+                    horizontalPadding: 9,
+                    arrowSize: 34
+                )
             }
 
             if let selectedDateText {
@@ -671,6 +634,142 @@ private struct RecordMonthHeader: View {
                 }
             }
         }
+    }
+
+    private func controlsRow(
+        buttonFont: Font,
+        verticalPadding: CGFloat,
+        horizontalPadding: CGFloat,
+        arrowSize: CGFloat
+    ) -> some View {
+        HStack(spacing: 7) {
+            navigationArrowButton(
+                systemImage: "chevron.left",
+                isEnabled: !isLoading,
+                action: onPreviousMonth,
+                size: arrowSize
+            )
+
+            if !isViewingCurrentMonth {
+                capsuleButton(
+                    title: L10n.tr("이번 달"),
+                    systemImage: nil,
+                    font: buttonFont,
+                    verticalPadding: verticalPadding,
+                    horizontalPadding: horizontalPadding,
+                    foreground: .white,
+                    action: onJumpToCurrentMonth
+                )
+                .accessibilityHint(Text(L10n.tr("이번 달로 이동")))
+            }
+
+            capsuleButton(
+                title: L10n.tr("달력"),
+                systemImage: "calendar",
+                font: buttonFont,
+                verticalPadding: verticalPadding,
+                horizontalPadding: horizontalPadding,
+                foreground: .white,
+                action: onOpenCalendar
+            )
+
+            personalRecordsButton(
+                font: buttonFont,
+                verticalPadding: verticalPadding,
+                horizontalPadding: horizontalPadding
+            )
+
+            navigationArrowButton(
+                systemImage: "chevron.right",
+                isEnabled: canMoveNext && !isLoading,
+                action: onNextMonth,
+                size: arrowSize
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private func capsuleButton(
+        title: String,
+        systemImage: String?,
+        font: Font,
+        verticalPadding: CGFloat,
+        horizontalPadding: CGFloat,
+        foreground: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Group {
+                if let systemImage {
+                    Label(title, systemImage: systemImage)
+                } else {
+                    Text(title)
+                }
+            }
+            .font(font)
+            .foregroundStyle(foreground)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+            .background(Capsule().fill(Color.white.opacity(0.08)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func personalRecordsButton(
+        font: Font,
+        verticalPadding: CGFloat,
+        horizontalPadding: CGFloat
+    ) -> some View {
+        Button(action: onOpenPersonalRecords) {
+            HStack(spacing: 5) {
+                Image(systemName: "flag.checkered")
+                    .font(.caption.weight(.bold))
+                Text(L10n.tr("최고 기록"))
+                    .lineLimit(1)
+            }
+            .font(font)
+            .foregroundStyle(pendingRecordCount > 0 ? Color(red: 0.29, green: 0.88, blue: 0.63) : .white)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+            .background(Capsule().fill(Color.white.opacity(0.08)))
+            .overlay(alignment: .topTrailing) {
+                if pendingRecordCount > 0 {
+                    if pendingRecordCount <= 9 {
+                        Text("\(pendingRecordCount)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.black)
+                            .frame(width: 14, height: 14)
+                            .background(Circle().fill(Color(red: 0.29, green: 0.88, blue: 0.63)))
+                            .offset(x: 5, y: -5)
+                    } else {
+                        Circle()
+                            .fill(Color(red: 0.29, green: 0.88, blue: 0.63))
+                            .frame(width: 8, height: 8)
+                            .offset(x: 4, y: -4)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(L10n.tr("최고 기록 열기")))
+        .accessibilityHint(Text(L10n.tr("최고 기록과 검토 대기 기록을 확인합니다.")))
+    }
+
+    private func navigationArrowButton(
+        systemImage: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void,
+        size: CGFloat
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(isEnabled ? .white : .white.opacity(0.3))
+                .frame(width: size, height: size)
+                .background(Circle().fill(Color.white.opacity(0.08)))
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
     }
 }
 
@@ -731,42 +830,17 @@ private struct RecordCalendarSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        Button {
-                            Task {
-                                await viewModel.moveRecordMonth(by: -1)
-                            }
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 38, height: 38)
-                                .background(Circle().fill(Color.white.opacity(0.08)))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(viewModel.isLoadingMoreHistory)
-
-                        Spacer()
-
-                        Text(viewModel.selectedMonthLabelText)
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(.white)
-
-                        Spacer()
-
-                        Button {
-                            Task {
-                                await viewModel.moveRecordMonth(by: 1)
-                            }
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(viewModel.canMoveToNextRecordMonth ? .white : .white.opacity(0.3))
-                                .frame(width: 38, height: 38)
-                                .background(Circle().fill(Color.white.opacity(0.08)))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!viewModel.canMoveToNextRecordMonth || viewModel.isLoadingMoreHistory)
+                    ViewThatFits(in: .horizontal) {
+                        calendarHeaderRow(
+                            monthFont: .title3.weight(.bold),
+                            buttonFont: .subheadline.weight(.semibold),
+                            verticalPadding: 10
+                        )
+                        calendarHeaderRow(
+                            monthFont: .headline.weight(.bold),
+                            buttonFont: .caption.weight(.semibold),
+                            verticalPadding: 8
+                        )
                     }
 
                     LazyVGrid(columns: columns, spacing: 10) {
@@ -824,6 +898,68 @@ private struct RecordCalendarSheet: View {
                     .foregroundStyle(.white)
                 }
             }
+        }
+    }
+
+    private func calendarHeaderRow(
+        monthFont: Font,
+        buttonFont: Font,
+        verticalPadding: CGFloat
+    ) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                Task {
+                    await viewModel.moveRecordMonth(by: -1)
+                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, verticalPadding)
+                    .background(Circle().fill(Color.white.opacity(0.08)))
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.isLoadingMoreHistory)
+
+            Text(viewModel.selectedMonthLabelText)
+                .font(monthFont)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .accessibilityLabel(Text(L10n.format("현재 선택 월: %@", viewModel.selectedMonthLabelText)))
+
+            Spacer(minLength: 8)
+
+            if !viewModel.isViewingCurrentRecordMonth {
+                Button(L10n.tr("이번 달")) {
+                    Task {
+                        await viewModel.jumpToCurrentRecordMonth()
+                    }
+                }
+                .font(buttonFont)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, verticalPadding)
+                .background(Capsule().fill(Color.white.opacity(0.08)))
+                .buttonStyle(.plain)
+                .accessibilityHint(Text(L10n.tr("이번 달로 이동")))
+            }
+
+            Button {
+                Task {
+                    await viewModel.moveRecordMonth(by: 1)
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(viewModel.canMoveToNextRecordMonth ? .white : .white.opacity(0.3))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, verticalPadding)
+                    .background(Circle().fill(Color.white.opacity(0.08)))
+            }
+            .buttonStyle(.plain)
+            .disabled(!viewModel.canMoveToNextRecordMonth || viewModel.isLoadingMoreHistory)
         }
     }
 
