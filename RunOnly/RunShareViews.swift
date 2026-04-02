@@ -4,9 +4,23 @@ import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
 
+private struct RunShareStickerPlacement: Equatable {
+    var centerX: CGFloat
+    var centerY: CGFloat
+    var scale: CGFloat
+}
+
+private struct RunShareTemplateLayoutSpec {
+    let previewPreferredWidth: CGFloat
+    let photoBaseWidthRatio: CGFloat
+    let photoBaseHeightRatio: CGFloat
+    let defaultPlacement: RunShareStickerPlacement
+    let fontScaleRange: ClosedRange<Double>
+}
+
 private enum RunShareTemplate: String, CaseIterable, Identifiable {
     case sticker
-    case square
+    case style1
 
     var id: String { rawValue }
 
@@ -14,17 +28,17 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
         switch self {
         case .sticker:
             return L10n.tr("스티커")
-        case .square:
-            return L10n.tr("정사각형")
+        case .style1:
+            return L10n.tr("스타일 1")
         }
     }
 
     var descriptionText: String {
         switch self {
         case .sticker:
-            return L10n.tr("투명 배경 PNG로 복사/공유하기 좋습니다.")
-        case .square:
-            return L10n.tr("피드용 카드에 가까운 정사각형 이미지입니다.")
+            return L10n.tr("투명 배경 PNG라 메신저, 노트, 스토리 편집 앱에 붙여 넣기 좋습니다.")
+        case .style1:
+            return L10n.tr("인스타 스토리 상단 오버레이 느낌의 반투명 스티커입니다.")
         }
     }
 
@@ -32,8 +46,8 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
         switch self {
         case .sticker:
             return CGSize(width: 520, height: 860)
-        case .square:
-            return CGSize(width: 1080, height: 1080)
+        case .style1:
+            return CGSize(width: 1080, height: 300)
         }
     }
 
@@ -41,8 +55,8 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
         switch self {
         case .sticker:
             return 0
-        case .square:
-            return 34
+        case .style1:
+            return 0
         }
     }
 
@@ -51,12 +65,61 @@ private enum RunShareTemplate: String, CaseIterable, Identifiable {
     }
 
     var composerPreviewWidth: CGFloat {
+        layoutSpec.previewPreferredWidth
+    }
+
+    var isTransparentStickerTemplate: Bool {
+        true
+    }
+
+    var policy: RunShareTemplatePolicy {
+        switch self {
+        case .style1:
+            return RunShareTemplatePolicy(
+                routeRequired: true,
+                metricCandidates: [.distance, .duration, .pace],
+                requiredMetrics: [.distance],
+                metricMin: 1,
+                metricMax: 2,
+                supportsFontDebug: true,
+                supportsColorDebug: true
+            )
+        case .sticker:
+            return RunShareTemplatePolicy(
+                routeRequired: true,
+                metricCandidates: [.distance, .duration, .pace, .elevationGain, .heartRate, .cadence],
+                requiredMetrics: [],
+                metricMin: 0,
+                metricMax: 4,
+                supportsFontDebug: true,
+                supportsColorDebug: true
+            )
+        }
+    }
+
+    var layoutSpec: RunShareTemplateLayoutSpec {
         switch self {
         case .sticker:
-            return 172
-        case .square:
-            return 184
+            return RunShareTemplateLayoutSpec(
+                previewPreferredWidth: 172,
+                photoBaseWidthRatio: 0.46,
+                photoBaseHeightRatio: 0.58,
+                defaultPlacement: RunShareStickerPlacement(centerX: 0.5, centerY: 0.62, scale: 1),
+                fontScaleRange: 0.75...1.45
+            )
+        case .style1:
+            return RunShareTemplateLayoutSpec(
+                previewPreferredWidth: 440,
+                photoBaseWidthRatio: 0.86,
+                photoBaseHeightRatio: 0.75,
+                defaultPlacement: RunShareStickerPlacement(centerX: 0.5, centerY: 0.15, scale: 1),
+                fontScaleRange: 0.92...1.22
+            )
         }
+    }
+
+    static var defaultPlacements: [RunShareTemplate: RunShareStickerPlacement] {
+        Dictionary(uniqueKeysWithValues: allCases.map { ($0, $0.layoutSpec.defaultPlacement) })
     }
 }
 
@@ -138,6 +201,9 @@ private struct RunShareMetric: Identifiable {
     var id: RunShareField { field }
 }
 
+private let runShareBasicInfoFields: [RunShareField] = [.logo, .route, .date]
+private let runShareMetricPriority: [RunShareField] = [.distance, .duration, .pace, .elevationGain, .heartRate, .cadence]
+
 private let runOnlyShareAccent = Color(red: 0.29, green: 0.88, blue: 0.63)
 private let runOnlyShareAccentDark = Color(red: 0.15, green: 0.71, blue: 0.49)
 
@@ -199,24 +265,162 @@ private struct RunShareArtworkStyle {
     }
 }
 
-private struct RunShareStickerDebugSettings {
-    var fontChoice: RunShareFontChoice = .rounded
-    var fontScale: Double = 1
+private struct RunShareTemplatePolicy {
+    let routeRequired: Bool
+    let metricCandidates: [RunShareField]
+    let requiredMetrics: [RunShareField]
+    let metricMin: Int
+    let metricMax: Int
+    let supportsFontDebug: Bool
+    let supportsColorDebug: Bool
+}
+
+private struct RunShareRGBA: Equatable, Hashable {
+    var red: Double
+    var green: Double
+    var blue: Double
+    var alpha: Double = 1
+
+    var color: Color {
+        Color(.sRGB, red: red, green: green, blue: blue, opacity: alpha)
+    }
+
+    var key: String {
+        String(format: "%.3f|%.3f|%.3f|%.3f", red, green, blue, alpha)
+    }
+
+    func darkened(by factor: Double = 0.72) -> RunShareRGBA {
+        RunShareRGBA(
+            red: max(min(red * factor, 1), 0),
+            green: max(min(green * factor, 1), 0),
+            blue: max(min(blue * factor, 1), 0),
+            alpha: alpha
+        )
+    }
+
+    init(red: Double, green: Double, blue: Double, alpha: Double = 1) {
+        self.red = red
+        self.green = green
+        self.blue = blue
+        self.alpha = alpha
+    }
+
+    init(color: Color) {
+        #if canImport(UIKit)
+        let uiColor = UIColor(color)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        if uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            self.init(red: Double(red), green: Double(green), blue: Double(blue), alpha: Double(alpha))
+        } else {
+            self.init(red: 0.29, green: 0.88, blue: 0.63, alpha: 1)
+        }
+        #else
+        self.init(red: 0.29, green: 0.88, blue: 0.63, alpha: 1)
+        #endif
+    }
+}
+
+private enum RunShareAccentPreset: String, CaseIterable, Identifiable {
+    case mint
+    case sky
+    case ocean
+    case coral
+    case amber
+    case lime
+    case violet
+    case rose
+    case slate
+
+    var id: String { rawValue }
+
+    var accent: RunShareRGBA {
+        switch self {
+        case .mint:
+            return RunShareRGBA(red: 0.29, green: 0.88, blue: 0.63)
+        case .sky:
+            return RunShareRGBA(red: 0.33, green: 0.75, blue: 0.98)
+        case .ocean:
+            return RunShareRGBA(red: 0.30, green: 0.60, blue: 0.98)
+        case .coral:
+            return RunShareRGBA(red: 0.98, green: 0.50, blue: 0.45)
+        case .amber:
+            return RunShareRGBA(red: 0.98, green: 0.76, blue: 0.32)
+        case .lime:
+            return RunShareRGBA(red: 0.70, green: 0.90, blue: 0.38)
+        case .violet:
+            return RunShareRGBA(red: 0.66, green: 0.55, blue: 0.94)
+        case .rose:
+            return RunShareRGBA(red: 0.92, green: 0.68, blue: 0.84)
+        case .slate:
+            return RunShareRGBA(red: 0.55, green: 0.63, blue: 0.76)
+        }
+    }
+}
+
+private enum RunShareAccentColorSource: Equatable {
+    case preset(RunShareAccentPreset)
+    case custom(RunShareRGBA)
+
+    var accent: RunShareRGBA {
+        switch self {
+        case .preset(let preset):
+            return preset.accent
+        case .custom(let value):
+            return value
+        }
+    }
+
+    var shadow: RunShareRGBA {
+        accent.darkened()
+    }
+
+    var key: String {
+        switch self {
+        case .preset(let preset):
+            return "preset:\(preset.rawValue)"
+        case .custom(let value):
+            return "custom:\(value.key)"
+        }
+    }
+}
+
+private struct RunShareAdvancedStyle: Equatable {
+    var fontChoice: RunShareFontChoice
+    var fontScale: Double
+    var accentColorSource: RunShareAccentColorSource
 
     var artworkStyle: RunShareArtworkStyle {
         RunShareArtworkStyle(
-            accentColor: runOnlyShareAccent,
-            accentShadowColor: runOnlyShareAccentDark,
+            accentColor: accentColorSource.accent.color,
+            accentShadowColor: accentColorSource.shadow.color,
             fontChoice: fontChoice,
             fontScale: fontScale
         )
     }
-}
 
-private struct RunShareStickerPlacement {
-    var centerX: CGFloat = 0.5
-    var centerY: CGFloat = 0.62
-    var scale: CGFloat = 1
+    var key: String {
+        [
+            fontChoice.rawValue,
+            String(format: "%.3f", fontScale),
+            accentColorSource.key
+        ].joined(separator: "|")
+    }
+
+    static func defaultStyle(for template: RunShareTemplate) -> RunShareAdvancedStyle {
+        switch template {
+        case .sticker:
+            return RunShareAdvancedStyle(fontChoice: .rounded, fontScale: 1, accentColorSource: .preset(.mint))
+        case .style1:
+            return RunShareAdvancedStyle(fontChoice: .serif, fontScale: 1.08, accentColorSource: .preset(.rose))
+        }
+    }
+
+    static var defaultsByTemplate: [RunShareTemplate: RunShareAdvancedStyle] {
+        Dictionary(uniqueKeysWithValues: RunShareTemplate.allCases.map { ($0, defaultStyle(for: $0)) })
+    }
 }
 
 struct RunShareComposerView: View {
@@ -226,48 +430,84 @@ struct RunShareComposerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTemplate: RunShareTemplate = .sticker
-    @State private var enabledFields: Set<RunShareField> = [.logo, .route, .distance, .duration, .pace, .elevationGain]
-    @State private var stickerDebugSettings = RunShareStickerDebugSettings()
+    @State private var enabledFields: Set<RunShareField> = [.logo, .route, .distance, .duration, .pace]
+    @State private var templateStyles: [RunShareTemplate: RunShareAdvancedStyle] = RunShareAdvancedStyle.defaultsByTemplate
     @State private var selectedBackgroundPhotoItem: PhotosPickerItem?
     @State private var backgroundPhotoImage: UIImage?
     @State private var backgroundPreviewPhotoImage: UIImage?
     @State private var backgroundPhotoErrorMessage: String?
     @State private var isLoadingBackgroundPhoto = false
     @State private var previewStickerImage: UIImage?
-    @State private var stickerPlacement = RunShareStickerPlacement()
+    @State private var stickerPlacements: [RunShareTemplate: RunShareStickerPlacement] = RunShareTemplate.defaultPlacements
     @State private var shareItems: [Any] = []
     @State private var showingShareSheet = false
     @State private var exportStatusMessage: String?
     @State private var exportErrorMessage: String?
     private let hiddenFields: Set<RunShareField> = [.environment, .shoe]
 
+    private var selectedTemplatePolicy: RunShareTemplatePolicy {
+        selectedTemplate.policy
+    }
+
+    private var selectedTemplateLayout: RunShareTemplateLayoutSpec {
+        selectedTemplate.layoutSpec
+    }
+
     private var availableFields: [RunShareField] {
         RunShareField.allCases.filter { !hiddenFields.contains($0) && isFieldAvailable($0) }
     }
 
+    private var availableBasicInfoFields: [RunShareField] {
+        let source = selectedTemplate == .style1 ? [RunShareField.route] : runShareBasicInfoFields
+        return source.filter { availableFields.contains($0) }
+    }
+
+    private var availableMetricFields: [RunShareField] {
+        selectedTemplatePolicy.metricCandidates.filter { availableFields.contains($0) }
+    }
+
     private var effectiveFields: Set<RunShareField> {
-        enabledFields.intersection(Set(availableFields))
+        sanitizedFields(from: enabledFields, for: selectedTemplate)
+    }
+
+    private var selectedMetricFields: [RunShareField] {
+        runShareMetricPriority.filter { selectedTemplatePolicy.metricCandidates.contains($0) && effectiveFields.contains($0) }
+    }
+
+    private var selectedAdvancedStyle: RunShareAdvancedStyle {
+        templateStyles[selectedTemplate] ?? RunShareAdvancedStyle.defaultStyle(for: selectedTemplate)
     }
 
     private var artworkStyle: RunShareArtworkStyle {
-        stickerDebugSettings.artworkStyle
+        selectedAdvancedStyle.artworkStyle
     }
 
-    private func usesCompactTopRow(for availableWidth: CGFloat) -> Bool {
-        availableWidth >= 340
+    private var metricSelectionCountLabel: String {
+        "\(selectedMetricFields.count)/\(selectedTemplatePolicy.metricMax)"
     }
 
-    private func previewColumnWidth(for availableWidth: CGFloat) -> CGFloat {
-        let preferredWidth = selectedTemplate.composerPreviewWidth + 24
-        guard usesCompactTopRow(for: availableWidth) else {
-            return min(preferredWidth, availableWidth)
-        }
+    private var selectedStickerPlacement: RunShareStickerPlacement {
+        stickerPlacements[selectedTemplate] ?? selectedTemplateLayout.defaultPlacement
+    }
 
-        return min(max(availableWidth * 0.48, 170), preferredWidth)
+    private var selectedStickerPlacementBinding: Binding<RunShareStickerPlacement> {
+        Binding(
+            get: { stickerPlacements[selectedTemplate] ?? selectedTemplateLayout.defaultPlacement },
+            set: { stickerPlacements[selectedTemplate] = $0 }
+        )
+    }
+
+    private var shareActionForegroundColor: Color {
+        let accent = selectedAdvancedStyle.accentColorSource.accent
+        let luminance = (accent.red * 0.299) + (accent.green * 0.587) + (accent.blue * 0.114)
+        return luminance > 0.62 ? .black : .white
     }
 
     private func previewWidth(for availableWidth: CGFloat) -> CGFloat {
-        max(previewColumnWidth(for: availableWidth) - 24, 120)
+        min(
+            max(selectedTemplateLayout.previewPreferredWidth + 24, 180),
+            max(availableWidth - 32, 180)
+        )
     }
 
     private func previewHeight(for availableWidth: CGFloat) -> CGFloat {
@@ -277,7 +517,7 @@ struct RunShareComposerView: View {
     private func previewCanvasSize(for availableWidth: CGFloat) -> CGSize {
         let maxPreviewWidth = previewWidth(for: availableWidth)
 
-        guard selectedTemplate == .sticker, let previewImage = backgroundPreviewPhotoImage ?? backgroundPhotoImage else {
+        guard selectedTemplate.isTransparentStickerTemplate, let previewImage = backgroundPreviewPhotoImage ?? backgroundPhotoImage else {
             return CGSize(width: maxPreviewWidth, height: previewHeight(for: availableWidth))
         }
 
@@ -289,7 +529,7 @@ struct RunShareComposerView: View {
     }
 
     private var renderCanvasSize: CGSize {
-        guard selectedTemplate == .sticker, let backgroundPhotoImage else {
+        guard selectedTemplate.isTransparentStickerTemplate, let backgroundPhotoImage else {
             return selectedTemplate.canvasSize
         }
 
@@ -306,8 +546,7 @@ struct RunShareComposerView: View {
         return [
             selectedTemplate.rawValue,
             fieldKey,
-            stickerDebugSettings.fontChoice.rawValue,
-            String(format: "%.3f", stickerDebugSettings.fontScale),
+            selectedAdvancedStyle.key,
             photoKey
         ].joined(separator: "|")
     }
@@ -325,9 +564,11 @@ struct RunShareComposerView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         compactEditorDashboard(availableWidth: availableWidth)
 
-                        if selectedTemplate == .sticker {
+                        if selectedTemplate.isTransparentStickerTemplate {
                             stickerPhotoPanel
                         }
+
+                        shareActionGuidePanel
 
                         footerPanel
                     }
@@ -341,10 +582,24 @@ struct RunShareComposerView: View {
             .task(id: previewStickerRenderKey) {
                 refreshPreviewStickerImageIfNeeded()
             }
+            .task {
+                RunShareTemplate.allCases.forEach { template in
+                    ensureTemplateStyleExists(for: template)
+                    ensureTemplatePlacementExists(for: template)
+                    sanitizeTemplateStyle(for: template)
+                }
+                sanitizeEnabledFields()
+            }
             .onChange(of: selectedBackgroundPhotoItem) { _, newItem in
                 Task {
                     await loadBackgroundPhoto(from: newItem)
                 }
+            }
+            .onChange(of: selectedTemplate) { _, newTemplate in
+                ensureTemplateStyleExists(for: newTemplate)
+                ensureTemplatePlacementExists(for: newTemplate)
+                sanitizeTemplateStyle(for: newTemplate)
+                sanitizeEnabledFields()
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -387,8 +642,8 @@ struct RunShareComposerView: View {
                         shareActionLabel(
                             title: "공유",
                             systemImage: "square.and.arrow.up",
-                            foregroundColor: .black,
-                            backgroundColor: Color(red: 0.29, green: 0.88, blue: 0.63)
+                            foregroundColor: shareActionForegroundColor,
+                            backgroundColor: artworkStyle.accentColor
                         )
                     }
                     .buttonStyle(.plain)
@@ -404,42 +659,148 @@ struct RunShareComposerView: View {
         }
     }
 
+    private func ensureTemplateStyleExists(for template: RunShareTemplate) {
+        if templateStyles[template] == nil {
+            templateStyles[template] = RunShareAdvancedStyle.defaultStyle(for: template)
+        }
+    }
+
+    private func ensureTemplatePlacementExists(for template: RunShareTemplate) {
+        if stickerPlacements[template] == nil {
+            stickerPlacements[template] = template.layoutSpec.defaultPlacement
+        }
+    }
+
+    private func sanitizeTemplateStyle(for template: RunShareTemplate) {
+        guard var style = templateStyles[template] else { return }
+        let range = template.layoutSpec.fontScaleRange
+        let clamped = min(max(style.fontScale, range.lowerBound), range.upperBound)
+        if clamped != style.fontScale {
+            style.fontScale = clamped
+            templateStyles[template] = style
+        }
+    }
+
+    private func resetPlacement(for template: RunShareTemplate) {
+        stickerPlacements[template] = template.layoutSpec.defaultPlacement
+    }
+
+    private func updateCurrentTemplateStyle(_ transform: (inout RunShareAdvancedStyle) -> Void) {
+        var style = templateStyles[selectedTemplate] ?? RunShareAdvancedStyle.defaultStyle(for: selectedTemplate)
+        transform(&style)
+        let range = selectedTemplateLayout.fontScaleRange
+        style.fontScale = min(max(style.fontScale, range.lowerBound), range.upperBound)
+        templateStyles[selectedTemplate] = style
+    }
+
+    private func sanitizedFields(from source: Set<RunShareField>, for template: RunShareTemplate) -> Set<RunShareField> {
+        let policy = template.policy
+        let availableSet = Set(availableFields)
+        let candidateMetricSet = Set(policy.metricCandidates)
+
+        var updated = source.intersection(availableSet)
+
+        if template == .style1 {
+            updated.remove(.logo)
+            updated.remove(.date)
+        }
+
+        for metric in runShareMetricPriority where !candidateMetricSet.contains(metric) {
+            updated.remove(metric)
+        }
+
+        if policy.routeRequired {
+            updated.insert(.route)
+        }
+
+        for required in policy.requiredMetrics where candidateMetricSet.contains(required) && availableSet.contains(required) {
+            updated.insert(required)
+        }
+
+        let orderedCandidates = runShareMetricPriority.filter { candidateMetricSet.contains($0) && availableSet.contains($0) }
+        var selectedMetrics = orderedCandidates.filter { updated.contains($0) }
+
+        if selectedMetrics.count > policy.metricMax {
+            selectedMetrics = Array(selectedMetrics.prefix(policy.metricMax))
+        }
+
+        if selectedMetrics.count < policy.metricMin {
+            for field in orderedCandidates where !selectedMetrics.contains(field) {
+                selectedMetrics.append(field)
+                if selectedMetrics.count == policy.metricMin {
+                    break
+                }
+            }
+        }
+
+        for metric in runShareMetricPriority {
+            updated.remove(metric)
+        }
+        for metric in selectedMetrics {
+            updated.insert(metric)
+        }
+
+        return updated
+    }
+
+    private func sanitizeEnabledFields() {
+        let sanitized = sanitizedFields(from: enabledFields, for: selectedTemplate)
+        if sanitized != enabledFields {
+            enabledFields = sanitized
+        }
+    }
+
     private func toggleField(_ field: RunShareField) {
+        if field == .route && selectedTemplatePolicy.routeRequired {
+            return
+        }
+
+        if selectedTemplatePolicy.metricCandidates.contains(field) {
+            toggleMetricField(field)
+            return
+        }
+
+        guard runShareBasicInfoFields.contains(field) else { return }
+
         if effectiveFields.contains(field) {
             enabledFields.remove(field)
         } else {
             enabledFields.insert(field)
         }
+        sanitizeEnabledFields()
+    }
+
+    private func toggleMetricField(_ field: RunShareField) {
+        var updated = enabledFields
+        let count = selectedMetricFields.count
+
+        if selectedMetricFields.contains(field) {
+            if selectedTemplatePolicy.requiredMetrics.contains(field) {
+                return
+            }
+            if count - 1 >= selectedTemplatePolicy.metricMin {
+                updated.remove(field)
+            }
+        } else {
+            if count < selectedTemplatePolicy.metricMax {
+                updated.insert(field)
+            } else if let fallback = selectedMetricFields.reversed().first {
+                updated.remove(fallback)
+                updated.insert(field)
+            }
+        }
+
+        enabledFields = updated
+        sanitizeEnabledFields()
     }
 
     @ViewBuilder
     private func compactEditorDashboard(availableWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            if usesCompactTopRow(for: availableWidth) {
-                HStack(alignment: .top, spacing: 12) {
-                    previewPanel(availableWidth: availableWidth)
-                        .frame(width: previewColumnWidth(for: availableWidth), alignment: .top)
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        templatePanel
-
-                        if selectedTemplate == .sticker {
-                            stickerDebugPanel
-                        }
-                    }
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    previewPanel(availableWidth: availableWidth)
-                    templatePanel
-
-                    if selectedTemplate == .sticker {
-                        stickerDebugPanel
-                    }
-                }
-            }
-
+            templateSelectorPanel
+            previewPanel(availableWidth: availableWidth)
             includedDataPanel(availableWidth: availableWidth)
+            advancedSettingsPanel
         }
         .padding(14)
         .background(editorPanelBackground(cornerRadius: 24))
@@ -477,80 +838,36 @@ struct RunShareComposerView: View {
         .background(editorPanelBackground(cornerRadius: 20))
     }
 
-    private var templatePanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private var templateSelectorPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text("템플릿")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
 
-            Picker("공유 템플릿", selection: $selectedTemplate) {
+            HStack(spacing: 8) {
                 ForEach(RunShareTemplate.allCases) { template in
-                    Text(template.label).tag(template)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Text(selectedTemplate.descriptionText)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.62))
-        }
-        .padding(12)
-        .background(editorPanelBackground(cornerRadius: 20))
-    }
-
-    private var stickerDebugPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("스티커 디버그")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Spacer()
-                Button("초기화") {
-                    stickerDebugSettings = RunShareStickerDebugSettings()
-                }
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(runOnlyShareAccent)
-            }
-
-            HStack(spacing: 10) {
-                Text("폰트 크기")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-
-                Text("\(Int(stickerDebugSettings.fontScale * 100))%")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.54))
-                    .monospacedDigit()
-
-                Spacer(minLength: 0)
-            }
-
-            Slider(value: $stickerDebugSettings.fontScale, in: 0.75...1.6)
-                .tint(artworkStyle.accentColor)
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 6)], spacing: 6) {
-                ForEach(RunShareFontChoice.allCases) { choice in
                     Button {
-                        stickerDebugSettings.fontChoice = choice
+                        selectedTemplate = template
                     } label: {
-                        Text(choice.label)
-                            .font(choice.font(size: 14, weight: .heavy))
+                        Text(template.label)
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
                             .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                Capsule()
                                     .fill(
-                                        stickerDebugSettings.fontChoice == choice
-                                            ? artworkStyle.accentColor.opacity(0.22)
+                                        selectedTemplate == template
+                                            ? artworkStyle.accentColor.opacity(0.24)
                                             : Color.white.opacity(0.06)
                                     )
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                Capsule()
                                     .stroke(
-                                        stickerDebugSettings.fontChoice == choice
-                                            ? artworkStyle.accentColor.opacity(0.34)
+                                        selectedTemplate == template
+                                            ? artworkStyle.accentColor.opacity(0.42)
                                             : Color.white.opacity(0.08),
                                         lineWidth: 1
                                     )
@@ -564,49 +881,251 @@ struct RunShareComposerView: View {
         .background(editorPanelBackground(cornerRadius: 20))
     }
 
-    private func includedDataPanel(availableWidth: CGFloat) -> some View {
-        let minimumWidth = availableWidth > 520 ? 104.0 : 80.0
+    private var advancedSettingsPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("고급")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
 
-        return VStack(alignment: .leading, spacing: 10) {
+            if selectedTemplatePolicy.supportsFontDebug {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("폰트 크기")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.88))
+                        Spacer()
+                        Text("\(Int(selectedAdvancedStyle.fontScale * 100))%")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .monospacedDigit()
+                    }
+
+                    Slider(
+                        value: Binding(
+                            get: { selectedAdvancedStyle.fontScale },
+                            set: { value in
+                                updateCurrentTemplateStyle { $0.fontScale = value }
+                            }
+                        ),
+                        in: selectedTemplateLayout.fontScaleRange
+                    )
+                    .tint(artworkStyle.accentColor)
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 66), spacing: 8)], spacing: 8) {
+                        ForEach(RunShareFontChoice.allCases) { choice in
+                            Button {
+                                updateCurrentTemplateStyle { $0.fontChoice = choice }
+                            } label: {
+                                Text(choice.label)
+                                    .font(choice.font(size: 13, weight: .heavy))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 9)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(
+                                                selectedAdvancedStyle.fontChoice == choice
+                                                    ? artworkStyle.accentColor.opacity(0.22)
+                                                    : Color.white.opacity(0.06)
+                                            )
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(
+                                                selectedAdvancedStyle.fontChoice == choice
+                                                    ? artworkStyle.accentColor.opacity(0.34)
+                                                    : Color.white.opacity(0.08),
+                                                lineWidth: 1
+                                            )
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+
+            if selectedTemplatePolicy.supportsColorDebug {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("강조 색상")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.88))
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 54), spacing: 10)], spacing: 10) {
+                        ForEach(RunShareAccentPreset.allCases) { preset in
+                            Button {
+                                updateCurrentTemplateStyle { $0.accentColorSource = .preset(preset) }
+                            } label: {
+                                Circle()
+                                    .fill(preset.accent.color)
+                                    .frame(width: 36, height: 36)
+                                    .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 1))
+                                    .overlay(
+                                        Circle()
+                                            .stroke(
+                                                {
+                                                    if case .preset(let current) = selectedAdvancedStyle.accentColorSource {
+                                                        return current == preset ? artworkStyle.accentColor : .clear
+                                                    }
+                                                    return .clear
+                                                }(),
+                                                lineWidth: 3
+                                            )
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        VStack(spacing: 4) {
+                            ColorPicker(
+                                "",
+                                selection: Binding(
+                                    get: { selectedAdvancedStyle.accentColorSource.accent.color },
+                                    set: { newValue in
+                                        updateCurrentTemplateStyle { $0.accentColorSource = .custom(RunShareRGBA(color: newValue)) }
+                                    }
+                                ),
+                                supportsOpacity: false
+                            )
+                            .labelsHidden()
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 1))
+                            .overlay(
+                                Circle()
+                                    .stroke(
+                                        {
+                                            if case .custom = selectedAdvancedStyle.accentColorSource {
+                                                return artworkStyle.accentColor
+                                            }
+                                            return .clear
+                                        }(),
+                                        lineWidth: 3
+                                    )
+                            )
+
+                            Text("직접")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.72))
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+
+            Button("현재 템플릿 초기화") {
+                templateStyles[selectedTemplate] = RunShareAdvancedStyle.defaultStyle(for: selectedTemplate)
+            }
+            .font(.caption.weight(.bold))
+            .foregroundStyle(artworkStyle.accentColor)
+        }
+        .padding(12)
+        .background(editorPanelBackground(cornerRadius: 20))
+    }
+
+    private func includedDataPanel(availableWidth: CGFloat) -> some View {
+        let minimumWidth = availableWidth > 520 ? 108.0 : 84.0
+
+        return VStack(alignment: .leading, spacing: 12) {
             Text("포함 데이터")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumWidth), spacing: 8)], spacing: 8) {
-                ForEach(availableFields) { field in
-                    Button {
-                        toggleField(field)
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: field.systemImage)
-                                .font(.caption.weight(.semibold))
-                            Text(field.label)
-                                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("기본 정보")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumWidth), spacing: 8)], spacing: 8) {
+                    ForEach(availableBasicInfoFields) { field in
+                        let locked = (field == .route && selectedTemplatePolicy.routeRequired)
+                        Button {
+                            toggleField(field)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: locked ? "lock.fill" : field.systemImage)
+                                    .font(.caption.weight(.semibold))
+                                Text(field.label)
+                                    .lineLimit(1)
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .padding(.horizontal, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(
+                                        effectiveFields.contains(field)
+                                            ? artworkStyle.accentColor.opacity(0.22)
+                                            : Color.white.opacity(0.06)
+                                    )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(
+                                        effectiveFields.contains(field)
+                                            ? artworkStyle.accentColor.opacity(0.34)
+                                            : Color.white.opacity(0.08),
+                                        lineWidth: 1
+                                    )
+                            )
+                            .opacity(locked ? 0.88 : 1)
                         }
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .padding(.horizontal, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(
-                                    effectiveFields.contains(field)
-                                        ? runOnlyShareAccent.opacity(0.22)
-                                        : Color.white.opacity(0.06)
-                                )
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(
-                                    effectiveFields.contains(field)
-                                        ? runOnlyShareAccent.opacity(0.34)
-                                        : Color.white.opacity(0.08),
-                                    lineWidth: 1
-                                )
-                        )
+                        .buttonStyle(.plain)
+                        .disabled(locked)
                     }
-                    .buttonStyle(.plain)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("운동 지표")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                    Spacer()
+                    Text(metricSelectionCountLabel)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .monospacedDigit()
+                }
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumWidth), spacing: 8)], spacing: 8) {
+                    ForEach(availableMetricFields) { field in
+                        Button {
+                            toggleField(field)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: field.systemImage)
+                                    .font(.caption.weight(.semibold))
+                                Text(field.label)
+                                    .lineLimit(1)
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .padding(.horizontal, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(
+                                        selectedMetricFields.contains(field)
+                                            ? artworkStyle.accentColor.opacity(0.22)
+                                            : Color.white.opacity(0.06)
+                                    )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(
+                                        selectedMetricFields.contains(field)
+                                            ? artworkStyle.accentColor.opacity(0.34)
+                                            : Color.white.opacity(0.08),
+                                        lineWidth: 1
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
@@ -654,22 +1173,26 @@ struct RunShareComposerView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)
                         Spacer()
-                        Text("\(Int(stickerPlacement.scale * 100))%")
+                        Text("\(Int(selectedStickerPlacement.scale * 100))%")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.white.opacity(0.5))
                     }
 
                     Slider(
                         value: Binding(
-                            get: { stickerPlacement.scale },
-                            set: { stickerPlacement.scale = $0 }
+                            get: { selectedStickerPlacementBinding.wrappedValue.scale },
+                            set: { newScale in
+                                var updated = selectedStickerPlacementBinding.wrappedValue
+                                updated.scale = newScale
+                                selectedStickerPlacementBinding.wrappedValue = updated
+                            }
                         ),
                         in: 0.55...1.7
                     )
                     .tint(artworkStyle.accentColor)
 
                     Button("위치/크기 초기화") {
-                        stickerPlacement = RunShareStickerPlacement()
+                        resetPlacement(for: selectedTemplate)
                     }
                     .font(.caption.weight(.bold))
                     .foregroundStyle(runOnlyShareAccent)
@@ -679,7 +1202,7 @@ struct RunShareComposerView: View {
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.62))
             } else {
-                Text("배경 사진을 고르면 그 위에 스티커를 바로 올려 보고 저장하거나 공유할 수 있습니다.")
+                Text("배경 사진은 선택 사항입니다. 고르면 그 위에 스티커를 올려 보고 저장하거나 공유할 수 있습니다.")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.62))
             }
@@ -698,9 +1221,31 @@ struct RunShareComposerView: View {
         .background(editorPanelBackground(cornerRadius: 24))
     }
 
+    private var shareActionGuidePanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("내보내기 방법")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Text("• 저장: 사진 앱에 PNG를 저장하며, 이때만 사진 권한을 요청합니다.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.7))
+
+            Text("• 복사: PNG를 클립보드에 복사해 메신저나 노트에 바로 붙여넣을 수 있습니다.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.7))
+
+            Text("• 공유: 시스템 공유 시트로 다른 앱에 보냅니다.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.7))
+        }
+        .padding(16)
+        .background(editorPanelBackground(cornerRadius: 24))
+    }
+
     @ViewBuilder
     private var footerPanel: some View {
-        if exportStatusMessage != nil || exportErrorMessage != nil || selectedTemplate == .sticker {
+        if exportStatusMessage != nil || exportErrorMessage != nil || selectedTemplate.isTransparentStickerTemplate {
             VStack(alignment: .leading, spacing: 8) {
                 if let exportStatusMessage {
                     Text(exportStatusMessage)
@@ -714,7 +1259,7 @@ struct RunShareComposerView: View {
                         .foregroundStyle(.orange)
                 }
 
-                if selectedTemplate == .sticker {
+                if selectedTemplate.isTransparentStickerTemplate {
                     Text("투명 스티커는 앱마다 alpha 처리 방식이 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다.")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.58))
@@ -783,7 +1328,7 @@ struct RunShareComposerView: View {
             let authorizationStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
             guard authorizationStatus == .authorized || authorizationStatus == .limited else {
                 exportStatusMessage = nil
-                exportErrorMessage = L10n.tr("사진 앱 저장 권한이 필요합니다.")
+                exportErrorMessage = L10n.tr("사진 앱 저장 권한이 필요합니다. 저장 대신 복사나 공유는 바로 사용할 수 있습니다.")
                 return
             }
 
@@ -826,7 +1371,7 @@ struct RunShareComposerView: View {
         case .logo:
             return true
         case .route:
-            return !detail.route.isEmpty
+            return true
         case .heartRate:
             return averageHeartRateText != nil
         case .cadence:
@@ -854,7 +1399,7 @@ struct RunShareComposerView: View {
 
     @ViewBuilder
     private func shareCanvasView(canvasSize: CGSize, interactive: Bool) -> some View {
-        if selectedTemplate == .sticker, let backgroundPhotoImage {
+        if selectedTemplate.isTransparentStickerTemplate, let backgroundPhotoImage {
             RunSharePhotoCompositeView(
                 run: run,
                 detail: detail,
@@ -862,15 +1407,16 @@ struct RunShareComposerView: View {
                 enabledFields: effectiveFields,
                 summary: summary,
                 style: artworkStyle,
+                layoutSpec: selectedTemplateLayout,
                 backgroundImage: interactive ? (backgroundPreviewPhotoImage ?? backgroundPhotoImage) : backgroundPhotoImage,
                 stickerPreviewImage: interactive ? previewStickerImage : nil,
-                stickerPlacement: $stickerPlacement,
+                stickerPlacement: selectedStickerPlacementBinding,
                 interactive: interactive
             )
             .frame(width: canvasSize.width, height: canvasSize.height)
         } else {
             ZStack {
-                if selectedTemplate == .sticker, interactive {
+                if selectedTemplate.isTransparentStickerTemplate, interactive {
                     TransparentPreviewBackground()
                 }
 
@@ -914,7 +1460,7 @@ struct RunShareComposerView: View {
 
             backgroundPhotoImage = image
             backgroundPreviewPhotoImage = resizedImage(image, maxDimension: 1400)
-            stickerPlacement = RunShareStickerPlacement()
+            resetPlacement(for: selectedTemplate)
         } catch {
             backgroundPhotoErrorMessage = L10n.tr("사진을 불러오지 못했습니다.")
         }
@@ -929,7 +1475,9 @@ struct RunShareComposerView: View {
         backgroundPhotoErrorMessage = nil
         previewStickerImage = nil
         selectedBackgroundPhotoItem = nil
-        stickerPlacement = RunShareStickerPlacement()
+        RunShareTemplate.allCases.forEach { template in
+            resetPlacement(for: template)
+        }
     }
 
     private func fittedSize(for original: CGSize, maxWidth: CGFloat, maxHeight: CGFloat) -> CGSize {
@@ -946,7 +1494,7 @@ struct RunShareComposerView: View {
 
     @MainActor
     private func refreshPreviewStickerImageIfNeeded() {
-        guard selectedTemplate == .sticker, backgroundPhotoImage != nil else {
+        guard selectedTemplate.isTransparentStickerTemplate, backgroundPhotoImage != nil else {
             previewStickerImage = nil
             return
         }
@@ -1057,8 +1605,8 @@ private struct RunShareArtworkView: View {
         switch template {
         case .sticker:
             return 315
-        case .square:
-            return 315
+        case .style1:
+            return 160
         }
     }
 
@@ -1070,8 +1618,8 @@ private struct RunShareArtworkView: View {
         switch template {
         case .sticker:
             return 24
-        case .square:
-            return 40
+        case .style1:
+            return 20
         }
     }
 
@@ -1079,8 +1627,8 @@ private struct RunShareArtworkView: View {
         switch template {
         case .sticker:
             return 18
-        case .square:
-            return 20
+        case .style1:
+            return 16
         }
     }
 
@@ -1088,31 +1636,31 @@ private struct RunShareArtworkView: View {
         472
     }
 
-    private var squareContentPadding: CGFloat {
-        36
-    }
+    private var styleOneMetrics: [RunShareMetric] {
+        let ordered = runShareMetricPriority.filter {
+            [.distance, .duration, .pace].contains($0) && enabledFields.contains($0)
+        }
 
-    private var squareRouteCardSize: CGSize {
-        isDenseSquareLayout ? CGSize(width: 420, height: 420) : CGSize(width: 460, height: 460)
-    }
+        let mapped = ordered.map { field in
+            switch field {
+            case .distance:
+                return RunShareMetric(field: field, title: "Distance", value: run.distanceText)
+            case .duration:
+                return RunShareMetric(field: field, title: "Time", value: run.durationText)
+            case .pace:
+                return RunShareMetric(field: field, title: "Pace", value: run.paceText)
+            default:
+                return RunShareMetric(field: field, title: field.label, value: "")
+            }
+        }
 
-    private var squareMetricColumns: [GridItem] {
-        [
-            GridItem(.flexible(), spacing: 16, alignment: .leading),
-            GridItem(.flexible(), spacing: 16, alignment: .leading)
-        ]
-    }
+        if mapped.isEmpty {
+            return [
+                RunShareMetric(field: .distance, title: "Distance", value: run.distanceText)
+            ]
+        }
 
-    private var squarePrimaryMetric: RunShareMetric? {
-        metrics.first
-    }
-
-    private var squareSecondaryMetrics: [RunShareMetric] {
-        Array(metrics.dropFirst())
-    }
-
-    private var isDenseSquareLayout: Bool {
-        squareSecondaryMetrics.count >= 5
+        return Array(mapped.prefix(2))
     }
 
     var body: some View {
@@ -1120,8 +1668,8 @@ private struct RunShareArtworkView: View {
             switch template {
             case .sticker:
                 stickerLayout
-            case .square:
-                squareLayout
+            case .style1:
+                styleOneLayout
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1147,47 +1695,6 @@ private struct RunShareArtworkView: View {
                     Spacer()
                 }
             }
-        }
-    }
-
-    private var squareLayout: some View {
-        ZStack(alignment: .topLeading) {
-            RunShareTemplateBackground(template: template, style: style)
-                .clipShape(
-                    RoundedRectangle(cornerRadius: template.cornerRadius, style: .continuous)
-                )
-
-            VStack(alignment: .leading, spacing: 18) {
-                if enabledFields.contains(.route) {
-                    HStack(alignment: .top, spacing: 18) {
-                        squareIntroColumn(expandsTo: squareRouteCardSize.height)
-
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                                .fill(Color.white.opacity(0.04))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 34, style: .continuous)
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                                )
-
-                            RunShareRouteCanvas(route: detail.route, style: style)
-                                .padding(26)
-                        }
-                        .frame(width: squareRouteCardSize.width, height: squareRouteCardSize.height)
-                    }
-                } else {
-                    squareIntroColumn()
-                }
-
-                if !squareSecondaryMetrics.isEmpty {
-                    LazyVGrid(columns: squareMetricColumns, alignment: .leading, spacing: 16) {
-                        ForEach(squareSecondaryMetrics) { metric in
-                            RunShareSquareMetricCard(metric: metric, style: style, dense: isDenseSquareLayout)
-                        }
-                    }
-                }
-            }
-            .padding(squareContentPadding)
         }
     }
 
@@ -1228,27 +1735,45 @@ private struct RunShareArtworkView: View {
         .padding(contentPadding)
     }
 
-    private func squareIntroColumn(expandsTo height: CGFloat? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            header
+    private var styleOneLayout: some View {
+        let singleMetricMode = styleOneMetrics.count == 1
 
-            if !metaPills.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(metaPills, id: \.self) { item in
-                        RunShareMetaCapsule(text: item, style: style)
+        return VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 20) {
+                if singleMetricMode, let first = styleOneMetrics.first {
+                    StyleOneMetricRow(metric: first, style: style, centered: true)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    HStack(alignment: .top, spacing: 18) {
+                        ForEach(styleOneMetrics) { metric in
+                            StyleOneMetricRow(metric: metric, style: style, centered: false)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if enabledFields.contains(.route) {
+                    StyleOneRouteCanvas(route: detail.route, style: style)
+                        .frame(width: 292, height: 172)
                 }
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color.black.opacity(0.46))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color.white.opacity(0.13), lineWidth: 0.9)
+                    )
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 6)
 
-            if height != nil {
-                Spacer(minLength: 0)
-            }
-
-            if let squarePrimaryMetric {
-                RunShareSquarePrimaryMetricCard(metric: squarePrimaryMetric, style: style, dense: isDenseSquareLayout)
-            }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, minHeight: height ?? 0, alignment: .topLeading)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
     }
 
     private var metaPills: [String] {
@@ -1291,14 +1816,14 @@ private struct RunShareTemplateBackground: View {
             )
 
             Circle()
-                .fill(style.accentColor.opacity(template == .square ? 0.22 : 0.14))
-                .frame(width: template == .square ? 460 : 320)
+                .fill(style.accentColor.opacity(0.16))
+                .frame(width: 340)
                 .blur(radius: 24)
                 .offset(x: 180, y: -220)
 
             Circle()
-                .fill(Color.white.opacity(template == .square ? 0.1 : 0.08))
-                .frame(width: template == .square ? 320 : 260)
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 280)
                 .blur(radius: 18)
                 .offset(x: -160, y: 260)
         }
@@ -1312,6 +1837,7 @@ private struct RunSharePhotoCompositeView: View {
     let enabledFields: Set<RunShareField>
     let summary: RunSummaryMetrics?
     let style: RunShareArtworkStyle
+    let layoutSpec: RunShareTemplateLayoutSpec
     let backgroundImage: UIImage
     let stickerPreviewImage: UIImage?
     @Binding var stickerPlacement: RunShareStickerPlacement
@@ -1341,7 +1867,11 @@ private struct RunSharePhotoCompositeView: View {
                         x: livePlacement.centerX * geometry.size.width,
                         y: livePlacement.centerY * geometry.size.height
                     )
-                    .shadow(color: .black.opacity(0.24), radius: 24, y: 12)
+                    .shadow(
+                        color: .black.opacity(template == .style1 ? 0.18 : 0.24),
+                        radius: template == .style1 ? 12 : 24,
+                        y: template == .style1 ? 4 : 12
+                    )
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture()
@@ -1385,7 +1915,10 @@ private struct RunSharePhotoCompositeView: View {
 
     private func stickerCanvasSize(in canvasSize: CGSize) -> CGSize {
         let aspectRatio = template.canvasSize.height / max(template.canvasSize.width, 1)
-        let baseWidth = min(canvasSize.width * 0.46, canvasSize.height * 0.58)
+        let baseWidth = min(
+            canvasSize.width * layoutSpec.photoBaseWidthRatio,
+            canvasSize.height * layoutSpec.photoBaseHeightRatio
+        )
         let width = max(baseWidth * stickerPlacement.scale, 120)
         return CGSize(width: width, height: width * aspectRatio)
     }
@@ -1503,6 +2036,69 @@ private struct RouteProjection {
     }
 }
 
+private struct StyleOneMetricRow: View {
+    let metric: RunShareMetric
+    let style: RunShareArtworkStyle
+    let centered: Bool
+
+    var body: some View {
+        VStack(alignment: centered ? .center : .leading, spacing: 2) {
+            Text(metric.title)
+                .font(style.fontChoice.font(size: style.scaled(21), weight: .semibold))
+                .foregroundStyle(style.accentColor.opacity(0.78))
+                .tracking(0.15)
+                .lineLimit(1)
+
+            Text(metric.value)
+                .font(style.fontChoice.font(size: style.scaled(64), weight: .heavy))
+                .italic()
+                .foregroundStyle(style.accentColor.opacity(0.98))
+                .monospacedDigit()
+                .minimumScaleFactor(0.65)
+                .lineLimit(1)
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+        }
+        .frame(minWidth: centered ? 220 : 180, maxWidth: .infinity, alignment: centered ? .center : .leading)
+    }
+}
+
+private struct StyleOneRouteCanvas: View {
+    let route: [RunRoutePoint]
+    let style: RunShareArtworkStyle
+
+    var body: some View {
+        GeometryReader { geometry in
+            let projection = RouteProjection(route: route, size: geometry.size, padding: 12)
+
+            ZStack {
+                if let projection {
+                    Path { path in
+                        guard let first = projection.points.first else { return }
+                        path.move(to: first)
+                        for point in projection.points.dropFirst() {
+                            path.addLine(to: point)
+                        }
+                    }
+                    .stroke(
+                        style.accentColor.opacity(0.92),
+                        style: StrokeStyle(lineWidth: 3.4, lineCap: .round, lineJoin: .round)
+                    )
+                    .shadow(color: style.accentShadowColor.opacity(0.34), radius: 4, y: 1)
+                } else {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white.opacity(0.06))
+                        .overlay(
+                            Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.42))
+                        )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
 private struct RunShareMetricTile: View {
     let metric: RunShareMetric
     let template: RunShareTemplate
@@ -1513,8 +2109,8 @@ private struct RunShareMetricTile: View {
         switch template {
         case .sticker:
             return 64
-        case .square:
-            return 38
+        case .style1:
+            return 56
         }
     }
 
@@ -1522,8 +2118,8 @@ private struct RunShareMetricTile: View {
         switch template {
         case .sticker:
             return 24
-        case .square:
-            return 18
+        case .style1:
+            return 22
         }
     }
 
@@ -1543,72 +2139,6 @@ private struct RunShareMetricTile: View {
                 .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
         }
         .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
-    }
-}
-
-private struct RunShareSquarePrimaryMetricCard: View {
-    let metric: RunShareMetric
-    let style: RunShareArtworkStyle
-    let dense: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(metric.title)
-                .font(style.fontChoice.font(size: style.scaled(22), weight: .bold))
-                .foregroundStyle(.white.opacity(0.72))
-                .tracking(0.3)
-
-            Text(metric.value)
-                .font(style.fontChoice.font(size: style.scaled(dense ? 82 : 92), weight: .heavy))
-                .foregroundStyle(.white)
-                .monospacedDigit()
-                .minimumScaleFactor(0.42)
-                .lineLimit(1)
-                .shadow(color: .black.opacity(0.28), radius: 10, y: 4)
-        }
-        .frame(maxWidth: .infinity, minHeight: dense ? 220 : 250, alignment: .leading)
-        .padding(28)
-        .background(
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .fill(Color.white.opacity(0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 34, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
-    }
-}
-
-private struct RunShareSquareMetricCard: View {
-    let metric: RunShareMetric
-    let style: RunShareArtworkStyle
-    let dense: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(metric.title)
-                .font(style.fontChoice.font(size: style.scaled(18), weight: .bold))
-                .foregroundStyle(.white.opacity(0.72))
-                .tracking(0.2)
-
-            Text(metric.value)
-                .font(style.fontChoice.font(size: style.scaled(dense ? 34 : 38), weight: .heavy))
-                .foregroundStyle(.white)
-                .monospacedDigit()
-                .minimumScaleFactor(0.42)
-                .lineLimit(1)
-                .shadow(color: .black.opacity(0.24), radius: 6, y: 2)
-        }
-        .frame(maxWidth: .infinity, minHeight: dense ? 132 : 148, alignment: .leading)
-        .padding(dense ? 20 : 22)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
     }
 }
 
