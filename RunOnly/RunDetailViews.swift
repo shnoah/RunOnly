@@ -1737,22 +1737,22 @@ struct PredictionMethodView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("현재 예측 기록은 최근 120일 러닝 중 1km 이상 기록들을 기준으로 계산합니다.")
-                    Text("각 러닝에 Riegel 공식을 적용합니다.")
-                    Text("공식: 예측시간 = 기록시간 × (목표거리 / 기록거리)^1.06")
-                    Text("5K, 10K, 하프, 풀 각각에 대해 계산한 뒤 가장 빠른 예측값을 보여줍니다.")
-                    Text("정확한 레이스 예측이라기보다, 최근 러닝 폼을 빠르게 보는 참고값으로 보는 편이 맞습니다.")
+                    Text(L10n.tr("현재 예측 기록은 최근 120일 안에서 목표 거리와 충분히 가까운 러닝만 골라 계산합니다."))
+                    Text(L10n.tr("각 러닝에 Riegel 공식을 적용한 뒤, 너무 낙관적인 한 번의 기록 대신 상위 후보들의 중앙값에 가까운 값을 사용합니다."))
+                    Text(L10n.tr("공식: 예측시간 = 기록시간 × (목표거리 / 기록거리)^1.06"))
+                    Text(PredictionModel.eligibilitySummaryText)
+                    Text(L10n.tr("정확한 레이스 예측이라기보다, 최근 러닝 폼을 빠르게 보는 참고값으로 보는 편이 맞습니다."))
                 }
                 .font(.body)
                 .foregroundStyle(.white.opacity(0.82))
                 .padding(20)
             }
             .background(AppBackground())
-            .navigationTitle("예측 방식")
+            .navigationTitle(L10n.tr("예측 방식"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") {
+                    Button(L10n.tr("닫기")) {
                         dismiss()
                     }
                 }

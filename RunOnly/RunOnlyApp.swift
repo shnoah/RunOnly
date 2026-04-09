@@ -6,7 +6,6 @@ enum AppMetadata {
     static let supportEmail = "shnoah@gmail.com"
     static let repositoryURL = URL(string: "https://github.com/shnoah/RunOnly")!
     static let privacyPolicyURL = URL(string: "https://github.com/shnoah/RunOnly/blob/main/APP_STORE/PRIVACY_POLICY.md")!
-    static let reviewNotesURL = URL(string: "https://github.com/shnoah/RunOnly/blob/main/APP_STORE/REVIEW_NOTES.md")!
 
     static var healthPermissionSettingsPath: String {
         L10n.tr("설정 > 건강 > 데이터 접근 및 기기 > RunOnly")
@@ -35,13 +34,12 @@ enum AppMetadata {
             L10n.tr("심박"),
             L10n.tr("안정시 심박"),
             L10n.tr("VO2 Max"),
-            L10n.tr("거리 및 걸음 수"),
-            L10n.tr("러닝 파워 / 속도 / 보폭 / 수직진폭 / 지면접촉시간")
+            L10n.tr("거리 및 걸음 수")
         ]
     }
 
     static var healthUsageSummary: String {
-        L10n.tr("러닝 workout, 경로, 심박, VO2 Max 같은 HealthKit 데이터를 iPhone 안에서 보기 쉽게 정리합니다.")
+        L10n.tr("Apple 건강의 러닝 기록, 경로, 심박, VO2 Max 같은 데이터를 iPhone 안에서 보기 쉽게 정리합니다.")
     }
 
     static var onboardingFeatureHighlights: [String] {
@@ -53,7 +51,7 @@ enum AppMetadata {
 
     static var privacyStorageHighlights: [String] {
         [
-            L10n.tr("• HealthKit에서 읽은 원본 러닝 데이터는 앱 서버로 복제하지 않습니다."),
+            L10n.tr("• Apple 건강에서 읽은 원본 러닝 데이터는 앱 서버로 복제하지 않습니다."),
             L10n.tr("• 평균 심박, 평균 케이던스, 상승 고도 같은 파생 요약값만 기기 내부 저장소에 캐시합니다."),
             L10n.tr("• 로컬 보조 데이터는 자동 iCloud/Finder 백업 대상에서 제외됩니다."),
             L10n.tr("• 현재 서버 업로드, 광고 추적, 외부 분석 SDK는 없습니다.")
@@ -62,7 +60,7 @@ enum AppMetadata {
 
     static var nonMedicalNoticeLines: [String] {
         [
-            L10n.tr("VO2 Max, 예상 기록, 훈련 추세는 참고용 추정치이며 실제 경기력과 다를 수 있습니다."),
+            L10n.tr("VO2 Max, 예상 기록, 러닝 준비도는 참고용 추정치이며 실제 경기력과 다를 수 있습니다."),
             L10n.tr("이 앱은 러닝 기록을 보기 쉽게 정리하는 용도이며, 의료적 판단이나 진단을 위한 앱이 아닙니다.")
         ]
     }
@@ -75,7 +73,7 @@ enum AppMetadata {
         [
             L10n.tr("• 거리, 시간, 평균 페이스, 심박, 케이던스, 상승 고도를 한눈에 정리합니다."),
             L10n.tr("• 경로, 차트, 스플릿, PR, 신발 기록을 러너 기준으로 다시 묶어 보여줍니다."),
-            L10n.tr("VO2 Max, 예상 기록, 훈련 추세는 참고용 추정치이며 실제 경기력과 다를 수 있습니다.")
+            L10n.tr("VO2 Max, 예상 기록, 러닝 준비도는 참고용 추정치이며 실제 경기력과 다를 수 있습니다.")
         ]
     }
 }

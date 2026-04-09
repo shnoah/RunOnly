@@ -4,12 +4,13 @@ import HealthKit
 // HealthKit workout을 앱 UI에서 쓰기 쉬운 형태로 감싼 모델이다.
 struct RunningWorkout: Identifiable {
     let id: UUID
-    let workout: HKWorkout
+    let workout: HKWorkout?
     let startDate: Date
     let duration: TimeInterval
     let distanceInMeters: Double
     let sourceName: String
     let sourceBundleIdentifier: String
+    private let indoorWorkoutOverride: Bool?
 
     init(workout: HKWorkout) {
         id = workout.uuid
@@ -19,6 +20,7 @@ struct RunningWorkout: Identifiable {
         distanceInMeters = workout.totalDistance?.doubleValue(for: .meter()) ?? 0
         sourceName = workout.sourceRevision.source.name
         sourceBundleIdentifier = workout.sourceRevision.source.bundleIdentifier
+        indoorWorkoutOverride = nil
     }
 
     init(
@@ -30,29 +32,14 @@ struct RunningWorkout: Identifiable {
         sourceBundleIdentifier: String,
         isIndoorWorkout: Bool?
     ) {
-        let endDate = startDate.addingTimeInterval(duration)
-        var metadata: [String: Any] = [:]
-        if let isIndoorWorkout {
-            metadata[HKMetadataKeyIndoorWorkout] = NSNumber(value: isIndoorWorkout)
-        }
-
-        let workout = HKWorkout(
-            activityType: .running,
-            start: startDate,
-            end: endDate,
-            duration: duration,
-            totalEnergyBurned: nil,
-            totalDistance: HKQuantity(unit: .meter(), doubleValue: distanceInMeters),
-            metadata: metadata.isEmpty ? nil : metadata
-        )
-
         self.id = id
-        self.workout = workout
+        self.workout = nil
         self.startDate = startDate
         self.duration = duration
         self.distanceInMeters = distanceInMeters
         self.sourceName = sourceName
         self.sourceBundleIdentifier = sourceBundleIdentifier
+        self.indoorWorkoutOverride = isIndoorWorkout
     }
 
     var distanceText: String {
@@ -80,10 +67,10 @@ struct RunningWorkout: Identifiable {
     }
 
     var isIndoorWorkout: Bool? {
-        guard let value = workout.metadata?[HKMetadataKeyIndoorWorkout] as? NSNumber else {
-            return nil
+        if let workout, let value = workout.metadata?[HKMetadataKeyIndoorWorkout] as? NSNumber {
+            return value.boolValue
         }
-        return value.boolValue
+        return indoorWorkoutOverride
     }
 
     var environmentText: String {
@@ -156,6 +143,67 @@ struct RunningWorkout: Identifiable {
         sourceBundleIdentifier: "com.shnoah.RunOnly.demo",
         isIndoorWorkout: false
     )
+}
+
+enum PredictionModel {
+    static let lookbackDays = 120
+
+    static func predictedSeconds(
+        for targetDistance: Double,
+        from runs: [RunningWorkout],
+        referenceDate: Date = Date()
+    ) -> Double? {
+        let calendar = Calendar.current
+        let windowStart = calendar.date(byAdding: .day, value: -lookbackDays, to: referenceDate) ?? .distantPast
+        let windowRuns = runs.filter {
+            $0.startDate >= windowStart &&
+            $0.startDate <= referenceDate &&
+            $0.distanceInMeters >= minimumEligibleDistance(for: targetDistance)
+        }
+
+        guard !windowRuns.isEmpty else {
+            return nil
+        }
+
+        let projected = windowRuns
+            .map { projectedSeconds(for: $0, targetDistance: targetDistance) }
+            .sorted()
+        let sampleCount = min(projected.count, 3)
+        return median(Array(projected.prefix(sampleCount)))
+    }
+
+    static var eligibilitySummaryText: String {
+        L10n.tr("5K는 3km, 10K는 5km, 하프는 8km, 풀은 10km 이상 러닝만 반영합니다.")
+    }
+
+    private static func projectedSeconds(for run: RunningWorkout, targetDistance: Double) -> Double {
+        run.duration * pow(targetDistance / run.distanceInMeters, 1.06)
+    }
+
+    private static func minimumEligibleDistance(for targetDistance: Double) -> Double {
+        switch targetDistance {
+        case ..<7_500:
+            return 3_000
+        case ..<15_000:
+            return 5_000
+        case ..<30_000:
+            return 8_000
+        default:
+            return 10_000
+        }
+    }
+
+    private static func median(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let sorted = values.sorted()
+        let middle = sorted.count / 2
+
+        if sorted.count.isMultiple(of: 2) {
+            return (sorted[middle - 1] + sorted[middle]) / 2
+        }
+
+        return sorted[middle]
+    }
 }
 
 // 홈 대시보드에 표시할 핵심 요약 수치 묶음이다.

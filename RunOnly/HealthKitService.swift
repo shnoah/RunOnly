@@ -5,11 +5,14 @@ import CoreLocation
 // HealthKit을 사용할 수 없는 기기에서 보여줄 공통 오류다.
 enum HealthKitServiceError: Equatable, LocalizedError {
     case notAvailable
+    case missingWorkoutReference
 
     var errorDescription: String? {
         switch self {
         case .notAvailable:
-            return L10n.tr("이 기기에서는 HealthKit을 사용할 수 없습니다.")
+            return L10n.tr("이 기기에서는 Apple 건강 데이터를 사용할 수 없습니다.")
+        case .missingWorkoutReference:
+            return L10n.tr("이 러닝의 원본 운동 데이터를 찾을 수 없습니다.")
         }
     }
 }
@@ -18,7 +21,7 @@ enum HealthKitServiceError: Equatable, LocalizedError {
 final class HealthKitService {
     private let healthStore = HKHealthStore()
 
-    // 앱이 실제로 사용하는 모든 읽기 권한을 한 번에 요청한다.
+    // 홈/상세 화면에서 실제로 사용하는 읽기 권한만 요청한다.
     func requestReadAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else {
             throw HealthKitServiceError.notAvailable
@@ -30,11 +33,6 @@ final class HealthKitService {
         let restingHeartRateType = HKObjectType.quantityType(forIdentifier: .restingHeartRate)
         let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)
         let stepCountType = HKObjectType.quantityType(forIdentifier: .stepCount)
-        let runningPowerType = HKObjectType.quantityType(forIdentifier: .runningPower)
-        let runningSpeedType = HKObjectType.quantityType(forIdentifier: .runningSpeed)
-        let strideLengthType = HKObjectType.quantityType(forIdentifier: .runningStrideLength)
-        let verticalOscillationType = HKObjectType.quantityType(forIdentifier: .runningVerticalOscillation)
-        let groundContactTimeType = HKObjectType.quantityType(forIdentifier: .runningGroundContactTime)
         let workoutRouteType = HKSeriesType.workoutRoute()
 
         var readTypes: Set<HKObjectType> = [workoutType, workoutRouteType]
@@ -52,21 +50,6 @@ final class HealthKitService {
         }
         if let stepCountType {
             readTypes.insert(stepCountType)
-        }
-        if let runningPowerType {
-            readTypes.insert(runningPowerType)
-        }
-        if let runningSpeedType {
-            readTypes.insert(runningSpeedType)
-        }
-        if let strideLengthType {
-            readTypes.insert(strideLengthType)
-        }
-        if let verticalOscillationType {
-            readTypes.insert(verticalOscillationType)
-        }
-        if let groundContactTimeType {
-            readTypes.insert(groundContactTimeType)
         }
 
         try await healthStore.requestAuthorization(toShare: [], read: readTypes)
@@ -244,13 +227,17 @@ final class HealthKitService {
 
     // 상세 화면 첫 진입에서는 핵심 차트와 스플릿에 필요한 데이터만 우선 읽는다.
     func fetchRunDetail(for runningWorkout: RunningWorkout) async throws -> RunDetail {
-        async let heartRateTask = fetchHeartRates(for: runningWorkout.workout)
-        async let distanceTask = fetchDistanceSamples(for: runningWorkout.workout)
-        async let stepCountTask = fetchStepCountSamples(for: runningWorkout.workout)
+        guard let workout = runningWorkout.workout else {
+            throw HealthKitServiceError.missingWorkoutReference
+        }
 
-        let activeIntervals = buildActiveIntervals(for: runningWorkout.workout)
+        async let heartRateTask = fetchHeartRates(for: workout)
+        async let distanceTask = fetchDistanceSamples(for: workout)
+        async let stepCountTask = fetchStepCountSamples(for: workout)
+
+        let activeIntervals = buildActiveIntervals(for: workout)
         let distanceSamples = try await distanceTask
-        let route = distanceSamples.isEmpty ? (try await fetchRoute(for: runningWorkout.workout)) : []
+        let route = distanceSamples.isEmpty ? (try await fetchRoute(for: workout)) : []
         let distanceTimeline = buildDistanceTimeline(
             from: distanceSamples,
             route: route,
@@ -298,7 +285,10 @@ final class HealthKitService {
 
     // 지도와 심박 존은 첫 화면이 뜬 뒤 보강 로딩할 수 있게 별도 진입점을 둔다.
     func fetchRunRoute(for runningWorkout: RunningWorkout) async throws -> [RunRoutePoint] {
-        try await fetchRoute(for: runningWorkout.workout)
+        guard let workout = runningWorkout.workout else {
+            throw HealthKitServiceError.missingWorkoutReference
+        }
+        return try await fetchRoute(for: workout)
     }
 
     func fetchRunHeartRateZoneProfile(

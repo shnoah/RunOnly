@@ -563,6 +563,28 @@
 
 ### 검증 메모
 - `swiftc -typecheck RunOnly/*.swift` 통과.
+
+## 2026-04-09 (출시 전 리뷰 반영 / 준비도 신뢰도 보정 / deprecated 경고 제거)
+
+### 출시 전 리뷰 반영
+- 홈 계산용 러닝 로드 범위를 올해 시작점만 보던 구조에서 최근 120일 창까지 포함하도록 조정해, 연초에도 준비도와 예측이 직전 연도 기록을 놓치지 않게 수정.
+- 온보딩에서 `Apple 건강 권한 허용하고 시작` 버튼이 실제 권한 요청을 먼저 수행하도록 흐름을 수정하고, 거부/실패 시 온보딩 안에서 바로 오류를 보여주게 정리.
+- 앱이 실제로 사용하지 않는 고급 러닝 메트릭 권한 요청을 제거해 최초 권한 팝업 부담을 줄임.
+
+### 예측/문구/출시 자료 정리
+- 예상 기록 계산을 `짧은 러닝 1회의 최소값` 기반에서 `거리별 최소 기준 + 상위 후보 중앙값` 기반으로 보수적으로 재조정.
+- `훈련 추세` 잔여 문구를 `러닝 준비도` 기준으로 정리하고, 영어 문자열과 Apple 건강 설명 문구를 현재 앱 동작에 맞게 보강.
+- 지원 화면에서 내부용 `앱 리뷰 노트 초안` 링크를 제거하고, README / 리뷰 노트 / 개인정보 처리 문서도 현재 기능 기준으로 갱신.
+
+### deprecated 경고 제거
+- 데모/프리뷰용 샘플 러닝이 deprecated `HKWorkout` initializer를 직접 만들던 구조를 제거.
+- `RunningWorkout`은 실제 HealthKit 러닝일 때만 원본 `HKWorkout`를 보관하고, 샘플 러닝은 필요한 표시용 값만 들고 있도록 분리.
+- 상세 데이터/경로 로딩은 원본 workout 참조가 없는 경우 명확한 오류로 빠지게 안전장치를 추가.
+
+### 검증 메모
+- `git diff --check` 통과.
+- `xcodebuild -project RunOnly.xcodeproj -scheme RunOnly -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath /tmp/RunOnly-codex-dd build` 통과.
+- deprecated `HKWorkout` initializer 경고 제거 확인. 남은 경고는 App Intents 메타데이터 추출 안내 1건뿐.
 - `xcodebuild`는 Swift 컴파일 단계까지 진행되며, 최종 실패는 기존과 동일한 asset catalog / simulator runtime 환경 문제.
 
 ## 2026-04-09 (상세 기록 상단 요약 압축 / 스플릿 누적 표기)

@@ -228,12 +228,14 @@ struct RecordTabView: View {
 
 struct HealthKitOnboardingView: View {
     let showsDismissButton: Bool
-    let onContinue: () -> Void
+    let onContinue: () async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var workoutsViewModel: RunningWorkoutsViewModel
     @EnvironmentObject private var shoeStore: ShoeStore
     @State private var showingSampleRun = false
+    @State private var isRequestingPermission = false
+    @State private var permissionErrorMessage: String?
 
     var body: some View {
         ScrollView {
@@ -244,7 +246,7 @@ struct HealthKitOnboardingView: View {
                         .foregroundStyle(.white.opacity(0.72))
                         .tracking(0.2)
 
-                    Text("HealthKit 연결 전에 확인할 점")
+                    Text(L10n.tr("Apple 건강 연결 전에 확인할 점"))
                         .font(.system(.largeTitle, design: .rounded).weight(.bold))
                         .foregroundStyle(.white)
 
@@ -287,7 +289,7 @@ struct HealthKitOnboardingView: View {
 
                 DetailSection(title: "바로 확인하기", systemImage: "play.rectangle.fill", tint: Color(red: 0.29, green: 0.88, blue: 0.63)) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("권한을 주기 전에 샘플 러닝으로 상세 차트와 공유 화면을 먼저 볼 수 있습니다.")
+                        Text(L10n.tr("권한을 주기 전에 샘플 러닝으로 상세 차트와 공유 화면을 먼저 볼 수 있습니다."))
                             .font(.footnote)
                             .foregroundStyle(.white.opacity(0.72))
 
@@ -302,12 +304,26 @@ struct HealthKitOnboardingView: View {
 
                 VStack(spacing: 12) {
                     Button {
-                        onContinue()
-                        if showsDismissButton {
-                            dismiss()
+                        guard !isRequestingPermission else { return }
+                        permissionErrorMessage = nil
+                        isRequestingPermission = true
+                        Task { @MainActor in
+                            do {
+                                try await onContinue()
+                                if showsDismissButton {
+                                    dismiss()
+                                }
+                            } catch {
+                                permissionErrorMessage = error.localizedDescription
+                            }
+                            isRequestingPermission = false
                         }
                     } label: {
-                        Text("HealthKit 연결하고 시작")
+                        Text(
+                            isRequestingPermission
+                                ? L10n.tr("권한 요청 중")
+                                : L10n.tr("Apple 건강 권한 허용하고 시작")
+                        )
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
@@ -318,8 +334,16 @@ struct HealthKitOnboardingView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .disabled(isRequestingPermission)
 
-                    Text(L10n.format("권한은 언제든 %@에서 변경할 수 있습니다.", AppMetadata.healthPermissionSettingsPath))
+                    if let permissionErrorMessage {
+                        Text(permissionErrorMessage)
+                            .font(.caption)
+                            .foregroundStyle(Color(red: 1.0, green: 0.73, blue: 0.73))
+                            .multilineTextAlignment(.center)
+                    }
+
+                    Text(L10n.format("Apple 건강 권한은 언제든 %@에서 다시 변경할 수 있습니다.", AppMetadata.healthPermissionSettingsPath))
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.58))
                         .multilineTextAlignment(.center)
@@ -329,7 +353,7 @@ struct HealthKitOnboardingView: View {
             }
         }
         .background(AppBackground())
-        .navigationTitle("HealthKit 안내")
+        .navigationTitle(L10n.tr("Apple 건강 안내"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if showsDismissButton {
@@ -372,7 +396,7 @@ private struct RunReviewFallbackView: View {
 
                 DetailSection(title: "샘플 러닝으로 둘러보기", systemImage: "sparkles", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("HealthKit 데이터가 없어도 샘플 러닝으로 상세 차트, 심박 존, 공유 화면을 바로 확인할 수 있습니다.")
+                        Text(L10n.tr("Apple 건강 데이터가 없어도 샘플 러닝으로 상세 차트, 심박 존, 공유 화면을 바로 확인할 수 있습니다."))
                             .font(.footnote)
                             .foregroundStyle(.white.opacity(0.72))
 
@@ -2763,7 +2787,7 @@ private struct RecoveryReadinessView: View {
                 )
 
                 DetailSection(
-                    title: "오늘 권장 러닝",
+                    title: L10n.tr("오늘 권장 러닝"),
                     systemImage: "figure.run",
                     tint: primaryTint
                 ) {
@@ -2784,7 +2808,7 @@ private struct RecoveryReadinessView: View {
                 }
 
                 DetailSection(
-                    title: readiness.isDataSufficient ? "왜 이렇게 봤나요" : "계산 조건",
+                    title: readiness.isDataSufficient ? L10n.tr("왜 이렇게 봤나요") : L10n.tr("계산 조건"),
                     systemImage: readiness.isDataSufficient ? "sparkles" : "exclamationmark.circle.fill",
                     tint: secondaryTint
                 ) {
@@ -2807,7 +2831,7 @@ private struct RecoveryReadinessView: View {
 
                 if hasLoadChart {
                     DetailSection(
-                        title: "최근 부하",
+                        title: L10n.tr("최근 부하"),
                         systemImage: "chart.bar.fill",
                         tint: primaryTint
                     ) {
@@ -2826,7 +2850,7 @@ private struct RecoveryReadinessView: View {
                 } label: {
                     HStack {
                         Image(systemName: "book.closed")
-                        Text("근거 보기")
+                        Text(L10n.tr("근거 보기"))
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.bold))
@@ -2859,7 +2883,7 @@ private struct RecoveryReadinessView: View {
             .padding(16)
         }
         .background(AppBackground())
-        .navigationTitle("러닝 준비도")
+        .navigationTitle(L10n.tr("러닝 준비도"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingEvidence) {
             ReadinessEvidenceView()
@@ -2877,7 +2901,7 @@ private struct RecoveryReadinessHeroCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 FeatureToneBadge(
-                    text: "러닝 준비도",
+                    text: L10n.tr("러닝 준비도"),
                     tint: primaryTint,
                     foreground: badgeForeground
                 )
@@ -2906,42 +2930,42 @@ private struct RecoveryReadinessHeroCard: View {
             ViewThatFits(in: .vertical) {
                 HStack(spacing: 10) {
                     FeatureMiniStatCard(
-                        title: "최근 부하",
+                        title: L10n.tr("최근 부하"),
                         value: readiness.recentLoadText,
-                        detail: readiness.loadRatioText ?? "최근 7일 기준",
+                        detail: readiness.loadRatioText ?? L10n.tr("최근 7일 기준"),
                         tint: primaryTint
                     )
                     FeatureMiniStatCard(
-                        title: "마지막 러닝",
+                        title: L10n.tr("마지막 러닝"),
                         value: readiness.lastRunText,
-                        detail: readiness.isDataSufficient ? "회복 간격" : "최근 기록 기준",
+                        detail: readiness.isDataSufficient ? L10n.tr("회복 간격") : L10n.tr("최근 기록 기준"),
                         tint: secondaryTint
                     )
                     FeatureMiniStatCard(
-                        title: readiness.restingHeartRateText == nil ? "기준" : "안정시 심박",
+                        title: readiness.restingHeartRateText == nil ? L10n.tr("기준") : L10n.tr("안정시 심박"),
                         value: readiness.restingHeartRateText ?? readiness.confidenceText,
-                        detail: readiness.restingHeartRateText == nil ? "현재 계산 방식" : "기준 대비 변화",
+                        detail: readiness.restingHeartRateText == nil ? L10n.tr("현재 계산 방식") : L10n.tr("기준 대비 변화"),
                         tint: Color(red: 0.95, green: 0.59, blue: 0.32)
                     )
                 }
 
                 VStack(spacing: 10) {
                     FeatureMiniStatCard(
-                        title: "최근 부하",
+                        title: L10n.tr("최근 부하"),
                         value: readiness.recentLoadText,
-                        detail: readiness.loadRatioText ?? "최근 7일 기준",
+                        detail: readiness.loadRatioText ?? L10n.tr("최근 7일 기준"),
                         tint: primaryTint
                     )
                     FeatureMiniStatCard(
-                        title: "마지막 러닝",
+                        title: L10n.tr("마지막 러닝"),
                         value: readiness.lastRunText,
-                        detail: readiness.isDataSufficient ? "회복 간격" : "최근 기록 기준",
+                        detail: readiness.isDataSufficient ? L10n.tr("회복 간격") : L10n.tr("최근 기록 기준"),
                         tint: secondaryTint
                     )
                     FeatureMiniStatCard(
-                        title: readiness.restingHeartRateText == nil ? "기준" : "안정시 심박",
+                        title: readiness.restingHeartRateText == nil ? L10n.tr("기준") : L10n.tr("안정시 심박"),
                         value: readiness.restingHeartRateText ?? readiness.confidenceText,
-                        detail: readiness.restingHeartRateText == nil ? "현재 계산 방식" : "기준 대비 변화",
+                        detail: readiness.restingHeartRateText == nil ? L10n.tr("현재 계산 방식") : L10n.tr("기준 대비 변화"),
                         tint: Color(red: 0.95, green: 0.59, blue: 0.32)
                     )
                 }
@@ -3067,20 +3091,20 @@ private struct ReadinessEvidenceView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     DetailSection(
-                        title: "이 점수는 무엇인가요",
+                        title: L10n.tr("이 점수는 무엇인가요"),
                         systemImage: "heart.text.square.fill",
                         tint: Color(red: 0.42, green: 0.76, blue: 1.0)
                     ) {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("러닝 준비도는 몸 상태를 진단하는 의료 점수가 아니라, 최근 러닝 부하와 회복 간격을 바탕으로 오늘 러닝 강도를 가볍게 가이드하는 점수예요.")
-                            Text("현재 버전은 최근 28일 러닝 기록, 마지막 러닝 이후 시간, 그리고 있으면 안정시 심박을 함께 참고합니다.")
-                            Text("논문에서 널리 쓰는 훈련 부하와 회복 모니터링 개념을 참고했지만, 점수화 방식은 RunOnly에 맞게 단순화한 가이드예요.")
+                            Text(L10n.tr("러닝 준비도는 몸 상태를 진단하는 의료 점수가 아니라, 최근 러닝 부하와 회복 간격을 바탕으로 오늘 러닝 강도를 가볍게 가이드하는 점수예요."))
+                            Text(L10n.tr("현재 버전은 최근 28일 러닝 기록, 마지막 러닝 이후 시간, 그리고 있으면 안정시 심박을 함께 참고합니다."))
+                            Text(L10n.tr("논문에서 널리 쓰는 훈련 부하와 회복 모니터링 개념을 참고했지만, 점수화 방식은 RunOnly에 맞게 단순화한 가이드예요."))
                         }
                         .foregroundStyle(.white.opacity(0.82))
                     }
 
                     DetailSection(
-                        title: "참고 문헌",
+                        title: L10n.tr("참고 문헌"),
                         systemImage: "book.fill",
                         tint: Color(red: 0.29, green: 0.88, blue: 0.63)
                     ) {
@@ -3109,14 +3133,14 @@ private struct ReadinessEvidenceView: View {
                     }
 
                     DetailSection(
-                        title: "한계",
+                        title: L10n.tr("한계"),
                         systemImage: "exclamationmark.triangle.fill",
                         tint: Color(red: 0.95, green: 0.59, blue: 0.32)
                     ) {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("수면, HRV, 스트레스 같은 데이터는 아직 반영하지 않아 실제 회복 상태를 완전히 대변하지는 못합니다.")
-                            Text("데이터가 부족하면 억지로 점수를 만들지 않고 `데이터 필요` 상태로 남겨둡니다.")
-                            Text("몸 상태가 평소와 다르거나 통증이 있다면 준비도 점수보다 내 컨디션을 우선해 주세요.")
+                            Text(L10n.tr("수면, HRV, 스트레스 같은 데이터는 아직 반영하지 않아 실제 회복 상태를 완전히 대변하지는 못합니다."))
+                            Text(L10n.tr("데이터가 부족하면 억지로 점수를 만들지 않고 `데이터 필요` 상태로 남겨둡니다."))
+                            Text(L10n.tr("몸 상태가 평소와 다르거나 통증이 있다면 준비도 점수보다 내 컨디션을 우선해 주세요."))
                         }
                         .foregroundStyle(.white.opacity(0.82))
                     }
@@ -3124,7 +3148,7 @@ private struct ReadinessEvidenceView: View {
                 .padding(16)
             }
             .background(AppBackground())
-            .navigationTitle("준비도 근거")
+            .navigationTitle(L10n.tr("준비도 근거"))
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -3198,13 +3222,16 @@ private struct PredictionTrendView: View {
     }
     private var heroSubtitle: String {
         guard let focusedPoint else {
-            return "러닝이 더 쌓이면 거리별 예상 흐름이 자연스럽게 보일 거예요."
+            return L10n.tr("러닝이 더 쌓이면 거리별 예상 흐름이 자연스럽게 보일 거예요.")
         }
-        return "\(focusedPoint.date.formatted(date: .abbreviated, time: .omitted))까지의 최근 흐름을 반영했어요."
+        return L10n.format(
+            "%@까지의 최근 흐름을 반영했어요.",
+            focusedPoint.date.formatted(date: .abbreviated, time: .omitted)
+        )
     }
 
     private var pointBadgeText: String {
-        points.isEmpty ? "데이터 준비 중" : L10n.format("%d개 포인트", points.count)
+        points.isEmpty ? L10n.tr("데이터 준비 중") : L10n.format("%d개 포인트", points.count)
     }
 
     var body: some View {
@@ -3220,11 +3247,11 @@ private struct PredictionTrendView: View {
                 )
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("비교 거리")
+                    Text(L10n.tr("비교 거리"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.58))
 
-                    Picker("거리", selection: $selectedDistance) {
+                    Picker(L10n.tr("거리"), selection: $selectedDistance) {
                         ForEach(PredictionDistance.allCases) { distance in
                             Text(distance.label).tag(distance)
                         }
@@ -3252,12 +3279,12 @@ private struct PredictionTrendView: View {
                 )
 
                 DetailSection(
-                    title: "예상 흐름",
+                    title: L10n.tr("예상 흐름"),
                     systemImage: "chart.line.uptrend.xyaxis",
                     tint: Color(red: 0.95, green: 0.59, blue: 0.32)
                 ) {
                     if points.isEmpty {
-                        Text("추세를 계산할 러닝 데이터가 부족합니다.")
+                        Text(L10n.tr("추세를 계산할 러닝 데이터가 부족합니다."))
                             .foregroundStyle(.white.opacity(0.72))
                     } else {
                         Chart(points) { point in
@@ -3350,7 +3377,7 @@ private struct PredictionTrendView: View {
                 } label: {
                     HStack {
                         Image(systemName: "info.circle")
-                        Text("예측 기록 계산 방식 보기")
+                        Text(L10n.tr("예측 기록 계산 방식 보기"))
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.bold))
@@ -3383,7 +3410,7 @@ private struct PredictionTrendView: View {
             .padding(16)
         }
         .background(AppBackground())
-        .navigationTitle("예상 기록")
+        .navigationTitle(L10n.tr("예상 기록"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingMethod) {
             PredictionMethodView()
@@ -3403,7 +3430,7 @@ private struct PredictionTrendHeroCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 FeatureToneBadge(
-                    text: "예상 기록",
+                    text: L10n.tr("예상 기록"),
                     tint: Color(red: 0.95, green: 0.59, blue: 0.32),
                     foreground: Color(red: 1.0, green: 0.86, blue: 0.76)
                 )
@@ -3418,7 +3445,7 @@ private struct PredictionTrendHeroCard: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("\(selectedDistance.label) 흐름")
+                Text(L10n.format("%@ 흐름", selectedDistance.label))
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
 
@@ -3430,15 +3457,15 @@ private struct PredictionTrendHeroCard: View {
 
             ViewThatFits(in: .vertical) {
                 HStack(spacing: 10) {
-                    FeatureMiniStatCard(title: "현재", value: latestText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
-                    FeatureMiniStatCard(title: "최고", value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
-                    FeatureMiniStatCard(title: "변화", value: changeText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
+                    FeatureMiniStatCard(title: L10n.tr("현재"), value: latestText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
+                    FeatureMiniStatCard(title: L10n.tr("최고"), value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
+                    FeatureMiniStatCard(title: L10n.tr("변화"), value: changeText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
                 }
 
                 VStack(spacing: 10) {
-                    FeatureMiniStatCard(title: "현재", value: latestText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
-                    FeatureMiniStatCard(title: "최고", value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
-                    FeatureMiniStatCard(title: "변화", value: changeText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
+                    FeatureMiniStatCard(title: L10n.tr("현재"), value: latestText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
+                    FeatureMiniStatCard(title: L10n.tr("최고"), value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
+                    FeatureMiniStatCard(title: L10n.tr("변화"), value: changeText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
                 }
             }
         }
@@ -3501,17 +3528,15 @@ private struct PredictionTrendPoint: Identifiable, Equatable {
 
     static func build(for distance: PredictionDistance, runs: [RunningWorkout]) -> [PredictionTrendPoint] {
         let sortedRuns = runs
-            .filter { $0.distanceInMeters >= 1_000 }
             .sorted(by: { $0.startDate < $1.startDate })
 
         var points: [PredictionTrendPoint] = []
         for run in sortedRuns {
-            let windowStart = Calendar.current.date(byAdding: .day, value: -120, to: run.startDate) ?? .distantPast
-            let candidates = sortedRuns.filter { $0.startDate >= windowStart && $0.startDate <= run.startDate }
-            guard let predictedSeconds = candidates
-                .map({ $0.duration * pow(distance.targetMeters / $0.distanceInMeters, 1.06) })
-                .min()
-            else { continue }
+            guard let predictedSeconds = PredictionModel.predictedSeconds(
+                for: distance.targetMeters,
+                from: sortedRuns,
+                referenceDate: run.startDate
+            ) else { continue }
 
             points.append(PredictionTrendPoint(date: run.startDate, seconds: predictedSeconds))
         }
@@ -3653,7 +3678,7 @@ struct SettingsTabView: View {
                                 SettingLinkRow(
                                     systemImage: "heart.text.square",
                                     title: "데이터 및 권한",
-                                    detail: "HealthKit 권한과 저장 방식을 확인합니다."
+                                    detail: L10n.tr("Apple 건강 권한과 저장 방식을 확인합니다.")
                                 )
                             }
                             .buttonStyle(.plain)
@@ -3820,7 +3845,7 @@ private struct PrivacyPolicyView: View {
                         Text(L10n.format("%@은 Apple 건강의 러닝 데이터를 iPhone에서 보기 쉽게 정리하는 앱입니다.", AppMetadata.displayName))
                         Text(AppMetadata.healthUsageSummary)
                         Text("계정 생성, 광고 추적, 외부 분석 SDK 없이 동작하며, 현재는 서버로 데이터를 업로드하지 않습니다.")
-                        Text(L10n.format("HealthKit 권한은 언제든 %@에서 다시 변경할 수 있습니다.", AppMetadata.healthPermissionSettingsPath))
+                        Text(L10n.format("Apple 건강 권한은 언제든 %@에서 다시 변경할 수 있습니다.", AppMetadata.healthPermissionSettingsPath))
                     }
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.78))
@@ -3890,8 +3915,6 @@ private struct SupportCenterView: View {
                             .font(.subheadline.weight(.semibold))
                         Link("웹 개인정보처리방침 열기", destination: AppMetadata.privacyPolicyURL)
                             .font(.subheadline.weight(.semibold))
-                        Link("앱 리뷰 노트 초안 열기", destination: AppMetadata.reviewNotesURL)
-                            .font(.subheadline.weight(.semibold))
                         Link("프로젝트 저장소 열기", destination: AppMetadata.repositoryURL)
                             .font(.subheadline.weight(.semibold))
                     }
@@ -3928,7 +3951,7 @@ private struct DataPermissionsView: View {
                             .font(.footnote)
                             .foregroundStyle(.white.opacity(0.78))
 
-                        SettingInfoRow(title: "권한", value: "HealthKit 읽기")
+                        SettingInfoRow(title: L10n.tr("권한"), value: L10n.tr("Apple 건강 읽기"))
                         SettingInfoRow(title: "네트워크 업로드", value: "없음")
                         SettingInfoRow(title: "파생 분석 캐시", value: "기기 내부 전용 저장소")
                         SettingInfoRow(title: "권한 변경", value: AppMetadata.healthPermissionSettingsPath)
@@ -3945,7 +3968,7 @@ private struct DataPermissionsView: View {
                             }
                         }
 
-                        Text("이 앱은 Apple 건강 데이터 중 러닝과 관련된 항목만 읽습니다. 평균 심박, 평균 케이던스, 상승 고도 같은 요약값은 상세 화면을 더 빠르게 보여주기 위해 기기 내부에만 저장하며 서버로 업로드하지 않습니다.")
+                        Text(L10n.tr("이 앱은 Apple 건강 데이터 중 러닝과 관련된 항목만 읽습니다. 평균 심박, 평균 케이던스, 상승 고도 같은 요약값은 상세 화면을 더 빠르게 보여주기 위해 기기 내부에만 저장하며 서버로 업로드하지 않습니다."))
                             .font(.footnote)
                             .foregroundStyle(.white.opacity(0.62))
 
@@ -3954,7 +3977,7 @@ private struct DataPermissionsView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "heart.text.square")
-                                Text("HealthKit 안내 다시 보기")
+                                Text(L10n.tr("Apple 건강 안내 다시 보기"))
                             }
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)
@@ -4006,7 +4029,7 @@ private struct ShoeDataSettingsView: View {
                         SettingInfoRow(title: "기기 간 자동 동기화", value: "현재 지원 안 함")
                         SettingInfoRow(title: "백업 포함 범위", value: "신발 정보 + 러닝 UUID 연결")
 
-                        Text("백업 파일에는 신발 이름, 브랜드/모델, 시작 거리, 목표 수명, 생성일과 러닝 UUID 연결만 들어갑니다. 심박, 경로, 페이스 같은 HealthKit 원본 데이터는 포함되지 않습니다. 러닝 연결은 같은 HealthKit workout UUID가 있는 기기에서 가장 잘 복원됩니다.")
+                        Text(L10n.tr("백업 파일에는 신발 이름, 브랜드/모델, 시작 거리, 목표 수명, 생성일과 러닝 UUID 연결만 들어갑니다. 심박, 경로, 페이스 같은 Apple 건강 원본 데이터는 포함되지 않습니다. 러닝 연결은 같은 workout UUID가 있는 기기에서 가장 잘 복원됩니다."))
                             .font(.footnote)
                             .foregroundStyle(.white.opacity(0.62))
 
@@ -4189,7 +4212,7 @@ private struct DataManagementView: View {
             }
             Button("취소", role: .cancel) {}
         } message: {
-            Text("등록한 신발 정보와 러닝 연결 정보가 모두 삭제됩니다. HealthKit 원본 러닝 데이터는 삭제되지 않습니다.")
+            Text(L10n.tr("등록한 신발 정보와 러닝 연결 정보가 모두 삭제됩니다. Apple 건강 원본 러닝 데이터는 삭제되지 않습니다."))
         }
         .confirmationDialog("분석 캐시 초기화", isPresented: $showingDeleteAnalysisCacheConfirmation, titleVisibility: .visible) {
             Button("초기화", role: .destructive) {
@@ -4198,7 +4221,7 @@ private struct DataManagementView: View {
             }
             Button("취소", role: .cancel) {}
         } message: {
-            Text("상세 화면을 빠르게 보여주기 위해 저장한 파생 요약값만 삭제합니다. HealthKit 원본 러닝 데이터와 신발 데이터는 그대로 유지됩니다.")
+            Text(L10n.tr("상세 화면을 빠르게 보여주기 위해 저장한 파생 요약값만 삭제합니다. Apple 건강 원본 러닝 데이터와 신발 데이터는 그대로 유지됩니다."))
         }
     }
 }

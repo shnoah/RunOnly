@@ -15,6 +15,7 @@ struct ContentView: View {
                 HealthKitOnboardingView(
                     showsDismissButton: false,
                     onContinue: {
+                        try await viewModel.requestReadAuthorization()
                         appSettings.completeHealthKitIntro()
                     }
                 )
@@ -29,6 +30,7 @@ struct ContentView: View {
                 HealthKitOnboardingView(
                     showsDismissButton: true,
                     onContinue: {
+                        try await viewModel.requestReadAuthorization()
                         appSettings.completeHealthKitIntro()
                     }
                 )

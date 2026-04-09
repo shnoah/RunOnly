@@ -72,7 +72,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         await load()
     }
 
-    // 최초 진입 시 올해 러닝과 요약 지표를 함께 읽어온다.
+    // 최초 진입 시 현재 연도 기록과 최근 요약 계산에 필요한 이전 구간까지 함께 읽어온다.
     func load() async {
         state = .loading
 
@@ -81,8 +81,10 @@ final class RunningWorkoutsViewModel: ObservableObject {
             let calendar = Calendar.current
             let now = Date()
             let startOfYear = calendar.date(from: calendar.dateComponents([.year], from: now)) ?? now
+            let predictionWindowStart = calendar.date(byAdding: .day, value: -PredictionModel.lookbackDays, to: now) ?? now
+            let summaryHistoryStart = min(startOfYear, startOfMonth(predictionWindowStart))
 
-            async let runsTask = healthKitService.fetchRunningWorkouts(from: startOfYear, to: now)
+            async let runsTask = healthKitService.fetchRunningWorkouts(from: summaryHistoryStart, to: now)
             async let vo2MaxTask = healthKitService.fetchLatestVO2Max()
             async let vo2MaxSamplesTask = healthKitService.fetchVO2MaxSamples()
             async let restingHeartRateTask = healthKitService.fetchRestingHeartRateSnapshot(referenceDate: now)
@@ -94,7 +96,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
             restingHeartRateSnapshot = try await restingHeartRateTask
             oldestRunningWorkoutDate = try await oldestDateTask
             allRuns = deduplicatedAndSorted(runs)
-            nextHistoryMonthStart = calendar.date(byAdding: .month, value: -1, to: startOfYear)
+            nextHistoryMonthStart = calendar.date(byAdding: .month, value: -1, to: summaryHistoryStart)
             selectedRecordMonth = startOfMonth(selectedRecordMonth)
             if let nextHistoryMonthStart, let oldestRunningWorkoutDate {
                 hasMoreHistory = startOfMonth(nextHistoryMonthStart) >= startOfMonth(oldestRunningWorkoutDate)
@@ -108,6 +110,10 @@ final class RunningWorkoutsViewModel: ObservableObject {
         } catch {
             state = .failed(error.localizedDescription)
         }
+    }
+
+    func requestReadAuthorization() async throws {
+        try await healthKitService.requestReadAuthorization()
     }
 
     // 소스 필터가 바뀌면 목록/요약/마일리지를 한 번에 다시 계산한다.
@@ -764,17 +770,14 @@ final class RunningWorkoutsViewModel: ObservableObject {
     }
 
     private static func predictTime(for targetDistance: Double, from runs: [RunningWorkout]) -> String {
-        let recentRuns = runs
-            .filter { $0.distanceInMeters >= 1_000 && $0.startDate >= Calendar.current.date(byAdding: .day, value: -120, to: Date()) ?? .distantPast }
-
-        let candidates = recentRuns.isEmpty ? runs.filter { $0.distanceInMeters >= 1_000 } : recentRuns
-        guard !candidates.isEmpty else {
+        guard let predictedSeconds = PredictionModel.predictedSeconds(
+            for: targetDistance,
+            from: runs,
+            referenceDate: Date()
+        ) else {
             return "-"
         }
 
-        let predictedSeconds = candidates
-            .map { $0.duration * pow(targetDistance / $0.distanceInMeters, 1.06) }
-            .min() ?? 0
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = predictedSeconds >= 3_600 ? [.hour, .minute, .second] : [.minute, .second]
         formatter.unitsStyle = .positional

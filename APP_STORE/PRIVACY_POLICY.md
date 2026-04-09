@@ -8,11 +8,11 @@ RunOnly is an iPhone app that reads running workouts from Apple Health and prese
 
 RunOnly does not require account creation.
 RunOnly does not include advertising SDKs, third-party analytics SDKs, or social tracking.
-RunOnly currently does not upload HealthKit running data to a backend server.
+RunOnly currently does not upload Apple Health running data to a backend server.
 
 ## Health Data We Read
 
-When you allow HealthKit access, RunOnly may read:
+When you allow Apple Health access, RunOnly may read:
 
 - Running workouts
 - Workout routes
@@ -21,11 +21,6 @@ When you allow HealthKit access, RunOnly may read:
 - VO2 Max
 - Distance walking/running
 - Step count
-- Running power
-- Running speed
-- Running stride length
-- Running vertical oscillation
-- Running ground contact time
 
 RunOnly reads these items only to render summaries, detailed charts, personal record tracking, shoe assignment views, and sharing layouts inside the app.
 
@@ -44,7 +39,7 @@ These local support files are stored in the app container and excluded from auto
 
 RunOnly does not currently upload the following to a server:
 
-- HealthKit running data
+- Apple Health running data
 - Workout route coordinates
 - Heart rate samples
 - Pace or split history
@@ -63,7 +58,7 @@ Examples:
 
 You can:
 
-- Revoke HealthKit access in `Settings > Health > Data Access & Devices > RunOnly`
+- Revoke Apple Health access in `Settings > Health > Data Access & Devices > RunOnly`
 - Delete shoe data from the in-app Settings screen
 - Clear derived analysis cache from the in-app Settings screen
 - Delete the app to remove app-local data stored in the app container
