@@ -1,11 +1,22 @@
 import SwiftUI
 
+struct RunShoeAssignmentDisplay: Equatable {
+    let name: String
+    let isAssigned: Bool
+
+    static var unassigned: Self {
+        Self(name: L10n.tr("신발 미선택"), isAssigned: false)
+    }
+}
+
 @MainActor
 final class ShoeStore: ObservableObject {
     @Published private(set) var shoes: [RunningShoe] = []
     @Published private(set) var assignments: [ShoeAssignmentRecord] = []
 
     private let storageFilename = "shoe-store.json"
+    private var shoesByID: [UUID: RunningShoe] = [:]
+    private var shoeByRunID: [UUID: RunningShoe] = [:]
 
     init() {
         load()
@@ -13,18 +24,26 @@ final class ShoeStore: ObservableObject {
 
     func addShoe(_ shoe: RunningShoe) {
         shoes.insert(shoe, at: 0)
+        rebuildLookups()
         save()
     }
 
     func updateShoe(_ shoe: RunningShoe) {
         guard let index = shoes.firstIndex(where: { $0.id == shoe.id }) else { return }
         shoes[index] = shoe
+        rebuildLookups()
         save()
     }
 
     func shoe(for runID: UUID) -> RunningShoe? {
-        guard let shoeID = assignments.first(where: { $0.runID == runID })?.shoeID else { return nil }
-        return shoes.first(where: { $0.id == shoeID })
+        shoeByRunID[runID]
+    }
+
+    func shoeAssignmentDisplay(for runID: UUID) -> RunShoeAssignmentDisplay {
+        guard let shoe = shoeByRunID[runID] else {
+            return .unassigned
+        }
+        return RunShoeAssignmentDisplay(name: shoe.displayName, isAssigned: true)
     }
 
     func assign(_ shoeID: UUID?, to runID: UUID) {
@@ -32,12 +51,14 @@ final class ShoeStore: ObservableObject {
         if let shoeID {
             assignments.append(ShoeAssignmentRecord(runID: runID, shoeID: shoeID))
         }
+        rebuildLookups()
         save()
     }
 
     func clearAllData() {
         shoes = []
         assignments = []
+        rebuildLookups()
         save()
     }
 
@@ -50,7 +71,8 @@ final class ShoeStore: ObservableObject {
     }
 
     func runs(for shoeID: UUID, in runs: [RunningWorkout]) -> [RunningWorkout] {
-        let runIDs = assignments.filter { $0.shoeID == shoeID }.map(\.runID)
+        let runIDs = Set(assignments.filter { $0.shoeID == shoeID }.map(\.runID))
+        guard !runIDs.isEmpty else { return [] }
         return runs.filter { runIDs.contains($0.id) }.sorted(by: { $0.startDate > $1.startDate })
     }
 
@@ -140,6 +162,7 @@ final class ShoeStore: ObservableObject {
             )
         }
 
+        rebuildLookups()
         save()
         return ShoeImportSummary(
             strategy: strategy,
@@ -155,11 +178,13 @@ final class ShoeStore: ObservableObject {
         guard let snapshot = try? AppStorage.load(ShoeStoreSnapshot.self, from: storageFilename, decoder: decoder) else {
             shoes = []
             assignments = []
+            rebuildLookups()
             return
         }
 
         shoes = snapshot.shoes
         assignments = snapshot.assignments
+        rebuildLookups()
     }
 
     private func save() {
@@ -167,6 +192,14 @@ final class ShoeStore: ObservableObject {
         encoder.dateEncodingStrategy = .iso8601
         let snapshot = ShoeStoreSnapshot(shoes: shoes, assignments: assignments)
         try? AppStorage.save(snapshot, to: storageFilename, encoder: encoder)
+    }
+
+    private func rebuildLookups() {
+        shoesByID = Dictionary(uniqueKeysWithValues: shoes.map { ($0.id, $0) })
+        shoeByRunID = assignments.reduce(into: [:]) { partial, assignment in
+            guard let shoe = shoesByID[assignment.shoeID] else { return }
+            partial[assignment.runID] = shoe
+        }
     }
 
     private func deduplicatedShoes(_ shoes: [RunningShoe]) -> [RunningShoe] {

@@ -1,3 +1,4 @@
+import ImageIO
 import Photos
 import PhotosUI
 import SwiftUI
@@ -16,6 +17,11 @@ private struct RunShareTemplateLayoutSpec {
     let photoBaseHeightRatio: CGFloat
     let defaultPlacement: RunShareStickerPlacement
     let fontScaleRange: ClosedRange<Double>
+}
+
+private struct RunShareBackgroundPhotoAssets {
+    let renderImage: UIImage
+    let previewImage: UIImage
 }
 
 private enum RunShareTemplate: String, CaseIterable, Identifiable {
@@ -580,7 +586,7 @@ struct RunShareComposerView: View {
             .navigationTitle("공유 이미지")
             .navigationBarTitleDisplayMode(.inline)
             .task(id: previewStickerRenderKey) {
-                refreshPreviewStickerImageIfNeeded()
+                await refreshPreviewStickerImageIfNeeded()
             }
             .task {
                 RunShareTemplate.allCases.forEach { template in
@@ -1451,15 +1457,13 @@ struct RunShareComposerView: View {
         backgroundPhotoErrorMessage = nil
 
         do {
-            guard
-                let data = try await item.loadTransferable(type: Data.self),
-                let image = UIImage(data: data)
-            else {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
                 throw RunShareExportError.renderFailed
             }
 
-            backgroundPhotoImage = image
-            backgroundPreviewPhotoImage = resizedImage(image, maxDimension: 1400)
+            let assets = try await loadBackgroundPhotoAssets(from: data)
+            backgroundPhotoImage = assets.renderImage
+            backgroundPreviewPhotoImage = assets.previewImage
             resetPlacement(for: selectedTemplate)
         } catch {
             backgroundPhotoErrorMessage = L10n.tr("사진을 불러오지 못했습니다.")
@@ -1493,11 +1497,19 @@ struct RunShareComposerView: View {
     }
 
     @MainActor
-    private func refreshPreviewStickerImageIfNeeded() {
+    private func refreshPreviewStickerImageIfNeeded() async {
         guard selectedTemplate.isTransparentStickerTemplate, backgroundPhotoImage != nil else {
             previewStickerImage = nil
             return
         }
+
+        do {
+            try await Task.sleep(nanoseconds: 120_000_000)
+        } catch {
+            return
+        }
+
+        guard !Task.isCancelled else { return }
 
         let content = RunShareArtworkView(
             run: run,
@@ -1517,21 +1529,45 @@ struct RunShareComposerView: View {
         previewStickerImage = renderer.uiImage
     }
 
-    private func resizedImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
-        let originalSize = image.size
-        guard originalSize.width > 0, originalSize.height > 0 else { return image }
-
-        let scale = min(maxDimension / max(originalSize.width, originalSize.height), 1)
-        guard scale < 1 else { return image }
-
-        let targetSize = CGSize(width: originalSize.width * scale, height: originalSize.height * scale)
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
-
-        return renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: targetSize))
+    private func loadBackgroundPhotoAssets(from data: Data) async throws -> RunShareBackgroundPhotoAssets {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                autoreleasepool {
+                    do {
+                        let assets = try makeBackgroundPhotoAssets(from: data)
+                        continuation.resume(returning: assets)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
         }
+    }
+
+    private func makeBackgroundPhotoAssets(from data: Data) throws -> RunShareBackgroundPhotoAssets {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            throw RunShareExportError.renderFailed
+        }
+
+        return RunShareBackgroundPhotoAssets(
+            renderImage: try downsampledImage(from: source, maxPixelSize: 2_048),
+            previewImage: try downsampledImage(from: source, maxPixelSize: 1_400)
+        )
+    }
+
+    private func downsampledImage(from source: CGImageSource, maxPixelSize: CGFloat) throws -> UIImage {
+        let options: CFDictionary = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ] as CFDictionary
+
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else {
+            throw RunShareExportError.renderFailed
+        }
+
+        return UIImage(cgImage: cgImage)
     }
 }
 

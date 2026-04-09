@@ -43,8 +43,18 @@
 - 전용 화면은 `큰 점수 히어로 카드 + 오늘 권장 러닝 + 이유 3개 + 최근 7일 부하 차트 + 근거 보기 시트` 구조로 새로 구성했다.
 - `근거 보기` 시트에는 Foster(2001), Kiviniemi(2007), Plews(2013), Manresa-Rocamora(2021) 링크와 함께 현재 버전의 한계도 같이 명시했다.
 
+### SwiftUI 성능 최적화 라운드
+- 공유 편집 화면은 배경 사진을 메인 액터에서 바로 `UIImage(data:)`로 디코딩하던 경로를 걷어내고, `ImageIO` 다운샘플링으로 미리보기용/내보내기용 이미지를 분리해 백그라운드에서 준비하도록 바꿨다.
+- 공유 스티커 미리보기는 스타일 값이 연속으로 바뀔 때마다 즉시 다시 그리지 않도록, 짧은 디바운스가 걸린 비동기 렌더링 경로로 정리했다.
+- 상세 화면 `PerformanceChartSection`은 거리 타임라인, 페이스/심박/케이던스/고도 시리즈, 범위 값, stride 값을 `detail` 변경 시 한 번만 계산하는 전처리 데이터 구조로 이동했다.
+- 차트 스크럽 중 가장 가까운 포인트를 찾는 경로는 `min(by:)` 반복 순회 대신 정렬된 배열 기반 이진 탐색으로 바꿔 긴 러닝에서 드래그 끊김 가능성을 낮췄다.
+- `예상 기록` 차트 포인트는 매 렌더마다 새 `UUID`를 만들지 않도록 `date` 기반 안정 ID로 바꾸고, 거리별 포인트 배열도 캐시해 차트 diff churn을 줄였다.
+- 신발 스토어는 `runID -> shoe` lookup 캐시를 유지하도록 보강하고, 기록 목록 행은 스토어 전체를 직접 관찰하지 않고 부모가 계산한 신발 표시 정보만 받아 렌더링하도록 정리했다.
+- 기록 탭은 `recordRuns`, `selectedMonthRuns`, `selectedMonthSummary`를 렌더 시 계산 프로퍼티로 매번 만들지 않고, 필터/월/날짜가 바뀔 때만 갱신되는 파생 상태로 전환했다.
+
 ### 검증 메모
 - `xcodebuild -project RunOnly.xcodeproj -scheme RunOnly -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath /tmp/RunOnly-codex-dd build` 성공.
+- `xcodebuild -project RunOnly.xcodeproj -scheme RunOnly -configuration Debug -sdk iphonesimulator -derivedDataPath /tmp/RunOnly-codex-dd build` 기준으로 이번 성능 최적화 수정도 다시 빌드 통과.
 - 현재 남아 있는 코드 경고는 데모용 `HKWorkout` 생성자 deprecation 경고 1건.
 
 ## 2026-04-02

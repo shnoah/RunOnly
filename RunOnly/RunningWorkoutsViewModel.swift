@@ -46,12 +46,16 @@ final class RunningWorkoutsViewModel: ObservableObject {
     @Published private(set) var personalRecordProgress: Double?
     @Published private(set) var selectedRecordMonth: Date
     @Published private(set) var selectedRecordDate: Date?
+    @Published private(set) var recordRuns: [RunningWorkout] = []
+    @Published private(set) var selectedMonthRuns: [RunningWorkout] = []
+    @Published private(set) var selectedMonthSummary: RecordMonthSummary
 
     private(set) var allRuns: [RunningWorkout] = []
     private var latestVO2Max: VO2MaxSample?
     private var restingHeartRateSnapshot: RestingHeartRateSnapshot?
     private var oldestRunningWorkoutDate: Date?
     private var nextHistoryMonthStart: Date?
+    private var filteredRunsCache: [RunningWorkout] = []
 
     private let healthKitService = HealthKitService()
     private let personalRecordStore = PersonalRecordStore()
@@ -63,8 +67,18 @@ final class RunningWorkoutsViewModel: ObservableObject {
         personalRecords = snapshot.records
         pendingPersonalRecordCandidates = snapshot.pendingCandidates
         personalRecordHistory = snapshot.history
-        selectedRecordMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
+        let currentMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
+        selectedRecordMonth = currentMonth
         selectedRecordDate = nil
+        selectedMonthSummary = RecordMonthSummary(
+            monthStart: currentMonth,
+            runCount: 0,
+            totalDistanceKilometers: 0,
+            totalDuration: 0,
+            runningDays: 0,
+            weeklyRunFrequency: 0
+        )
+        rebuildRecordCollections()
     }
 
     func loadIfNeeded() async {
@@ -119,6 +133,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
     // 소스 필터가 바뀌면 목록/요약/마일리지를 한 번에 다시 계산한다.
     func applyFilter() {
         let filteredRuns = showAppleWorkoutOnly ? allRuns.filter(\.isAppleWorkout) : allRuns
+        filteredRunsCache = filteredRuns
         summary = Self.buildSummary(
             from: filteredRuns,
             vo2Max: latestVO2Max,
@@ -126,6 +141,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         )
         monthlyMileage = buildMonthlyMileage(from: filteredRuns)
         yearlyMileage = buildYearlyMileage(from: filteredRuns)
+        rebuildRecordCollections()
 
         if filteredRuns.isEmpty {
             state = .empty
@@ -212,41 +228,6 @@ final class RunningWorkoutsViewModel: ObservableObject {
         )
     }
 
-    var recordRuns: [RunningWorkout] {
-        let monthRuns = filteredAllRuns.filter {
-            Calendar.current.isDate($0.startDate, equalTo: selectedRecordMonth, toGranularity: .month)
-        }
-
-        guard let selectedRecordDate else {
-            return monthRuns
-        }
-
-        return monthRuns.filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedRecordDate) }
-    }
-
-    var selectedMonthRuns: [RunningWorkout] {
-        filteredAllRuns.filter {
-            Calendar.current.isDate($0.startDate, equalTo: selectedRecordMonth, toGranularity: .month)
-        }
-    }
-
-    var selectedMonthSummary: RecordMonthSummary {
-        let monthRuns = selectedMonthRuns
-        let totalDistanceKilometers = monthRuns.reduce(0) { $0 + $1.distanceInKilometers }
-        let totalDuration = monthRuns.reduce(0) { $0 + $1.duration }
-        let runningDays = Set(monthRuns.map { Calendar.current.startOfDay(for: $0.startDate) }).count
-        let weeksInMonth = Double(max(Calendar.current.range(of: .weekOfMonth, in: .month, for: selectedRecordMonth)?.count ?? 1, 1))
-
-        return RecordMonthSummary(
-            monthStart: selectedRecordMonth,
-            runCount: monthRuns.count,
-            totalDistanceKilometers: totalDistanceKilometers,
-            totalDuration: totalDuration,
-            runningDays: runningDays,
-            weeklyRunFrequency: Double(monthRuns.count) / weeksInMonth
-        )
-    }
-
     var selectedMonthLabelText: String {
         RunDisplayFormatter.monthLabel(selectedRecordMonth)
     }
@@ -281,6 +262,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
         let targetMonth = min(startOfMonth(date), currentMonthStart)
         selectedRecordMonth = targetMonth
         selectedRecordDate = nil
+        rebuildRecordCollections()
         await ensureRecordMonthAvailable(targetMonth)
     }
 
@@ -293,6 +275,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
 
         if Calendar.current.isDate(date, equalTo: selectedRecordMonth, toGranularity: .month) {
             selectedRecordDate = Calendar.current.startOfDay(for: date)
+            rebuildRecordCollections()
         }
     }
 
@@ -302,6 +285,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
 
     func clearRecordDateSelection() {
         selectedRecordDate = nil
+        rebuildRecordCollections()
     }
 
     // PR은 Apple 운동 앱 러닝만 기준으로 계산해 기록 탭과 일관성을 맞춘다.
@@ -827,7 +811,38 @@ final class RunningWorkoutsViewModel: ObservableObject {
     }
 
     private var filteredAllRuns: [RunningWorkout] {
-        showAppleWorkoutOnly ? allRuns.filter(\.isAppleWorkout) : allRuns
+        filteredRunsCache
+    }
+
+    private func rebuildRecordCollections() {
+        let monthRuns = filteredRunsCache.filter {
+            Calendar.current.isDate($0.startDate, equalTo: selectedRecordMonth, toGranularity: .month)
+        }
+        selectedMonthRuns = monthRuns
+
+        if let selectedRecordDate {
+            recordRuns = monthRuns.filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedRecordDate) }
+        } else {
+            recordRuns = monthRuns
+        }
+
+        selectedMonthSummary = buildRecordMonthSummary(from: monthRuns, monthStart: selectedRecordMonth)
+    }
+
+    private func buildRecordMonthSummary(from monthRuns: [RunningWorkout], monthStart: Date) -> RecordMonthSummary {
+        let totalDistanceKilometers = monthRuns.reduce(0) { $0 + $1.distanceInKilometers }
+        let totalDuration = monthRuns.reduce(0) { $0 + $1.duration }
+        let runningDays = Set(monthRuns.map { Calendar.current.startOfDay(for: $0.startDate) }).count
+        let weeksInMonth = Double(max(Calendar.current.range(of: .weekOfMonth, in: .month, for: monthStart)?.count ?? 1, 1))
+
+        return RecordMonthSummary(
+            monthStart: monthStart,
+            runCount: monthRuns.count,
+            totalDistanceKilometers: totalDistanceKilometers,
+            totalDuration: totalDuration,
+            runningDays: runningDays,
+            weeklyRunFrequency: Double(monthRuns.count) / weeksInMonth
+        )
     }
 
     private func ensureRecordMonthAvailable(_ monthStart: Date) async {

@@ -258,11 +258,290 @@ private struct RunRouteSection: View {
     }
 }
 
+private struct PerformanceChartInputKey: Hashable {
+    let runID: UUID
+    let runDistanceMeters: Double
+    let distanceTimelineCount: Int
+    let distanceTimelineLastMeters: Double
+    let paceSampleCount: Int
+    let paceSampleLastMeters: Double
+    let heartRateCount: Int
+    let heartRateLastMeters: Double
+    let cadenceCount: Int
+    let cadenceLastMeters: Double
+    let routeCount: Int
+    let routeLastMeters: Double
+
+    init(run: RunningWorkout, detail: RunDetail) {
+        runID = run.id
+        runDistanceMeters = run.distanceInMeters
+        distanceTimelineCount = detail.distanceTimeline.count
+        distanceTimelineLastMeters = detail.distanceTimeline.last?.distanceMeters ?? 0
+        paceSampleCount = detail.paceSamples.count
+        paceSampleLastMeters = detail.paceSamples.last?.distanceMeters ?? 0
+        heartRateCount = detail.heartRates.count
+        heartRateLastMeters = detail.heartRates.last?.distanceMeters ?? 0
+        cadenceCount = detail.runningMetrics.cadence.count
+        cadenceLastMeters = detail.runningMetrics.cadence.last?.distanceMeters ?? 0
+        routeCount = detail.route.count
+        routeLastMeters = detail.route.last?.distanceMeters ?? 0
+    }
+}
+
+private struct PerformanceChartData {
+    let distanceTimeline: [DistanceTimelinePoint]
+    let timelineDistances: [Double]
+    let paceSeries: [PaceChartPoint]
+    let paceDistances: [Double]
+    let pacePlotPoints: [SimpleMetricChartPoint]
+    let heartSeries: [HeartRateChartPoint]
+    let heartDistances: [Double]
+    let heartPlotPoints: [SimpleMetricChartPoint]
+    let cadenceSeries: [SimpleMetricChartPoint]
+    let cadenceDistances: [Double]
+    let altitudeSeries: [SimpleMetricChartPoint]
+    let altitudeDistances: [Double]
+    let heartRateRange: ClosedRange<Double>
+    let paceRange: ClosedRange<Double>
+    let cadenceRange: ClosedRange<Double>
+    let altitudeRange: ClosedRange<Double>
+    let availableMetrics: [PerformanceChartMetric]
+    let strideValues: [Double]
+    let maxDistance: Double
+
+    init(run: RunningWorkout, detail: RunDetail) {
+        let sortedDistanceTimeline = detail.distanceTimeline.sorted(by: { $0.distanceMeters < $1.distanceMeters })
+        let builtPaceSeries = PaceChartPoint.build(from: detail.paceSamples)
+        let builtHeartSeries = HeartRateChartPoint.build(from: detail.heartRates)
+        let builtCadenceSeries = detail.runningMetrics.cadence
+            .compactMap { sample -> SimpleMetricChartPoint? in
+                guard let distanceMeters = sample.distanceMeters else { return nil }
+                return SimpleMetricChartPoint(
+                    distanceKilometers: distanceMeters / 1_000,
+                    value: sample.value,
+                    segmentIndex: sample.segmentIndex
+                )
+            }
+            .sorted(by: { $0.distanceKilometers < $1.distanceKilometers })
+        let builtAltitudeSeries = detail.route
+            .compactMap { point -> SimpleMetricChartPoint? in
+                guard let altitudeMeters = point.altitudeMeters, altitudeMeters.isFinite else { return nil }
+                return SimpleMetricChartPoint(
+                    distanceKilometers: point.distanceMeters / 1_000,
+                    value: altitudeMeters,
+                    segmentIndex: nil
+                )
+            }
+            .sorted(by: { $0.distanceKilometers < $1.distanceKilometers })
+        let builtPacePlotPoints = builtPaceSeries.map {
+            SimpleMetricChartPoint(
+                distanceKilometers: $0.distanceKilometers,
+                value: $0.secondsPerKilometer,
+                segmentIndex: $0.segmentIndex
+            )
+        }
+        let builtHeartPlotPoints = builtHeartSeries.map {
+            SimpleMetricChartPoint(
+                distanceKilometers: $0.distanceKilometers,
+                value: $0.bpm,
+                segmentIndex: $0.segmentIndex
+            )
+        }
+
+        self.distanceTimeline = sortedDistanceTimeline
+        timelineDistances = sortedDistanceTimeline.map(\.distanceMeters)
+        self.paceSeries = builtPaceSeries
+        paceDistances = builtPaceSeries.map(\.distanceKilometers)
+        pacePlotPoints = builtPacePlotPoints
+        self.heartSeries = builtHeartSeries
+        heartDistances = builtHeartSeries.map(\.distanceKilometers)
+        heartPlotPoints = builtHeartPlotPoints
+        self.cadenceSeries = builtCadenceSeries
+        cadenceDistances = builtCadenceSeries.map(\.distanceKilometers)
+        self.altitudeSeries = builtAltitudeSeries
+        altitudeDistances = builtAltitudeSeries.map(\.distanceKilometers)
+
+        let heartValues = builtHeartSeries.map(\.bpm)
+        let heartMinimum = max((heartValues.min() ?? 110) - 12, 60)
+        let heartMaximum = max((heartValues.max() ?? 180) + 12, heartMinimum + 20)
+        heartRateRange = heartMinimum...heartMaximum
+
+        let paceValues = builtPaceSeries.map(\.secondsPerKilometer)
+        let paceMinimum = paceValues.min() ?? 300
+        let paceMaximum = max(paceValues.max() ?? 420, paceMinimum + 1)
+        paceRange = paceMinimum...max(paceMaximum, paceMinimum + 1)
+
+        cadenceRange = Self.metricRange(for: builtCadenceSeries.map(\.value), minimumPadding: 6)
+        altitudeRange = Self.metricRange(for: builtAltitudeSeries.map(\.value), minimumPadding: 4)
+
+        let builtMaxDistance = max(
+            run.distanceInKilometers,
+            (sortedDistanceTimeline.last?.distanceMeters ?? 0) / 1_000,
+            builtPaceSeries.last?.distanceKilometers ?? 0,
+            builtHeartSeries.last?.distanceKilometers ?? 0,
+            builtCadenceSeries.last?.distanceKilometers ?? 0,
+            builtAltitudeSeries.last?.distanceKilometers ?? 0
+        )
+        maxDistance = builtMaxDistance
+        strideValues = Self.makeStrideValues(maxDistance: builtMaxDistance)
+
+        availableMetrics = PerformanceChartMetric.allCases.filter { metric in
+            switch metric {
+            case .pace:
+                return !builtPacePlotPoints.isEmpty
+            case .heartRate:
+                return !builtHeartPlotPoints.isEmpty
+            case .cadence:
+                return !builtCadenceSeries.isEmpty
+            case .altitude:
+                return !builtAltitudeSeries.isEmpty
+            }
+        }
+    }
+
+    func nearestTimelinePoint(toMeters distanceMeters: Double) -> DistanceTimelinePoint? {
+        guard let index = Self.nearestIndex(for: distanceMeters, in: timelineDistances) else { return nil }
+        return distanceTimeline[index]
+    }
+
+    func nearestPacePoint(toKilometers distanceKilometers: Double) -> PaceChartPoint? {
+        guard let index = Self.nearestIndex(for: distanceKilometers, in: paceDistances) else { return nil }
+        return paceSeries[index]
+    }
+
+    func nearestHeartPoint(toKilometers distanceKilometers: Double) -> HeartRateChartPoint? {
+        guard let index = Self.nearestIndex(for: distanceKilometers, in: heartDistances) else { return nil }
+        return heartSeries[index]
+    }
+
+    func nearestCadencePoint(toKilometers distanceKilometers: Double) -> SimpleMetricChartPoint? {
+        guard let index = Self.nearestIndex(for: distanceKilometers, in: cadenceDistances) else { return nil }
+        return cadenceSeries[index]
+    }
+
+    func nearestAltitudePoint(toKilometers distanceKilometers: Double) -> SimpleMetricChartPoint? {
+        guard let index = Self.nearestIndex(for: distanceKilometers, in: altitudeDistances) else { return nil }
+        return altitudeSeries[index]
+    }
+
+    func series(for metric: PerformanceChartMetric) -> [SimpleMetricChartPoint] {
+        switch metric {
+        case .pace:
+            return pacePlotPoints
+        case .heartRate:
+            return heartPlotPoints
+        case .cadence:
+            return cadenceSeries
+        case .altitude:
+            return altitudeSeries
+        }
+    }
+
+    func nearestSeriesPoint(for metric: PerformanceChartMetric, toKilometers distanceKilometers: Double) -> SimpleMetricChartPoint? {
+        switch metric {
+        case .pace:
+            guard let point = nearestPacePoint(toKilometers: distanceKilometers) else { return nil }
+            return SimpleMetricChartPoint(
+                distanceKilometers: point.distanceKilometers,
+                value: point.secondsPerKilometer,
+                segmentIndex: point.segmentIndex
+            )
+        case .heartRate:
+            guard let point = nearestHeartPoint(toKilometers: distanceKilometers) else { return nil }
+            return SimpleMetricChartPoint(
+                distanceKilometers: point.distanceKilometers,
+                value: point.bpm,
+                segmentIndex: point.segmentIndex
+            )
+        case .cadence:
+            return nearestCadencePoint(toKilometers: distanceKilometers)
+        case .altitude:
+            return nearestAltitudePoint(toKilometers: distanceKilometers)
+        }
+    }
+
+    func valueRange(for metric: PerformanceChartMetric) -> ClosedRange<Double> {
+        switch metric {
+        case .pace:
+            return paceRange
+        case .heartRate:
+            return heartRateRange
+        case .cadence:
+            return cadenceRange
+        case .altitude:
+            return altitudeRange
+        }
+    }
+
+    private static func metricRange(for values: [Double], minimumPadding: Double) -> ClosedRange<Double> {
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? minValue + minimumPadding
+        let padding = max((maxValue - minValue) * 0.12, minimumPadding)
+        return (minValue - padding)...(maxValue + padding)
+    }
+
+    private static func makeStrideValues(maxDistance: Double) -> [Double] {
+        guard maxDistance > 0 else { return [] }
+
+        let stride: Double
+        switch maxDistance {
+        case ..<3: stride = 0.5
+        case ..<10: stride = 1
+        case ..<20: stride = 2
+        default: stride = 5
+        }
+
+        let count = Int(ceil(maxDistance / stride))
+        var values = Array(0...count).map { Double($0) * stride }
+        if let last = values.last, abs(last - maxDistance) > 0.001 {
+            values.append(maxDistance)
+        }
+        return values
+    }
+
+    private static func nearestIndex(for target: Double, in distances: [Double]) -> Int? {
+        guard !distances.isEmpty else { return nil }
+
+        var lowerBound = 0
+        var upperBound = distances.count
+
+        while lowerBound < upperBound {
+            let middle = (lowerBound + upperBound) / 2
+            if distances[middle] < target {
+                lowerBound = middle + 1
+            } else {
+                upperBound = middle
+            }
+        }
+
+        if lowerBound == 0 {
+            return 0
+        }
+        if lowerBound == distances.count {
+            return distances.count - 1
+        }
+
+        let previousIndex = lowerBound - 1
+        let nextIndex = lowerBound
+        if abs(distances[previousIndex] - target) <= abs(distances[nextIndex] - target) {
+            return previousIndex
+        }
+        return nextIndex
+    }
+}
+
 private struct PerformanceChartSection: View {
     let run: RunningWorkout
     let detail: RunDetail
     @State private var selectedDistance: Double?
     @State private var selectedMetric: PerformanceChartMetric = .pace
+    @State private var chartData: PerformanceChartData
+
+    init(run: RunningWorkout, detail: RunDetail) {
+        self.run = run
+        self.detail = detail
+        _chartData = State(initialValue: PerformanceChartData(run: run, detail: detail))
+    }
 
     var body: some View {
         DetailSection(title: "흐름", systemImage: "chart.line.uptrend.xyaxis", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
@@ -297,11 +576,15 @@ private struct PerformanceChartSection: View {
                     .frame(height: 220)
                 }
                 .onAppear(perform: syncSelectedMetric)
-                .onChange(of: availableMetrics) {
-                    syncSelectedMetric()
+                .onChange(of: chartInputKey) {
+                    rebuildChartData()
                 }
             }
         }
+    }
+
+    private var chartInputKey: PerformanceChartInputKey {
+        PerformanceChartInputKey(run: run, detail: detail)
     }
 
     private var averageHeartRateText: String {
@@ -331,52 +614,8 @@ private struct PerformanceChartSection: View {
         return RunDisplayFormatter.cadence(average)
     }
 
-    private var heartSeries: [HeartRateChartPoint] {
-        HeartRateChartPoint.build(from: detail.heartRates)
-    }
-
-    private var paceSeries: [PaceChartPoint] {
-        PaceChartPoint.build(from: detail.paceSamples)
-    }
-
-    private var cadenceSeries: [SimpleMetricChartPoint] {
-        detail.runningMetrics.cadence.compactMap { sample in
-            guard let distanceMeters = sample.distanceMeters else { return nil }
-            return SimpleMetricChartPoint(
-                distanceKilometers: distanceMeters / 1_000,
-                value: sample.value,
-                segmentIndex: sample.segmentIndex
-            )
-        }
-    }
-
-    private var altitudeSeries: [SimpleMetricChartPoint] {
-        detail.route.map { point in
-            SimpleMetricChartPoint(
-                distanceKilometers: point.distanceMeters / 1_000,
-                value: point.altitudeMeters ?? .nan,
-                segmentIndex: nil
-            )
-        }
-        .filter { $0.value.isFinite }
-    }
-
-    private var selectedMetrics: SelectedMetrics? {
-        guard let resolvedDistanceKilometers = snappedDistanceKilometers else { return nil }
-
-        let resolvedDistanceMeters = resolvedDistanceKilometers * 1_000
-        let nearestDistancePoint = detail.distanceTimeline.min(by: {
-            abs($0.distanceMeters - resolvedDistanceMeters) < abs($1.distanceMeters - resolvedDistanceMeters)
-        })
-
-        return SelectedMetrics(
-            distanceMeters: resolvedDistanceMeters,
-            elapsed: nearestDistancePoint?.elapsed ?? 0,
-            paceSecondsPerKilometer: selectedPacePoint?.secondsPerKilometer,
-            heartRate: selectedHeartPoint?.bpm,
-            cadence: selectedCadencePoint?.value,
-            altitudeMeters: selectedAltitudePoint?.value
-        )
+    private var availableMetrics: [PerformanceChartMetric] {
+        chartData.availableMetrics
     }
 
     private var snappedDistanceKilometers: Double? {
@@ -384,147 +623,41 @@ private struct PerformanceChartSection: View {
         return min(max(selectedDistance, 0), maxDistance)
     }
 
-    private var selectedPacePoint: PaceChartPoint? {
-        guard let snappedDistanceKilometers else { return nil }
-        return paceSeries.min(by: {
-            abs($0.distanceKilometers - snappedDistanceKilometers) < abs($1.distanceKilometers - snappedDistanceKilometers)
-        })
-    }
+    private var selectedMetrics: SelectedMetrics? {
+        guard let resolvedDistanceKilometers = snappedDistanceKilometers else { return nil }
 
-    private var selectedHeartPoint: HeartRateChartPoint? {
-        guard let snappedDistanceKilometers else { return nil }
-        return heartSeries.min(by: {
-            abs($0.distanceKilometers - snappedDistanceKilometers) < abs($1.distanceKilometers - snappedDistanceKilometers)
-        })
-    }
+        let resolvedDistanceMeters = resolvedDistanceKilometers * 1_000
+        let nearestDistancePoint = chartData.nearestTimelinePoint(toMeters: resolvedDistanceMeters)
 
-    private var selectedCadencePoint: SimpleMetricChartPoint? {
-        guard let snappedDistanceKilometers else { return nil }
-        return cadenceSeries.min(by: {
-            abs($0.distanceKilometers - snappedDistanceKilometers) < abs($1.distanceKilometers - snappedDistanceKilometers)
-        })
-    }
-
-    private var selectedAltitudePoint: SimpleMetricChartPoint? {
-        guard let snappedDistanceKilometers else { return nil }
-        return altitudeSeries.min(by: {
-            abs($0.distanceKilometers - snappedDistanceKilometers) < abs($1.distanceKilometers - snappedDistanceKilometers)
-        })
-    }
-
-    private var heartRateRange: ClosedRange<Double> {
-        let values = heartSeries.map(\.bpm)
-        let minValue = max((values.min() ?? 110) - 12, 60)
-        let maxValue = max((values.max() ?? 180) + 12, minValue + 20)
-        return minValue...maxValue
-    }
-
-    private var paceRange: ClosedRange<Double> {
-        let values = paceSeries.map(\.secondsPerKilometer)
-        let minValue = values.min() ?? 300
-        let maxValue = max(values.max() ?? 420, minValue + 1)
-        return minValue...max(maxValue, minValue + 1)
-    }
-
-    private var cadenceRange: ClosedRange<Double> {
-        metricRange(for: cadenceSeries.map(\.value), minimumPadding: 6)
-    }
-
-    private var altitudeRange: ClosedRange<Double> {
-        metricRange(for: altitudeSeries.map(\.value), minimumPadding: 4)
-    }
-
-    private var availableMetrics: [PerformanceChartMetric] {
-        PerformanceChartMetric.allCases.filter(hasData(for:))
+        return SelectedMetrics(
+            distanceMeters: resolvedDistanceMeters,
+            elapsed: nearestDistancePoint?.elapsed ?? 0,
+            paceSecondsPerKilometer: chartData.nearestPacePoint(toKilometers: resolvedDistanceKilometers)?.secondsPerKilometer,
+            heartRate: chartData.nearestHeartPoint(toKilometers: resolvedDistanceKilometers)?.bpm,
+            cadence: chartData.nearestCadencePoint(toKilometers: resolvedDistanceKilometers)?.value,
+            altitudeMeters: chartData.nearestAltitudePoint(toKilometers: resolvedDistanceKilometers)?.value
+        )
     }
 
     private var activeSeries: [SimpleMetricChartPoint] {
-        switch selectedMetric {
-        case .pace:
-            return paceSeries.map {
-                SimpleMetricChartPoint(
-                    distanceKilometers: $0.distanceKilometers,
-                    value: $0.secondsPerKilometer,
-                    segmentIndex: $0.segmentIndex
-                )
-            }
-        case .heartRate:
-            return heartSeries.map {
-                SimpleMetricChartPoint(
-                    distanceKilometers: $0.distanceKilometers,
-                    value: $0.bpm,
-                    segmentIndex: $0.segmentIndex
-                )
-            }
-        case .cadence:
-            return cadenceSeries
-        case .altitude:
-            return altitudeSeries
-        }
+        chartData.series(for: selectedMetric)
     }
 
     private var activeSelectedPoint: SimpleMetricChartPoint? {
-        switch selectedMetric {
-        case .pace:
-            guard let selectedPacePoint else { return nil }
-            return SimpleMetricChartPoint(
-                distanceKilometers: selectedPacePoint.distanceKilometers,
-                value: selectedPacePoint.secondsPerKilometer,
-                segmentIndex: selectedPacePoint.segmentIndex
-            )
-        case .heartRate:
-            guard let selectedHeartPoint else { return nil }
-            return SimpleMetricChartPoint(
-                distanceKilometers: selectedHeartPoint.distanceKilometers,
-                value: selectedHeartPoint.bpm,
-                segmentIndex: selectedHeartPoint.segmentIndex
-            )
-        case .cadence:
-            return selectedCadencePoint
-        case .altitude:
-            return selectedAltitudePoint
-        }
+        guard let snappedDistanceKilometers else { return nil }
+        return chartData.nearestSeriesPoint(for: selectedMetric, toKilometers: snappedDistanceKilometers)
     }
 
     private var activeValueRange: ClosedRange<Double> {
-        switch selectedMetric {
-        case .pace:
-            return paceRange
-        case .heartRate:
-            return heartRateRange
-        case .cadence:
-            return cadenceRange
-        case .altitude:
-            return altitudeRange
-        }
+        chartData.valueRange(for: selectedMetric)
     }
 
     private var strideValues: [Double] {
-        guard maxDistance > 0 else { return [] }
-
-        let stride: Double
-        switch maxDistance {
-        case ..<3: stride = 0.5
-        case ..<10: stride = 1
-        case ..<20: stride = 2
-        default: stride = 5
-        }
-
-        let count = Int(ceil(maxDistance / stride))
-        var values = Array(0...count).map { Double($0) * stride }
-        if let last = values.last, abs(last - maxDistance) > 0.001 {
-            values.append(maxDistance)
-        }
-        return values
+        chartData.strideValues
     }
 
     private var maxDistance: Double {
-        max(
-            run.distanceInKilometers,
-            (detail.distanceTimeline.last?.distanceMeters ?? 0) / 1_000,
-            paceSeries.last?.distanceKilometers ?? 0,
-            heartSeries.last?.distanceKilometers ?? 0
-        )
+        chartData.maxDistance
     }
 
     private var activeMetricHeadlineText: String {
@@ -553,17 +686,9 @@ private struct PerformanceChartSection: View {
         }
     }
 
-    private func hasData(for metric: PerformanceChartMetric) -> Bool {
-        switch metric {
-        case .pace:
-            return !paceSeries.isEmpty
-        case .heartRate:
-            return !heartSeries.isEmpty
-        case .cadence:
-            return !cadenceSeries.isEmpty
-        case .altitude:
-            return !altitudeSeries.isEmpty
-        }
+    private func rebuildChartData() {
+        chartData = PerformanceChartData(run: run, detail: detail)
+        syncSelectedMetric()
     }
 
     private func syncSelectedMetric() {
@@ -571,13 +696,6 @@ private struct PerformanceChartSection: View {
         if !availableMetrics.contains(selectedMetric) {
             selectedMetric = availableMetrics.first ?? .pace
         }
-    }
-
-    private func metricRange(for values: [Double], minimumPadding: Double) -> ClosedRange<Double> {
-        let minValue = values.min() ?? 0
-        let maxValue = values.max() ?? minValue + minimumPadding
-        let padding = max((maxValue - minValue) * 0.12, minimumPadding)
-        return (minValue - padding)...(maxValue + padding)
     }
 }
 

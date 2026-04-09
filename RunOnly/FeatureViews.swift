@@ -73,6 +73,7 @@ struct HomeTabView: View {
 // 기록 탭은 월/일 기준으로 러닝 목록을 탐색할 수 있게 구성한다.
 struct RecordTabView: View {
     @ObservedObject var viewModel: RunningWorkoutsViewModel
+    @EnvironmentObject private var shoeStore: ShoeStore
     @State private var showingCalendar = false
     @State private var showingPersonalRecords = false
 
@@ -167,7 +168,10 @@ struct RecordTabView: View {
                                         NavigationLink {
                                             RunDetailView(run: run)
                                         } label: {
-                                            RunRowCard(run: run)
+                                            RunRowCard(
+                                                run: run,
+                                                shoeDisplay: shoeStore.shoeAssignmentDisplay(for: run.id)
+                                            )
                                         }
                                         .buttonStyle(.plain)
                                     }
@@ -3203,9 +3207,15 @@ private struct PredictionTrendView: View {
     @State private var selectedDistance: PredictionDistance = .fiveK
     @State private var showingMethod = false
     @State private var selectedPredictionDate: Date?
+    @State private var cachedPointsByDistance: [PredictionDistance: [PredictionTrendPoint]]
+
+    init(runs: [RunningWorkout]) {
+        self.runs = runs
+        _cachedPointsByDistance = State(initialValue: Self.buildPointCache(for: runs))
+    }
 
     private var points: [PredictionTrendPoint] {
-        PredictionTrendPoint.build(for: selectedDistance, runs: runs)
+        cachedPointsByDistance[selectedDistance] ?? []
     }
 
     private var latestPoint: PredictionTrendPoint? { points.last }
@@ -3412,9 +3422,30 @@ private struct PredictionTrendView: View {
         .background(AppBackground())
         .navigationTitle(L10n.tr("예상 기록"))
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: runsCacheKey) {
+            rebuildPointCache()
+        }
         .sheet(isPresented: $showingMethod) {
             PredictionMethodView()
         }
+    }
+
+    private var runsCacheKey: [UUID] {
+        runs.map(\.id)
+    }
+
+    private func rebuildPointCache() {
+        cachedPointsByDistance = Self.buildPointCache(for: runs)
+        selectedPredictionDate = nil
+    }
+
+    private static func buildPointCache(for runs: [RunningWorkout]) -> [PredictionDistance: [PredictionTrendPoint]] {
+        let sortedRuns = runs.sorted(by: { $0.startDate < $1.startDate })
+        return Dictionary(
+            uniqueKeysWithValues: PredictionDistance.allCases.map { distance in
+                (distance, PredictionTrendPoint.build(for: distance, sortedRuns: sortedRuns))
+            }
+        )
     }
 }
 
@@ -3522,14 +3553,19 @@ private enum PredictionDistance: String, CaseIterable, Identifiable {
 
 // 예측 추세 차트에서 한 점은 특정 날짜의 최적 예측값을 뜻한다.
 private struct PredictionTrendPoint: Identifiable, Equatable {
-    let id = UUID()
     let date: Date
     let seconds: Double
 
-    static func build(for distance: PredictionDistance, runs: [RunningWorkout]) -> [PredictionTrendPoint] {
-        let sortedRuns = runs
-            .sorted(by: { $0.startDate < $1.startDate })
+    var id: Date { date }
 
+    static func build(for distance: PredictionDistance, runs: [RunningWorkout]) -> [PredictionTrendPoint] {
+        build(
+            for: distance,
+            sortedRuns: runs.sorted(by: { $0.startDate < $1.startDate })
+        )
+    }
+
+    static func build(for distance: PredictionDistance, sortedRuns: [RunningWorkout]) -> [PredictionTrendPoint] {
         var points: [PredictionTrendPoint] = []
         for run in sortedRuns {
             guard let predictedSeconds = PredictionModel.predictedSeconds(

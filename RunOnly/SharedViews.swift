@@ -154,7 +154,7 @@ struct RunMetricPill: View {
 
 struct RunRowCard: View {
     let run: RunningWorkout
-    @EnvironmentObject private var shoeStore: ShoeStore
+    let shoeDisplay: RunShoeAssignmentDisplay
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -168,7 +168,7 @@ struct RunRowCard: View {
 
                 Spacer(minLength: 8)
 
-                Text(shoeDisplayName)
+                Text(shoeDisplay.name)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(shoeForegroundColor)
                     .lineLimit(1)
@@ -222,21 +222,17 @@ struct RunRowCard: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(run.recordCompactDateText), \(run.environmentShortText)"))
-        .accessibilityValue(Text("\(L10n.tr("거리")) \(run.distanceText), \(L10n.tr("시간")) \(run.durationText), \(L10n.tr("페이스")) \(run.paceText), \(shoeDisplayName)"))
-    }
-
-    private var shoeDisplayName: String {
-        shoeStore.shoe(for: run.id)?.displayName ?? L10n.tr("신발 미선택")
+        .accessibilityValue(Text("\(L10n.tr("거리")) \(run.distanceText), \(L10n.tr("시간")) \(run.durationText), \(L10n.tr("페이스")) \(run.paceText), \(shoeDisplay.name)"))
     }
 
     private var shoeForegroundColor: Color {
-        shoeStore.shoe(for: run.id) == nil ? .white.opacity(0.7) : Color(red: 0.29, green: 0.88, blue: 0.63)
+        shoeDisplay.isAssigned ? Color(red: 0.29, green: 0.88, blue: 0.63) : .white.opacity(0.7)
     }
 
     private var shoeBackgroundColor: Color {
-        shoeStore.shoe(for: run.id) == nil
-            ? Color.white.opacity(0.08)
-            : Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.14)
+        shoeDisplay.isAssigned
+            ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.14)
+            : Color.white.opacity(0.08)
     }
 
     private var metricDivider: some View {
