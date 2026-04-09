@@ -311,6 +311,59 @@ final class HealthKitService {
         )
     }
 
+    func fetchRestingHeartRateSnapshot(referenceDate: Date = Date()) async throws -> RestingHeartRateSnapshot? {
+        guard let restingHeartRateType = HKObjectType.quantityType(forIdentifier: .restingHeartRate) else {
+            return nil
+        }
+
+        let calendar = Calendar.current
+        let startDate = calendar.date(byAdding: .day, value: -14, to: referenceDate) ?? .distantPast
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: referenceDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+
+        let samples: [HKQuantitySample] = try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: restingHeartRateType,
+                predicate: predicate,
+                limit: 30,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                continuation.resume(returning: (samples as? [HKQuantitySample]) ?? [])
+            }
+
+            healthStore.execute(query)
+        }
+
+        guard samples.count >= 3, let latestSample = samples.first else {
+            return nil
+        }
+
+        let latestAge = calendar.dateComponents([.day], from: latestSample.startDate, to: referenceDate).day ?? .max
+        guard latestAge <= 7 else {
+            return nil
+        }
+
+        let values = samples.map {
+            $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
+        }
+
+        guard let baseline = median(values) else {
+            return nil
+        }
+
+        return RestingHeartRateSnapshot(
+            latestBPM: values[0],
+            baselineBPM: baseline,
+            measuredAt: latestSample.startDate,
+            sampleCount: values.count
+        )
+    }
+
     // 심박 존 계산은 안정시 심박과 최근 최대 심박이 있으면 그 값을 우선 활용한다.
     private func fetchHeartRateZoneProfile(
         referenceDate: Date,
@@ -415,6 +468,18 @@ final class HealthKitService {
 
             healthStore.execute(query)
         }
+    }
+
+    private func median(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let sorted = values.sorted()
+        let middle = sorted.count / 2
+
+        if sorted.count.isMultiple(of: 2) {
+            return (sorted[middle - 1] + sorted[middle]) / 2
+        }
+
+        return sorted[middle]
     }
 
     // 여러 workout route를 하나의 경로 배열로 모아 지도에 바로 쓸 수 있게 만든다.

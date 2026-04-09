@@ -2,40 +2,6 @@ import Charts
 import MapKit
 import SwiftUI
 
-private struct CompactSelectionRow: View {
-    let metrics: SelectedMetrics
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            CompactMetricChip(title: "거리", value: metrics.distanceText, detail: metrics.elapsedText)
-            CompactMetricChip(title: "페이스", value: metrics.paceText, detail: "선택 구간")
-            CompactMetricChip(title: "심박", value: metrics.heartRateText, detail: "선택 시점")
-            if let cadenceText = metrics.cadenceText {
-                CompactMetricChip(title: "케이던스", value: cadenceText, detail: "선택 시점")
-            }
-            if let altitudeText = metrics.altitudeText {
-                CompactMetricChip(title: "고도", value: altitudeText, detail: "선택 지점")
-            }
-        }
-    }
-}
-
-private struct CompactAverageRow: View {
-    let averagePaceText: String
-    let averageHeartRateText: String
-    let averageCadenceText: String?
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            CompactMetricChip(title: "평균 페이스", value: averagePaceText, detail: "러닝 전체")
-            CompactMetricChip(title: "평균 심박", value: averageHeartRateText, detail: "러닝 전체")
-            if let averageCadenceText {
-                CompactMetricChip(title: "평균 케이던스", value: averageCadenceText, detail: "러닝 전체")
-            }
-        }
-    }
-}
-
 private struct RunPersonalRecordBanner: View {
     let achievements: [PersonalRecordDistance]
 
@@ -92,17 +58,7 @@ struct RunDetailView: View {
                     RunPersonalRecordBanner(achievements: displayedPersonalRecordAchievements)
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(run.detailDateText)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
-                    HStack(spacing: 8) {
-                        RunEnvironmentBadge(text: run.environmentText)
-                        Text(run.sourceName)
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                }
+                RunOverviewMetricsSection(run: run, summary: displayedSummary)
 
                 if run.isDemoWorkout {
                     DemoScenarioPanel(viewModel: viewModel)
@@ -110,15 +66,14 @@ struct RunDetailView: View {
 
                 switch viewModel.state {
                 case .idle, .loading:
-                    RunOverviewMetricsSection(run: run, summary: viewModel.cachedSummary)
-                    DetailSection(title: "러닝 경로") {
+                    DetailSection(title: "경로", systemImage: "map", tint: Color(red: 0.35, green: 0.72, blue: 1.0)) {
                         ProgressView("상세 데이터를 불러오는 중")
                             .tint(.white)
                             .foregroundStyle(.white)
                     }
 
                 case .failed(let message):
-                    DetailSection(title: "상세 데이터를 불러오지 못했습니다") {
+                    DetailSection(title: "상세 데이터를 불러오지 못했습니다", tint: Color(red: 0.92, green: 0.46, blue: 0.44)) {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(message)
                                 .foregroundStyle(.white.opacity(0.72))
@@ -132,15 +87,11 @@ struct RunDetailView: View {
                     }
 
                 case .loaded(let detail):
-                    RunOverviewMetricsSection(
-                        run: run,
-                        summary: detail.summaryMetrics.mergingMissingValues(from: viewModel.cachedSummary)
-                    )
-                    RunSplitSection(detail: detail)
-                    PerformanceChartSection(run: run, detail: detail)
-                    HeartRateZoneSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
-                    RunGearSection(run: run)
                     RunRouteSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
+                    HeartRateZoneSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
+                    PerformanceChartSection(run: run, detail: detail)
+                    RunSplitSection(detail: detail)
+                    RunGearSection(run: run)
                     RunDataSourceSection(run: run)
                 }
             }
@@ -176,6 +127,10 @@ struct RunDetailView: View {
     private var loadedDetail: RunDetail? {
         guard case .loaded(let detail) = viewModel.state else { return nil }
         return detail
+    }
+
+    private var displayedSummary: RunSummaryMetrics? {
+        loadedDetail?.summaryMetrics.mergingMissingValues(from: viewModel.cachedSummary) ?? viewModel.cachedSummary
     }
 
     private var displayedPersonalRecordAchievements: [PersonalRecordDistance] {
@@ -283,7 +238,7 @@ private struct RunRouteSection: View {
     let isLoadingSupplementary: Bool
 
     var body: some View {
-        DetailSection(title: "러닝 경로") {
+        DetailSection(title: "경로", systemImage: "map", tint: Color(red: 0.35, green: 0.72, blue: 1.0)) {
             if detail.route.isEmpty, isLoadingSupplementary {
                 HStack(spacing: 10) {
                     ProgressView()
@@ -307,108 +262,43 @@ private struct PerformanceChartSection: View {
     let run: RunningWorkout
     let detail: RunDetail
     @State private var selectedDistance: Double?
+    @State private var selectedMetric: PerformanceChartMetric = .pace
 
     var body: some View {
-        DetailSection(title: "퍼포먼스 차트") {
-            if heartSeries.isEmpty && paceSeries.isEmpty && cadenceSeries.isEmpty && altitudeSeries.isEmpty {
+        DetailSection(title: "흐름", systemImage: "chart.line.uptrend.xyaxis", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
+            if availableMetrics.isEmpty {
                 Text("그래프를 그릴 경로 또는 심박 데이터가 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
             } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    if let selectedMetrics {
-                        CompactSelectionRow(metrics: selectedMetrics)
-                    } else {
-                        CompactAverageRow(
-                            averagePaceText: averagePaceText,
-                            averageHeartRateText: averageHeartRateText,
-                            averageCadenceText: averageCadenceText
-                        )
+                VStack(alignment: .leading, spacing: 12) {
+                    PerformanceMetricPicker(metrics: availableMetrics, selectedMetric: $selectedMetric)
+
+                    HStack(alignment: .firstTextBaseline) {
+                        Label(LocalizedStringKey(selectedMetric.title), systemImage: selectedMetric.systemImage)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(selectedMetric.tint)
+                        Spacer()
+                        Text(activeMetricHeadlineText)
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .monospacedDigit()
                     }
+                    .padding(.horizontal, 2)
 
-                    VStack(spacing: 0) {
-                        if !paceSeries.isEmpty {
-                            metricHeader(title: "페이스", systemImage: "speedometer", tint: .orange)
-                                .padding(.bottom, 6)
-
-                            PaceChartPlot(
-                                selectedMetrics: selectedMetrics,
-                                selectedPacePoint: selectedPacePoint,
-                                selectedDistance: $selectedDistance,
-                                paceSeries: paceSeries,
-                                paceRange: paceRange,
-                                strideValues: strideValues,
-                                maxDistance: maxDistance,
-                                showsXAxis: false
-                            )
-                            .frame(height: 144)
-                        }
-
-                        if !heartSeries.isEmpty {
-                            sectionDivider
-                            metricHeader(
-                                title: "심박",
-                                systemImage: "heart.fill",
-                                tint: Color(red: 0.45, green: 0.95, blue: 0.76)
-                            )
-                            .padding(.bottom, 6)
-
-                            HeartRateChartPlot(
-                                selectedMetrics: selectedMetrics,
-                                selectedHeartPoint: selectedHeartPoint,
-                                selectedDistance: $selectedDistance,
-                                heartSeries: heartSeries,
-                                heartRateRange: heartRateRange,
-                                strideValues: strideValues,
-                                maxDistance: maxDistance,
-                                showsXAxis: cadenceSeries.isEmpty && altitudeSeries.isEmpty
-                            )
-                            .frame(height: 144)
-                        }
-
-                        if !cadenceSeries.isEmpty {
-                            sectionDivider
-                            metricHeader(
-                                title: "케이던스",
-                                systemImage: "metronome",
-                                tint: Color(red: 0.42, green: 0.76, blue: 1.0)
-                            )
-                            .padding(.bottom, 6)
-
-                            SyncedMetricChartPlot(
-                                selectedDistance: $selectedDistance,
-                                selectedPoint: selectedCadencePoint,
-                                points: cadenceSeries,
-                                valueRange: cadenceRange,
-                                strideValues: strideValues,
-                                maxDistance: maxDistance,
-                                tint: Color(red: 0.42, green: 0.76, blue: 1.0),
-                                showsXAxis: altitudeSeries.isEmpty
-                            )
-                            .frame(height: 144)
-                        }
-
-                        if !altitudeSeries.isEmpty {
-                            sectionDivider
-                            metricHeader(
-                                title: "고도",
-                                systemImage: "mountain.2.fill",
-                                tint: Color(red: 0.68, green: 0.60, blue: 0.96)
-                            )
-                            .padding(.bottom, 6)
-
-                            SyncedMetricChartPlot(
-                                selectedDistance: $selectedDistance,
-                                selectedPoint: selectedAltitudePoint,
-                                points: altitudeSeries,
-                                valueRange: altitudeRange,
-                                strideValues: strideValues,
-                                maxDistance: maxDistance,
-                                tint: Color(red: 0.68, green: 0.60, blue: 0.96),
-                                showsXAxis: true
-                            )
-                            .frame(height: 144)
-                        }
-                    }
+                    RunMetricChartPlot(
+                        metric: selectedMetric,
+                        selectedDistance: $selectedDistance,
+                        selectedPoint: activeSelectedPoint,
+                        points: activeSeries,
+                        valueRange: activeValueRange,
+                        strideValues: strideValues,
+                        maxDistance: maxDistance
+                    )
+                    .frame(height: 220)
+                }
+                .onAppear(perform: syncSelectedMetric)
+                .onChange(of: availableMetrics) {
+                    syncSelectedMetric()
                 }
             }
         }
@@ -544,6 +434,71 @@ private struct PerformanceChartSection: View {
         metricRange(for: altitudeSeries.map(\.value), minimumPadding: 4)
     }
 
+    private var availableMetrics: [PerformanceChartMetric] {
+        PerformanceChartMetric.allCases.filter(hasData(for:))
+    }
+
+    private var activeSeries: [SimpleMetricChartPoint] {
+        switch selectedMetric {
+        case .pace:
+            return paceSeries.map {
+                SimpleMetricChartPoint(
+                    distanceKilometers: $0.distanceKilometers,
+                    value: $0.secondsPerKilometer,
+                    segmentIndex: $0.segmentIndex
+                )
+            }
+        case .heartRate:
+            return heartSeries.map {
+                SimpleMetricChartPoint(
+                    distanceKilometers: $0.distanceKilometers,
+                    value: $0.bpm,
+                    segmentIndex: $0.segmentIndex
+                )
+            }
+        case .cadence:
+            return cadenceSeries
+        case .altitude:
+            return altitudeSeries
+        }
+    }
+
+    private var activeSelectedPoint: SimpleMetricChartPoint? {
+        switch selectedMetric {
+        case .pace:
+            guard let selectedPacePoint else { return nil }
+            return SimpleMetricChartPoint(
+                distanceKilometers: selectedPacePoint.distanceKilometers,
+                value: selectedPacePoint.secondsPerKilometer,
+                segmentIndex: selectedPacePoint.segmentIndex
+            )
+        case .heartRate:
+            guard let selectedHeartPoint else { return nil }
+            return SimpleMetricChartPoint(
+                distanceKilometers: selectedHeartPoint.distanceKilometers,
+                value: selectedHeartPoint.bpm,
+                segmentIndex: selectedHeartPoint.segmentIndex
+            )
+        case .cadence:
+            return selectedCadencePoint
+        case .altitude:
+            return selectedAltitudePoint
+        }
+    }
+
+    private var activeValueRange: ClosedRange<Double> {
+        switch selectedMetric {
+        case .pace:
+            return paceRange
+        case .heartRate:
+            return heartRateRange
+        case .cadence:
+            return cadenceRange
+        case .altitude:
+            return altitudeRange
+        }
+    }
+
     private var strideValues: [Double] {
         guard maxDistance > 0 else { return [] }
 
@@ -572,19 +527,50 @@ private struct PerformanceChartSection: View {
         )
     }
 
-    private func metricHeader(title: String, systemImage: String, tint: Color) -> some View {
-        HStack {
-            Label(LocalizedStringKey(title), systemImage: systemImage)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(tint)
-            Spacer()
+    private var activeMetricHeadlineText: String {
+        if let selectedMetrics {
+            switch selectedMetric {
+            case .pace:
+                return selectedMetrics.paceText
+            case .heartRate:
+                return selectedMetrics.heartRateText
+            case .cadence:
+                return selectedMetrics.cadenceText ?? "-"
+            case .altitude:
+                return selectedMetrics.altitudeText ?? "-"
+            }
+        }
+
+        switch selectedMetric {
+        case .pace:
+            return averagePaceText
+        case .heartRate:
+            return averageHeartRateText
+        case .cadence:
+            return averageCadenceText ?? "-"
+        case .altitude:
+            return detail.elevationGainText ?? "-"
         }
     }
 
-    private var sectionDivider: some View {
-        Divider()
-            .overlay(Color.white.opacity(0.08))
-            .padding(.vertical, 10)
+    private func hasData(for metric: PerformanceChartMetric) -> Bool {
+        switch metric {
+        case .pace:
+            return !paceSeries.isEmpty
+        case .heartRate:
+            return !heartSeries.isEmpty
+        case .cadence:
+            return !cadenceSeries.isEmpty
+        case .altitude:
+            return !altitudeSeries.isEmpty
+        }
+    }
+
+    private func syncSelectedMetric() {
+        guard !availableMetrics.isEmpty else { return }
+        if !availableMetrics.contains(selectedMetric) {
+            selectedMetric = availableMetrics.first ?? .pace
+        }
     }
 
     private func metricRange(for values: [Double], minimumPadding: Double) -> ClosedRange<Double> {
@@ -592,6 +578,198 @@ private struct PerformanceChartSection: View {
         let maxValue = values.max() ?? minValue + minimumPadding
         let padding = max((maxValue - minValue) * 0.12, minimumPadding)
         return (minValue - padding)...(maxValue + padding)
+    }
+}
+
+private enum PerformanceChartMetric: String, CaseIterable, Identifiable {
+    case pace
+    case heartRate
+    case cadence
+    case altitude
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .pace:
+            return "페이스"
+        case .heartRate:
+            return "심박"
+        case .cadence:
+            return "케이던스"
+        case .altitude:
+            return "고도"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .pace:
+            return "speedometer"
+        case .heartRate:
+            return "heart.fill"
+        case .cadence:
+            return "metronome"
+        case .altitude:
+            return "mountain.2.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .pace:
+            return .orange
+        case .heartRate:
+            return Color(red: 0.45, green: 0.95, blue: 0.76)
+        case .cadence:
+            return Color(red: 0.42, green: 0.76, blue: 1.0)
+        case .altitude:
+            return Color(red: 0.68, green: 0.60, blue: 0.96)
+        }
+    }
+}
+
+private struct PerformanceMetricPicker: View {
+    let metrics: [PerformanceChartMetric]
+    @Binding var selectedMetric: PerformanceChartMetric
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(metrics) { metric in
+                Button {
+                    selectedMetric = metric
+                } label: {
+                    Label(LocalizedStringKey(metric.title), systemImage: metric.systemImage)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 10)
+                        .foregroundStyle(metric == selectedMetric ? .white : .white.opacity(0.64))
+                        .background(
+                            Capsule()
+                                .fill(metric == selectedMetric ? metric.tint.opacity(0.2) : Color.white.opacity(0.05))
+                                .overlay(
+                                    Capsule()
+                                        .stroke(metric == selectedMetric ? metric.tint.opacity(0.55) : Color.white.opacity(0.08), lineWidth: 1)
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct RunMetricChartPlot: View {
+    let metric: PerformanceChartMetric
+    @Binding var selectedDistance: Double?
+    let selectedPoint: SimpleMetricChartPoint?
+    let points: [SimpleMetricChartPoint]
+    let valueRange: ClosedRange<Double>
+    let strideValues: [Double]
+    let maxDistance: Double
+
+    var body: some View {
+        Chart {
+            ForEach(points) { point in
+                AreaMark(
+                    x: .value("거리", point.distanceKilometers),
+                    yStart: .value("기준", areaBaseline),
+                    yEnd: .value(metric.title, displayedValue(point.value)),
+                    series: .value("세그먼트", point.segmentIndex ?? -1)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            metric.tint.opacity(0.22),
+                            metric.tint.opacity(0.02)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.linear)
+
+                LineMark(
+                    x: .value("거리", point.distanceKilometers),
+                    y: .value(metric.title, displayedValue(point.value)),
+                    series: .value("세그먼트", point.segmentIndex ?? -1)
+                )
+                .foregroundStyle(metric.tint)
+                .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+                .interpolationMethod(.linear)
+            }
+
+            if let selectedPoint {
+                RuleMark(x: .value("선택", selectedPoint.distanceKilometers))
+                    .foregroundStyle(.white.opacity(0.32))
+                    .lineStyle(StrokeStyle(lineWidth: 1.2))
+
+                PointMark(
+                    x: .value("선택값", selectedPoint.distanceKilometers),
+                    y: .value("선택값Y", displayedValue(selectedPoint.value))
+                )
+                .foregroundStyle(metric.tint)
+                .symbolSize(30)
+            }
+        }
+        .chartXSelection(value: $selectedDistance)
+        .chartXScale(domain: 0...max(maxDistance, 0.1))
+        .chartYScale(domain: chartYDomain)
+        .chartPlotStyle { plotArea in
+            plotArea
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.white.opacity(0.03))
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                }
+        }
+        .chartXAxis {
+            AxisMarks(values: strideValues) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(.white.opacity(0.12))
+                AxisTick()
+                    .foregroundStyle(.white.opacity(0.35))
+                AxisValueLabel {
+                    if let distance = value.as(Double.self) {
+                        Text(formatAxisDistance(distance))
+                            .foregroundStyle(.white.opacity(0.68))
+                    }
+                }
+            }
+        }
+        .chartYAxis(.hidden)
+    }
+
+    private var areaBaseline: Double {
+        switch metric {
+        case .pace:
+            return 0
+        case .heartRate, .cadence, .altitude:
+            return valueRange.lowerBound
+        }
+    }
+
+    private var chartYDomain: ClosedRange<Double> {
+        switch metric {
+        case .pace:
+            return 0...max(valueRange.upperBound - valueRange.lowerBound, 0.1)
+        case .heartRate, .cadence, .altitude:
+            return valueRange.lowerBound...valueRange.upperBound
+        }
+    }
+
+    private func displayedValue(_ rawValue: Double) -> Double {
+        switch metric {
+        case .pace:
+            return valueRange.upperBound - rawValue
+        case .heartRate, .cadence, .altitude:
+            return rawValue
+        }
     }
 }
 
@@ -735,7 +913,7 @@ private struct RunSplitSection: View {
     let detail: RunDetail
 
     var body: some View {
-        DetailSection(title: L10n.tr("스플릿")) {
+        DetailSection(title: L10n.tr("구간"), systemImage: "flag.pattern.checkered", tint: Color(red: 0.29, green: 0.88, blue: 0.63)) {
             if detail.splits.isEmpty {
                 Text("스플릿을 계산할 경로 데이터가 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
@@ -762,14 +940,92 @@ private struct RunOverviewMetricsSection: View {
     let summary: RunSummaryMetrics?
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            CompactMetricChip(title: "거리", value: run.distanceText, detail: "총 거리")
-            CompactMetricChip(title: "시간", value: run.durationText, detail: "총 운동 시간")
-            CompactMetricChip(title: "평균 페이스", value: run.paceText, detail: "러닝 전체")
-            CompactMetricChip(title: "평균 심박", value: averageHeartRateText, detail: "러닝 전체")
-            CompactMetricChip(title: "평균 케이던스", value: averageCadenceText, detail: "러닝 전체")
-            CompactMetricChip(title: "상승 고도", value: elevationGainText, detail: "러닝 전체")
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                RunHeroMoodBadge(text: moodBadgeText)
+
+                Text(run.detailDateText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.66))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Spacer(minLength: 8)
+
+                RunEnvironmentBadge(text: run.environmentBadgeText)
+            }
+
+            HStack(spacing: 8) {
+                RunHeroPrimaryMetric(title: "거리", value: run.distanceText)
+                RunHeroPrimaryMetric(title: "시간", value: run.durationText)
+                RunHeroPrimaryMetric(title: "페이스", value: run.paceText)
+            }
+
+            if !secondaryMetrics.isEmpty {
+                LazyVGrid(columns: secondaryColumns, spacing: 8) {
+                    ForEach(secondaryMetrics) { metric in
+                        RunHeroSecondaryMetric(metric: metric)
+                    }
+                }
+            }
         }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.07),
+                            Color(red: 0.22, green: 0.54, blue: 0.84).opacity(0.22)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.18), radius: 18, y: 10)
+        )
+    }
+
+    private var secondaryColumns: [GridItem] {
+        let count = min(max(secondaryMetrics.count, 1), 3)
+        return Array(repeating: GridItem(.flexible(), spacing: 8), count: count)
+    }
+
+    private var moodBadgeText: String {
+        if run.isIndoorWorkout == true {
+            return L10n.tr("트레드밀")
+        }
+
+        switch run.distanceInKilometers {
+        case ..<3:
+            return L10n.tr("가벼운 런")
+        case ..<8:
+            return L10n.tr("데일리 런")
+        case ..<15:
+            return L10n.tr("지구력 런")
+        default:
+            return L10n.tr("롱 런")
+        }
+    }
+
+    private var secondaryMetrics: [RunOverviewSecondaryMetric] {
+        var metrics: [RunOverviewSecondaryMetric] = []
+
+        if averageHeartRateText != "-" {
+            metrics.append(RunOverviewSecondaryMetric(title: "심박", value: averageHeartRateText))
+        }
+        if averageCadenceText != "-" {
+            metrics.append(RunOverviewSecondaryMetric(title: "케이던스", value: averageCadenceText))
+        }
+        if elevationGainText != "-" {
+            metrics.append(RunOverviewSecondaryMetric(title: "상승", value: elevationGainText))
+        }
+
+        return metrics
     }
 
     private var averageHeartRateText: String {
@@ -785,12 +1041,96 @@ private struct RunOverviewMetricsSection: View {
     }
 }
 
+private struct RunHeroPrimaryMetric: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+            Text(value)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(0.16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct RunOverviewSecondaryMetric: Identifiable {
+    let title: String
+    let value: String
+
+    var id: String { title }
+}
+
+private struct RunHeroSecondaryMetric: View {
+    let metric: RunOverviewSecondaryMetric
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(LocalizedStringKey(metric.title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.5))
+            Text(metric.value)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.86))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct RunHeroMoodBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color(red: 1.0, green: 0.86, blue: 0.76))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(Color(red: 0.96, green: 0.56, blue: 0.34).opacity(0.18))
+            )
+    }
+}
+
 private struct HeartRateZoneSection: View {
     let detail: RunDetail
     let isLoadingSupplementary: Bool
 
     var body: some View {
-        DetailSection(title: "심박 존 1-5") {
+        DetailSection(title: "심박", systemImage: "heart.fill", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
             if zoneRows.isEmpty, isLoadingSupplementary {
                 HStack(spacing: 10) {
                     ProgressView()
@@ -803,10 +1143,6 @@ private struct HeartRateZoneSection: View {
                     .foregroundStyle(.white.opacity(0.72))
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(detail.heartRateZoneProfile?.method.descriptionText ?? L10n.tr("심박 존 기준 없음"))
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
-
                     ForEach(zoneRows) { zone in
                         HeartRateZoneRow(zone: zone)
                     }
@@ -820,11 +1156,11 @@ private struct HeartRateZoneSection: View {
         guard let zoneProfile = detail.heartRateZoneProfile else { return [] }
 
         let boundaries: [(label: String, lower: Double, upper: Double, color: Color)] = [
-            (L10n.tr("존 1"), 0.50, 0.60, Color.blue),
-            (L10n.tr("존 2"), 0.60, 0.70, Color.green),
-            (L10n.tr("존 3"), 0.70, 0.80, Color.yellow),
-            (L10n.tr("존 4"), 0.80, 0.90, Color.orange),
-            (L10n.tr("존 5"), 0.90, 1.01, Color.red)
+            (L10n.tr("존 1"), 0.50, 0.60, Color(red: 0.42, green: 0.76, blue: 1.0)),
+            (L10n.tr("존 2"), 0.60, 0.70, Color(red: 0.45, green: 0.95, blue: 0.76)),
+            (L10n.tr("존 3"), 0.70, 0.80, Color(red: 0.95, green: 0.84, blue: 0.40)),
+            (L10n.tr("존 4"), 0.80, 0.90, Color(red: 0.95, green: 0.59, blue: 0.32)),
+            (L10n.tr("존 5"), 0.90, 1.01, Color(red: 0.94, green: 0.41, blue: 0.45))
         ]
 
         let sortedHeartRates = detail.heartRates.sorted {
@@ -851,14 +1187,8 @@ private struct HeartRateZoneSection: View {
         }
 
         return boundaries.enumerated().map { index, boundary in
-            let bpmRange = zoneProfile.bpmRange(
-                lowerFraction: boundary.lower,
-                upperFraction: min(boundary.upper, 1.0)
-            )
             return HeartRateZoneRowModel(
                 title: boundary.label,
-                rangeText: "\(bpmRange.lowerBound)-\(bpmRange.upperBound) bpm",
-                intensityText: "\(Int(boundary.lower * 100))-\(Int(min(boundary.upper, 1.0) * 100))%",
                 duration: durations[index],
                 percentage: durations[index] / totalDuration,
                 color: boundary.color
@@ -871,28 +1201,25 @@ private struct RunDataSourceSection: View {
     let run: RunningWorkout
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("데이터 소스")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.5))
-            Text(run.sourceName)
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "checkmark.shield")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.8))
-            Text(run.sourceBundleIdentifier)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.42))
-                .textSelection(.enabled)
+                .foregroundStyle(Color(red: 0.49, green: 0.78, blue: 1.0))
+
+            Text(run.sourceSummaryText)
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 8)
+        .padding(.top, 2)
     }
 }
 
 private struct HeartRateZoneRowModel: Identifiable {
     let id = UUID()
     let title: String
-    let rangeText: String
-    let intensityText: String
     let duration: TimeInterval
     let percentage: Double
     let color: Color
@@ -902,43 +1229,69 @@ private struct HeartRateZoneRow: View {
     let zone: HeartRateZoneRowModel
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(zone.color)
+                    .frame(width: 8, height: 8)
+
                 Text(LocalizedStringKey(zone.title))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
-                Text(zone.rangeText)
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.45))
-                Text(zone.intensityText)
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.35))
             }
-            .frame(width: 64, alignment: .leading)
+            .frame(width: 58, alignment: .leading)
 
             GeometryReader { proxy in
+                let barWidth = proxy.size.width
+                let fillWidth = max(barWidth * max(zone.percentage, 0.02), zone.duration > 0 ? 10 : 0)
+                let showsLabelInside = fillWidth >= 54
+
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color.white.opacity(0.08))
                     Capsule()
                         .fill(zone.color)
-                        .frame(width: max(proxy.size.width * max(zone.percentage, 0.02), zone.duration > 0 ? 10 : 0))
+                        .frame(width: fillWidth)
+
+                    if zone.duration > 0 {
+                        if showsLabelInside {
+                            HStack {
+                                Spacer(minLength: 0)
+                                Text(zone.percentageText)
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .monospacedDigit()
+                            }
+                            .padding(.trailing, 8)
+                            .frame(width: fillWidth, alignment: .trailing)
+                        } else {
+                            Text(zone.percentageText)
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(zone.color.opacity(0.92))
+                                .monospacedDigit()
+                                .padding(.leading, fillWidth + 8)
+                        }
+                    }
                 }
             }
-            .frame(height: 14)
+            .frame(height: 22)
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(formatDuration(zone.duration))
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.white)
                     .monospacedDigit()
-                Text("\((zone.percentage * 100).formatted(.number.precision(.fractionLength(0))))%")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.45))
-                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
             }
-            .frame(width: 64, alignment: .trailing)
+            .frame(width: 92, alignment: .trailing)
         }
+    }
+}
+
+private extension HeartRateZoneRowModel {
+    var percentageText: String {
+        "\((percentage * 100).formatted(.number.precision(.fractionLength(0))))%"
     }
 }
 
@@ -1134,7 +1487,7 @@ private struct SplitTableRow: View {
 
 private enum SplitColumnLayout {
     static let spacing: CGFloat = 10
-    static let distanceWidth: CGFloat = 68
+    static let distanceWidth: CGFloat = 48
     static let paceWidth: CGFloat = 88
     static let heartWidth: CGFloat = 72
     static let cadenceWidth: CGFloat = 82
@@ -1413,7 +1766,7 @@ private struct RunGearSection: View {
     @EnvironmentObject private var shoeStore: ShoeStore
 
     var body: some View {
-        DetailSection(title: "착용 신발") {
+        DetailSection(title: "러닝화", systemImage: "shoeprints.fill", tint: Color(red: 0.91, green: 0.69, blue: 0.38)) {
             if shoeStore.shoes.isEmpty {
                 Text("신발 탭에서 러닝화를 추가하면 이 러닝에 연결할 수 있습니다.")
                     .foregroundStyle(.white.opacity(0.72))
@@ -1450,6 +1803,44 @@ private struct RunGearSection: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// 상세 화면은 mock 시나리오별로 캔버스에서 빠르게 품질을 점검한다.
+private struct RunDetailPreviewContainer: View {
+    let scenario: RunDetailViewModel.DebugScenario
+
+    @StateObject private var workoutsViewModel = RunningWorkoutsViewModel()
+    @StateObject private var shoeStore = ShoeStore()
+
+    var body: some View {
+        NavigationStack {
+            RunDetailView(
+                run: .demoSample,
+                initialDebugScenario: scenario
+            )
+        }
+        .environmentObject(workoutsViewModel)
+        .environmentObject(shoeStore)
+        .preferredColorScheme(.dark)
+    }
+}
+
+struct RunDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            RunDetailPreviewContainer(scenario: .completeMetrics)
+                .previewDisplayName("상세 기록 - 완전체")
+
+            RunDetailPreviewContainer(scenario: .pausedWorkout)
+                .previewDisplayName("상세 기록 - 일시정지 포함")
+
+            RunDetailPreviewContainer(scenario: .missingRoute)
+                .previewDisplayName("상세 기록 - 경로 없음")
+
+            RunDetailPreviewContainer(scenario: .missingHeartRate)
+                .previewDisplayName("상세 기록 - 심박 없음")
         }
     }
 }

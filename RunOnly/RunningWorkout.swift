@@ -97,6 +97,17 @@ struct RunningWorkout: Identifiable {
         }
     }
 
+    var environmentBadgeText: String {
+        switch isIndoorWorkout {
+        case true:
+            return L10n.tr("실내 러닝")
+        case false:
+            return L10n.tr("실외 러닝")
+        case nil:
+            return L10n.tr("러닝 기록")
+        }
+    }
+
     var environmentShortText: String {
         switch isIndoorWorkout {
         case true:
@@ -123,6 +134,19 @@ struct RunningWorkout: Identifiable {
     var titleText: String {
         recordDateText
     }
+
+    var sourceSummaryText: String {
+        if isDemoWorkout {
+            return L10n.tr("샘플 러닝으로 둘러보는 기록이에요.")
+        }
+
+        if isAppleWorkout {
+            return L10n.tr("Apple 건강에 저장된 러닝 기록이에요.")
+        }
+
+        return L10n.format("%@에서 가져온 러닝 기록이에요.", sourceName)
+    }
+
     static let demoSample = RunningWorkout(
         id: UUID(uuidString: "8A6D2A35-4222-4E7E-A4E1-7D3B57F593A1") ?? UUID(),
         startDate: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 3, day: 15, hour: 7, minute: 30)) ?? .now,
@@ -140,8 +164,7 @@ struct RunningSummary {
     let yearDistanceKilometers: Double
     let monthDistanceText: String
     let yearDistanceText: String
-    let trainingStatus: String
-    let trainingStatusDetail: String
+    let recoveryReadiness: RecoveryReadiness
     let vo2MaxText: String
     let vo2MaxDateText: String
     let predicted5KText: String
@@ -155,8 +178,7 @@ struct RunningSummary {
         yearDistanceKilometers: 0,
         monthDistanceText: RunDisplayFormatter.distance(kilometers: 0),
         yearDistanceText: RunDisplayFormatter.distance(kilometers: 0),
-        trainingStatus: L10n.tr("준비중"),
-        trainingStatusDetail: L10n.tr("러닝 데이터가 쌓이면 상태를 계산합니다."),
+        recoveryReadiness: .empty,
         vo2MaxText: "-",
         vo2MaxDateText: L10n.tr("VO2 Max 데이터 없음"),
         predicted5KText: "-",
@@ -164,6 +186,96 @@ struct RunningSummary {
         predictedHalfText: "-",
         predictedMarathonText: "-"
     )
+    }
+}
+
+struct RecoveryLoadPoint: Identifiable, Equatable {
+    let date: Date
+    let load: Double
+
+    var id: Date { date }
+
+    var label: String {
+        date.formatted(.dateTime.weekday(.narrow))
+    }
+
+    var dateText: String {
+        RunDisplayFormatter.shortMonthDay(date)
+    }
+
+    var loadText: String {
+        L10n.format("%d점", Int(load.rounded()))
+    }
+}
+
+struct RecoveryReadiness {
+    let score: Int?
+    let status: String
+    let detail: String
+    let recommendationTitle: String
+    let recommendationDetail: String
+    let factors: [String]
+    let confidenceText: String
+    let recentLoadText: String
+    let lastRunText: String
+    let restingHeartRateText: String?
+    let loadRatioText: String?
+    let weeklyLoadChart: [RecoveryLoadPoint]
+    let isDataSufficient: Bool
+    let dataRequirementText: String?
+
+    var scoreText: String {
+        if let score {
+            return L10n.format("%d점", score)
+        }
+        return "--"
+    }
+
+    var dashboardValueText: String {
+        if score != nil {
+            return scoreText
+        }
+        return status
+    }
+
+    var dashboardDetailText: String {
+        if isDataSufficient {
+            return detail
+        }
+        return dataRequirementText ?? recommendationTitle
+    }
+
+    static var empty: RecoveryReadiness {
+        RecoveryReadiness(
+            score: nil,
+            status: L10n.tr("데이터 필요"),
+            detail: L10n.tr("최근 러닝이 더 쌓이면 준비도를 계산합니다."),
+            recommendationTitle: L10n.tr("러닝 데이터가 더 필요해요"),
+            recommendationDetail: L10n.tr("최근 28일 안에 최소 3회의 러닝이 있으면 준비도를 보여드릴게요."),
+            factors: [
+                L10n.tr("최근 28일 러닝 3회 이상 필요"),
+                L10n.tr("최근 10일 안 러닝 필요")
+            ],
+            confidenceText: L10n.tr("데이터가 더 쌓이면 계산"),
+            recentLoadText: "-",
+            lastRunText: "-",
+            restingHeartRateText: nil,
+            loadRatioText: nil,
+            weeklyLoadChart: [],
+            isDataSufficient: false,
+            dataRequirementText: L10n.tr("최근 28일 안에 최소 3회의 러닝이 필요합니다.")
+        )
+    }
+}
+
+struct RestingHeartRateSnapshot {
+    let latestBPM: Double
+    let baselineBPM: Double
+    let measuredAt: Date
+    let sampleCount: Int
+
+    var deltaFromBaseline: Double {
+        latestBPM - baselineBPM
     }
 }
 
@@ -514,7 +626,19 @@ struct RunSplit: Identifiable {
     }
 
     var titleText: String {
-        RunDisplayFormatter.splitDistance(meters: distanceMeters)
+        let fullSplitMeters = 1_000.0
+        let isFullSplit = abs(distanceMeters - fullSplitMeters) < 0.5
+        let displayedMeters = isFullSplit ? fullSplitMeters * Double(index) : distanceMeters
+        let displayedValue = RunDisplayFormatter.displayedDistanceValue(
+            kilometers: displayedMeters / 1_000,
+            preference: RunDisplayFormatter.currentDistanceUnitPreference
+        )
+
+        return displayedValue.formatted(
+            .number
+                .locale(RunDisplayFormatter.currentAppLocale)
+                .precision(.fractionLength(0...2))
+        )
     }
 
     var paceText: String {

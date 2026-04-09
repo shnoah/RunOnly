@@ -45,12 +45,6 @@ struct HomeTabView: View {
                 case .loaded(let runs):
                     ScrollView {
                         VStack(alignment: .leading, spacing: 18) {
-                            Text(AppMetadata.displayName)
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
-                                .tracking(0.2)
-                                .padding(.horizontal, 20)
-
                             DashboardHeader(
                                 viewModel: viewModel,
                                 summary: viewModel.summary,
@@ -164,7 +158,7 @@ struct RecordTabView: View {
                                 .buttonStyle(.plain)
 
                                 if viewModel.recordRuns.isEmpty {
-                                    DetailSection(title: emptyRecordTitle) {
+                                    DetailSection(title: emptyRecordTitle, systemImage: "tray", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
                                         Text(emptyRecordMessage)
                                             .foregroundStyle(.white.opacity(0.72))
                                     }
@@ -261,7 +255,7 @@ struct HealthKitOnboardingView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 20)
 
-                DetailSection(title: "앱이 하는 일") {
+                DetailSection(title: "앱이 하는 일", systemImage: "sparkles", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(AppMetadata.onboardingFeatureHighlights, id: \.self) { item in
                             Text(item)
@@ -271,7 +265,7 @@ struct HealthKitOnboardingView: View {
                     .foregroundStyle(.white.opacity(0.78))
                 }
 
-                DetailSection(title: "개인정보와 저장 방식") {
+                DetailSection(title: "개인정보와 저장 방식", systemImage: "lock.shield.fill", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(AppMetadata.privacyStorageHighlights, id: \.self) { item in
                             Text(item)
@@ -281,7 +275,7 @@ struct HealthKitOnboardingView: View {
                     .foregroundStyle(.white.opacity(0.78))
                 }
 
-                DetailSection(title: "고지") {
+                DetailSection(title: "고지", systemImage: "exclamationmark.bubble.fill", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(AppMetadata.nonMedicalNoticeLines, id: \.self) { item in
                             Text(item)
@@ -291,7 +285,7 @@ struct HealthKitOnboardingView: View {
                     .foregroundStyle(.white.opacity(0.78))
                 }
 
-                DetailSection(title: "바로 확인하기") {
+                DetailSection(title: "바로 확인하기", systemImage: "play.rectangle.fill", tint: Color(red: 0.29, green: 0.88, blue: 0.63)) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("권한을 주기 전에 샘플 러닝으로 상세 차트와 공유 화면을 먼저 볼 수 있습니다.")
                             .font(.footnote)
@@ -376,7 +370,7 @@ private struct RunReviewFallbackView: View {
                     action: action
                 )
 
-                DetailSection(title: "샘플 러닝으로 둘러보기") {
+                DetailSection(title: "샘플 러닝으로 둘러보기", systemImage: "sparkles", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("HealthKit 데이터가 없어도 샘플 러닝으로 상세 차트, 심박 존, 공유 화면을 바로 확인할 수 있습니다.")
                             .font(.footnote)
@@ -423,7 +417,7 @@ private struct HomeEmptyStateView: View {
                     action: action
                 )
 
-                DetailSection(title: "RunOnly 소개") {
+                DetailSection(title: "RunOnly 소개", systemImage: "sparkles", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(AppMetadata.homeIntroSummary)
                             .font(.footnote)
@@ -468,19 +462,25 @@ private struct HomeEmptyDashboardPreview: View {
 
             HStack(spacing: 10) {
                 DashboardCompactSummaryLink(
+                    systemImage: "figure.run",
                     title: "거리",
                     value: "0 km",
-                    detail: "이번 달 데이터 없음"
+                    detail: "이번 달 데이터 없음",
+                    tint: Color(red: 0.42, green: 0.76, blue: 1.0)
                 )
                 DashboardCompactSummaryLink(
+                    systemImage: "waveform.path.ecg",
                     title: "추세",
                     value: "기록 대기",
-                    detail: "러닝 1회 이상 필요"
+                    detail: "러닝 1회 이상 필요",
+                    tint: Color(red: 0.45, green: 0.95, blue: 0.76)
                 )
                 DashboardCompactSummaryLink(
+                    systemImage: "heart.circle.fill",
                     title: "VO2 Max",
                     value: "--",
-                    detail: "측정 데이터 없음"
+                    detail: "측정 데이터 없음",
+                    tint: Color(red: 0.94, green: 0.41, blue: 0.45)
                 )
             }
 
@@ -594,14 +594,44 @@ private struct RecordMonthHeader: View {
     let onClearDate: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(monthText)
-                .font(.system(.title3, design: .rounded).weight(.bold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .accessibilityLabel(Text(L10n.format("현재 선택 월: %@", monthText)))
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        FeatureToneBadge(
+                            text: "기록",
+                            tint: Color(red: 0.42, green: 0.76, blue: 1.0),
+                            foreground: Color(red: 0.82, green: 0.94, blue: 1.0)
+                        )
+
+                        if isLoading {
+                            Text("불러오는 중")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.58))
+                        }
+                    }
+
+                    Text(monthText)
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .accessibilityLabel(Text(L10n.format("현재 선택 월: %@", monthText)))
+
+                    Text(headerSubtitleText)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.72))
+                }
+
+                Spacer(minLength: 12)
+
+                if selectedDateText != nil {
+                    Button("전체 보기", action: onClearDate)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                        .buttonStyle(.plain)
+                }
+            }
 
             ViewThatFits(in: .horizontal) {
                 controlsRow(
@@ -617,23 +647,38 @@ private struct RecordMonthHeader: View {
                     arrowSize: 34
                 )
             }
-
-            if let selectedDateText {
-                HStack(spacing: 8) {
-                    Label(
-                        L10n.format("%@만 보기", selectedDateText),
-                        systemImage: "line.3.horizontal.decrease.circle.fill"
-                    )
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
-                    Spacer()
-                    Button("전체 보기", action: onClearDate)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.75))
-                        .buttonStyle(.plain)
-                }
-            }
         }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.07),
+                            Color(red: 0.24, green: 0.45, blue: 0.82).opacity(0.2)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
+        )
+    }
+
+    private var headerSubtitleText: String {
+        if let selectedDateText {
+            return L10n.format("%@ 기록만 보고 있어요", selectedDateText)
+        }
+
+        if isViewingCurrentMonth {
+            return L10n.tr("이번 달 러닝을 한눈에 정리했어요")
+        }
+
+        return L10n.tr("월별로 러닝 기록을 둘러보세요")
     }
 
     private func controlsRow(
@@ -710,7 +755,14 @@ private struct RecordMonthHeader: View {
             .foregroundStyle(foreground)
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
-            .background(Capsule().fill(Color.white.opacity(0.08)))
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.18))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+            )
         }
         .buttonStyle(.plain)
     }
@@ -731,7 +783,14 @@ private struct RecordMonthHeader: View {
             .foregroundStyle(pendingRecordCount > 0 ? Color(red: 0.29, green: 0.88, blue: 0.63) : .white)
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
-            .background(Capsule().fill(Color.white.opacity(0.08)))
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.18))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+            )
             .overlay(alignment: .topTrailing) {
                 if pendingRecordCount > 0 {
                     if pendingRecordCount <= 9 {
@@ -766,7 +825,14 @@ private struct RecordMonthHeader: View {
                 .font(.headline.weight(.bold))
                 .foregroundStyle(isEnabled ? .white : .white.opacity(0.3))
                 .frame(width: size, height: size)
-                .background(Circle().fill(Color.white.opacity(0.08)))
+                .background(
+                    Circle()
+                        .fill(Color.black.opacity(0.18))
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                )
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
@@ -778,43 +844,79 @@ private struct RecordMonthSummaryCard: View {
     let summary: RecordMonthSummary
 
     var body: some View {
-        ViewThatFits(in: .vertical) {
-            HStack(spacing: 12) {
-                CompactMetricChip(
-                    title: "이번 달 거리",
-                    value: formatKilometers(summary.totalDistanceKilometers),
-                    detail: L10n.format("%d회 러닝", summary.runCount)
-                )
-                CompactMetricChip(
-                    title: "러닝 빈도",
-                    value: L10n.format("%d일", summary.runningDays),
-                    detail: L10n.format("주 평균 %.1f회", summary.weeklyRunFrequency)
-                )
-                CompactMetricChip(
-                    title: "총 시간",
-                    value: formatDuration(summary.totalDuration),
-                    detail: "월간 누적 시간"
-                )
-            }
+        DetailSection(title: "이달 요약", systemImage: "calendar.badge.clock", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
+            ViewThatFits(in: .vertical) {
+                HStack(spacing: 10) {
+                    RecordSummaryMetricTile(
+                        title: "거리",
+                        value: formatKilometers(summary.totalDistanceKilometers),
+                        detail: L10n.format("%d회 러닝", summary.runCount)
+                    )
+                    RecordSummaryMetricTile(
+                        title: "빈도",
+                        value: L10n.format("%d일", summary.runningDays),
+                        detail: L10n.format("주 평균 %.1f회", summary.weeklyRunFrequency)
+                    )
+                    RecordSummaryMetricTile(
+                        title: "시간",
+                        value: formatDuration(summary.totalDuration),
+                        detail: "월 누적"
+                    )
+                }
 
-            VStack(spacing: 10) {
-                CompactMetricChip(
-                    title: "이번 달 거리",
-                    value: formatKilometers(summary.totalDistanceKilometers),
-                    detail: L10n.format("%d회 러닝", summary.runCount)
-                )
-                CompactMetricChip(
-                    title: "러닝 빈도",
-                    value: L10n.format("%d일", summary.runningDays),
-                    detail: L10n.format("주 평균 %.1f회", summary.weeklyRunFrequency)
-                )
-                CompactMetricChip(
-                    title: "총 시간",
-                    value: formatDuration(summary.totalDuration),
-                    detail: "월간 누적 시간"
-                )
+                VStack(spacing: 10) {
+                    RecordSummaryMetricTile(
+                        title: "거리",
+                        value: formatKilometers(summary.totalDistanceKilometers),
+                        detail: L10n.format("%d회 러닝", summary.runCount)
+                    )
+                    RecordSummaryMetricTile(
+                        title: "빈도",
+                        value: L10n.format("%d일", summary.runningDays),
+                        detail: L10n.format("주 평균 %.1f회", summary.weeklyRunFrequency)
+                    )
+                    RecordSummaryMetricTile(
+                        title: "시간",
+                        value: formatDuration(summary.totalDuration),
+                        detail: "월 누적"
+                    )
+                }
             }
         }
+    }
+}
+
+private struct RecordSummaryMetricTile: View {
+    let title: String
+    let value: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.5))
+            Text(value)
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(LocalizedStringKey(detail))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.54))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.black.opacity(0.18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -869,7 +971,7 @@ private struct RecordCalendarSheet: View {
                         }
                     }
 
-                    DetailSection(title: "월간 체크") {
+                    DetailSection(title: "월간 체크", systemImage: "calendar.badge.clock", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
                         HStack(spacing: 12) {
                             CompactMetricChip(
                                 title: "러닝한 날",
@@ -1059,7 +1161,35 @@ private struct DashboardHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            DashboardSectionHeader(title: "핵심 요약")
+            HStack(spacing: 8) {
+                FeatureToneBadge(
+                    text: "홈",
+                    tint: Color(red: 0.95, green: 0.59, blue: 0.32),
+                    foreground: Color(red: 1.0, green: 0.86, blue: 0.76)
+                )
+
+                Text(RunDisplayFormatter.monthOnly(Date()))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+
+                Spacer()
+
+                if showAppleWorkoutOnly {
+                    FeatureToneBadge(
+                        text: "Apple 운동",
+                        tint: Color(red: 0.29, green: 0.88, blue: 0.63),
+                        foreground: Color(red: 0.78, green: 1.0, blue: 0.9)
+                    )
+                }
+            }
+
+            Text(homeTitleText)
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+
+            Text(homeSubtitleText)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.76))
 
             DashboardQuickOverviewPanel(
                 viewModel: viewModel,
@@ -1091,9 +1221,15 @@ private struct DashboardHeader: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("표시")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.6))
+                HStack {
+                    Label("표시", systemImage: "line.3.horizontal.decrease.circle")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.6))
+                    Spacer()
+                    Text(showAppleWorkoutOnly ? "Apple 운동만" : "전체 기록")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                }
 
                 Toggle(isOn: $showAppleWorkoutOnly) {
                     Text("Apple 운동 앱 기록만 보기")
@@ -1108,7 +1244,11 @@ private struct DashboardHeader: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
+                    .fill(Color.black.opacity(0.16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                    )
             )
         }
         .sheet(isPresented: $showingGoalEditor) {
@@ -1123,8 +1263,8 @@ private struct DashboardHeader: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.12),
-                            Color.white.opacity(0.05)
+                            Color.white.opacity(0.07),
+                            Color(red: 0.23, green: 0.55, blue: 0.84).opacity(0.2)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -1136,6 +1276,32 @@ private struct DashboardHeader: View {
                 )
         )
         .padding(.horizontal, 16)
+    }
+
+    private var homeTitleText: String {
+        guard summary.monthDistanceKilometers > 0 else {
+            return L10n.tr("이번 달 러닝을 시작해보세요")
+        }
+
+        return L10n.format("이번 달 %@ 달렸어요", summary.monthDistanceText)
+    }
+
+    private var homeSubtitleText: String {
+        let remaining = mileageGoalStore.monthlyGoalKilometers - summary.monthDistanceKilometers
+
+        if mileageGoalStore.monthlyGoalKilometers > 0, remaining > 0, summary.monthDistanceKilometers > 0 {
+            let remainingText = RunDisplayFormatter.distance(
+                kilometers: remaining,
+                fractionLength: 1
+            )
+            return L10n.format("목표까지 %@ 남았어요", remainingText)
+        }
+
+        if summary.monthDistanceKilometers > 0 {
+            return L10n.tr("거리와 준비도, 예측 기록을 한눈에 확인해보세요")
+        }
+
+        return L10n.tr("첫 러닝이 쌓이면 준비도와 예측을 여기서 바로 볼 수 있어요")
     }
 }
 
@@ -1162,20 +1328,24 @@ private struct DashboardQuickOverviewPanel: View {
                 MileageBreakdownView(viewModel: viewModel)
             } label: {
                 DashboardCompactSummaryLink(
+                    systemImage: "figure.run",
                     title: "거리",
                     value: summary.monthDistanceText,
-                    detail: L10n.format("올해 %@", summary.yearDistanceText)
+                    detail: L10n.format("올해 %@", summary.yearDistanceText),
+                    tint: Color(red: 0.42, green: 0.76, blue: 1.0)
                 )
             }
             .buttonStyle(.plain)
 
             NavigationLink {
-                TrainingTrendView(runs: runs, summary: summary)
+                RecoveryReadinessView(readiness: summary.recoveryReadiness)
             } label: {
                 DashboardCompactSummaryLink(
-                    title: "추세",
-                    value: summary.trainingStatus,
-                    detail: summary.trainingStatusDetail
+                    systemImage: "figure.run.circle.fill",
+                    title: "준비도",
+                    value: summary.recoveryReadiness.dashboardValueText,
+                    detail: summary.recoveryReadiness.dashboardDetailText,
+                    tint: Color(red: 0.45, green: 0.95, blue: 0.76)
                 )
             }
             .buttonStyle(.plain)
@@ -1184,9 +1354,11 @@ private struct DashboardQuickOverviewPanel: View {
                 VO2MaxTrendView(samples: vo2MaxSamples)
             } label: {
                 DashboardCompactSummaryLink(
+                    systemImage: "heart.circle.fill",
                     title: "VO2 Max",
                     value: summary.vo2MaxText,
-                    detail: summary.vo2MaxDateText
+                    detail: summary.vo2MaxDateText,
+                    tint: Color(red: 0.94, green: 0.41, blue: 0.45)
                 )
             }
             .buttonStyle(.plain)
@@ -1195,15 +1367,22 @@ private struct DashboardQuickOverviewPanel: View {
 }
 
 private struct DashboardCompactSummaryLink: View {
+    let systemImage: String
     let title: String
     let value: String
     let detail: String
+    let tint: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(LocalizedStringKey(title))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.62))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(tint)
+                Text(LocalizedStringKey(title))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+            }
             Text(value)
                 .font(.system(.subheadline, design: .rounded).weight(.bold))
                 .foregroundStyle(.white)
@@ -1221,7 +1400,16 @@ private struct DashboardCompactSummaryLink: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.06),
+                            tint.opacity(0.12)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
@@ -1285,7 +1473,7 @@ private struct GoalMileageCard: View {
             HStack {
                 Label("목표 마일리지", systemImage: "target")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.65))
+                    .foregroundStyle(Color(red: 0.78, green: 1.0, blue: 0.9))
                 Spacer()
                 Text("탭해서 수정")
                     .font(.caption2.weight(.semibold))
@@ -1314,7 +1502,20 @@ private struct GoalMileageCard: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.06),
+                            Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.13)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
         )
     }
 }
@@ -1367,57 +1568,81 @@ private struct MileageGoalEditorView: View {
         )
     }
 
+    private var goalProgress: Double {
+        min(currentDistanceKilometers / max(draftGoalKilometers, 1), 1)
+    }
+
+    private var remainingGoalKilometers: Double {
+        max(draftGoalKilometers - currentDistanceKilometers, 0)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    ViewThatFits(in: .vertical) {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            SummaryCard(
-                                title: "이번달 진행",
-                                value: formatKilometers(currentDistanceKilometers),
-                                detail: "현재 누적 거리"
-                            )
-                            SummaryCard(
-                                title: "설정 목표",
-                                value: formatKilometers(draftGoalKilometers),
-                                detail: goalStatusText
-                            )
-                        }
+                    MileageGoalHeroCard(
+                        monthText: RunDisplayFormatter.monthOnly(Date()),
+                        progress: goalProgress,
+                        statusText: goalStatusText,
+                        currentDistanceText: displayDistanceText(currentDistanceKilometers),
+                        goalDistanceText: displayDistanceText(draftGoalKilometers),
+                        remainingDistanceText: displayDistanceText(remainingGoalKilometers)
+                    )
 
-                        VStack(spacing: 12) {
-                            SummaryCard(
-                                title: "이번달 진행",
-                                value: formatKilometers(currentDistanceKilometers),
-                                detail: "현재 누적 거리"
-                            )
-                            SummaryCard(
-                                title: "설정 목표",
-                                value: formatKilometers(draftGoalKilometers),
-                                detail: goalStatusText
-                            )
-                        }
-                    }
-
-                    DetailSection(title: "월간 목표 설정") {
+                    DetailSection(
+                        title: "월간 목표 설정",
+                        systemImage: "target",
+                        tint: Color(red: 0.29, green: 0.88, blue: 0.63)
+                    ) {
                         VStack(alignment: .leading, spacing: 14) {
-                            TextField(
-                                L10n.format("월간 목표 거리 (%@)", displayUnit.distanceInputSuffix),
-                                value: displayedGoalBinding,
-                                format: .number.precision(.fractionLength(0...1))
-                            )
-                            .keyboardType(.decimalPad)
-                            .textFieldStyle(.roundedBorder)
-
-                            Stepper(
-                                value: displayedGoalBinding,
-                                in: minimumGoalValue...maximumGoalValue,
-                                step: 5
+                            FeatureFormFieldCard(
+                                title: "목표 거리",
+                                caption: L10n.format(
+                                    "단위는 %@입니다. 원하는 한 달 누적 거리를 바로 조정할 수 있어요.",
+                                    displayUnit.distanceInputSuffix
+                                ),
+                                tint: Color(red: 0.29, green: 0.88, blue: 0.63)
                             ) {
-                                Text(L10n.format("%d %@ 단위로 조정", 5, displayUnit.distanceInputSuffix))
-                                    .foregroundStyle(.white.opacity(0.78))
+                                HStack(spacing: 10) {
+                                    TextField(
+                                        L10n.format("월간 목표 거리 (%@)", displayUnit.distanceInputSuffix),
+                                        value: displayedGoalBinding,
+                                        format: .number.precision(.fractionLength(0...1))
+                                    )
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+
+                                    Text(displayUnit.distanceInputSuffix)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.white.opacity(0.5))
+                                }
                             }
-                            .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+
+                            FeatureFormFieldCard(
+                                title: "미세 조정",
+                                caption: L10n.format("%d %@ 단위로 가볍게 올리거나 내릴 수 있어요.", 5, displayUnit.distanceInputSuffix),
+                                tint: Color(red: 0.42, green: 0.76, blue: 1.0)
+                            ) {
+                                Stepper(
+                                    value: displayedGoalBinding,
+                                    in: minimumGoalValue...maximumGoalValue,
+                                    step: 5
+                                ) {
+                                    HStack {
+                                        Text("현재 설정")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.white.opacity(0.74))
+                                        Spacer()
+                                        Text(displayDistanceText(draftGoalKilometers))
+                                            .font(.system(.headline, design: .rounded).weight(.bold))
+                                            .foregroundStyle(.white)
+                                            .monospacedDigit()
+                                    }
+                                }
+                                .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+                            }
 
                             Text("빠른 선택")
                                 .font(.subheadline.weight(.semibold))
@@ -1441,16 +1666,29 @@ private struct MileageGoalEditorView: View {
                                             .padding(.vertical, 10)
                                             .background(
                                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                                    .fill(goal == roundedGoal ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.22) : Color.white.opacity(0.06))
+                                                    .fill(
+                                                        goal == roundedGoal
+                                                            ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.22)
+                                                            : Color.black.opacity(0.18)
+                                                    )
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                            .stroke(Color.white.opacity(goal == roundedGoal ? 0.1 : 0.06), lineWidth: 1)
+                                                    )
                                             )
                                     }
                                     .buttonStyle(.plain)
                                 }
                             }
 
-                            Text("목표는 현재 달 전체에 공통으로 적용됩니다. 나중에 월별 개별 목표나 연간 목표로 확장할 수 있습니다.")
-                                .font(.footnote)
-                                .foregroundStyle(.white.opacity(0.58))
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: "info.circle.fill")
+                                    .foregroundStyle(Color(red: 0.42, green: 0.76, blue: 1.0))
+                                Text("목표는 이번 달 전체에 공통으로 적용됩니다. 지금은 빠르게 한 달 흐름만 관리하는 방식으로 두었어요.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.white.opacity(0.58))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                     }
                 }
@@ -1488,14 +1726,92 @@ private struct MileageGoalEditorView: View {
     private var goalStatusText: String {
         let remaining = draftGoalKilometers - currentDistanceKilometers
         if remaining > 0 {
-            let remainingText = RunDisplayFormatter.distance(
-                kilometers: remaining,
-                preference: appSettings.distanceUnitPreference,
-                fractionLength: 1
-            )
+            let remainingText = displayDistanceText(remaining)
             return L10n.format("%@ 남음", remainingText)
         }
         return L10n.tr("이미 달성")
+    }
+
+    private func displayDistanceText(_ kilometers: Double) -> String {
+        RunDisplayFormatter.distance(
+            kilometers: kilometers,
+            preference: appSettings.distanceUnitPreference,
+            fractionLength: 1
+        )
+    }
+}
+
+private struct MileageGoalHeroCard: View {
+    let monthText: String
+    let progress: Double
+    let statusText: String
+    let currentDistanceText: String
+    let goalDistanceText: String
+    let remainingDistanceText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                FeatureToneBadge(
+                    text: "목표",
+                    tint: Color(red: 0.29, green: 0.88, blue: 0.63),
+                    foreground: Color(red: 0.76, green: 1.0, blue: 0.88)
+                )
+
+                Spacer()
+
+                Text(monthText)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.54))
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("이번 달 페이스를 정리해볼까요")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text(statusText)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+
+            ProgressView(value: progress)
+                .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+
+            ViewThatFits(in: .vertical) {
+                HStack(spacing: 10) {
+                    FeatureMiniStatCard(title: "진행", value: currentDistanceText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
+                    FeatureMiniStatCard(title: "목표", value: goalDistanceText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
+                    FeatureMiniStatCard(title: "남은 거리", value: remainingDistanceText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
+                }
+
+                VStack(spacing: 10) {
+                    FeatureMiniStatCard(title: "진행", value: currentDistanceText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
+                    FeatureMiniStatCard(title: "목표", value: goalDistanceText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
+                    FeatureMiniStatCard(title: "남은 거리", value: remainingDistanceText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.10, green: 0.18, blue: 0.16),
+                            Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.18),
+                            Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.12)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
+        )
     }
 }
 
@@ -1509,13 +1825,13 @@ private struct PredictionSummaryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("예상 기록")
+                Label("예상 기록", systemImage: "chart.line.uptrend.xyaxis")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Color(red: 1.0, green: 0.86, blue: 0.76))
                 Spacer()
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.78))
+                Text("최근 흐름 기준")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.56))
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -1528,7 +1844,20 @@ private struct PredictionSummaryCard: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.06),
+                            Color(red: 0.95, green: 0.59, blue: 0.32).opacity(0.12)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
         )
     }
 }
@@ -1553,7 +1882,208 @@ private struct PredictionCell: View {
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.black.opacity(0.18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
         )
+    }
+}
+
+private struct FeatureToneBadge: View {
+    let text: String
+    let tint: Color
+    let foreground: Color
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(tint.opacity(0.18))
+            )
+    }
+}
+
+private struct FeatureMiniStatCard: View {
+    let title: String
+    let value: String
+    let detail: String?
+    let tint: Color
+
+    init(title: String, value: String, detail: String? = nil, tint: Color) {
+        self.title = title
+        self.value = value
+        self.detail = detail
+        self.tint = tint
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.56))
+
+            Text(value)
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.74)
+
+            if let detail, !detail.isEmpty {
+                Text(LocalizedStringKey(detail))
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.52))
+                    .lineLimit(2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.18),
+                            tint.opacity(0.16)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct FeatureFormFieldCard<Content: View>: View {
+    let title: String
+    let caption: String?
+    let tint: Color
+    @ViewBuilder let content: Content
+
+    init(
+        title: String,
+        caption: String? = nil,
+        tint: Color,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.caption = caption
+        self.tint = tint
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(LocalizedStringKey(title))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.62))
+
+            content
+
+            if let caption, !caption.isEmpty {
+                Text(LocalizedStringKey(caption))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.52))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.18),
+                            tint.opacity(0.12)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct FeatureChartPlotBackground: View {
+    let tint: Color
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.03),
+                        tint.opacity(0.1),
+                        Color.black.opacity(0.08)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+            )
+    }
+}
+
+private struct FeatureChartCallout: View {
+    let title: String
+    let value: String
+    let detail: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.56))
+
+            Text(value)
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.56))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.24),
+                            tint.opacity(0.2)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
+        )
+        .fixedSize()
     }
 }
 
@@ -1897,6 +2427,7 @@ private struct PersonalRecordCandidateRow: View {
 private struct VO2MaxTrendView: View {
     let samples: [VO2MaxSample]
     @State private var selectedRange: VO2TrendRange = .oneYear
+    @State private var selectedSampleDate: Date?
 
     private var filteredSamples: [VO2MaxSample] {
         selectedRange.filtered(samples)
@@ -1904,57 +2435,141 @@ private struct VO2MaxTrendView: View {
 
     private var latest: VO2MaxSample? { filteredSamples.last }
     private var best: VO2MaxSample? { filteredSamples.max(by: { $0.value < $1.value }) }
+    private var focusedSample: VO2MaxSample? {
+        guard let selectedSampleDate else { return latest }
+        return filteredSamples.min {
+            abs($0.date.timeIntervalSince(selectedSampleDate)) < abs($1.date.timeIntervalSince(selectedSampleDate))
+        }
+    }
     private var changeText: String {
         guard let first = filteredSamples.first, let latest else { return "-" }
         return String(format: "%+.1f", latest.value - first.value)
+    }
+    private var subtitleText: String {
+        guard let focusedSample else {
+            return "VO2 Max 데이터가 쌓이면 회복과 지구력 흐름이 더 선명하게 보여요."
+        }
+        return "\(focusedSample.date.formatted(date: .abbreviated, time: .omitted)) 기준 지구력 흐름이에요."
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Picker("기간", selection: $selectedRange) {
-                    ForEach(VO2TrendRange.allCases) { range in
-                        Text(range.label).tag(range)
+                VO2TrendHeroCard(
+                    selectedRangeLabel: selectedRange.label,
+                    subtitleText: subtitleText,
+                    currentText: latest.map { String(format: "%.1f", $0.value) } ?? "-",
+                    bestText: best.map { String(format: "%.1f", $0.value) } ?? "-",
+                    changeText: changeText
+                )
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("비교 기간")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.58))
+
+                    Picker("기간", selection: $selectedRange) {
+                        ForEach(VO2TrendRange.allCases) { range in
+                            Text(range.label).tag(range)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
                 }
-                .pickerStyle(.segmented)
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.06),
+                                    Color(red: 0.94, green: 0.41, blue: 0.45).opacity(0.1)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                        )
+                )
 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    SummaryCard(title: "현재", value: latest.map { String(format: "%.1f", $0.value) } ?? "-", detail: latest.map { $0.date.formatted(date: .abbreviated, time: .omitted) } ?? "데이터 없음")
-                    SummaryCard(title: "최고", value: best.map { String(format: "%.1f", $0.value) } ?? "-", detail: best.map { $0.date.formatted(date: .abbreviated, time: .omitted) } ?? "데이터 없음")
-                    SummaryCard(title: "변화", value: changeText, detail: L10n.format("%@ 기준", selectedRange.label))
-                }
-
-                DetailSection(title: "VO2 Max 추세") {
+                DetailSection(
+                    title: "VO2 Max 흐름",
+                    systemImage: "heart.circle.fill",
+                    tint: Color(red: 0.94, green: 0.41, blue: 0.45)
+                ) {
                     if filteredSamples.isEmpty {
                         Text("VO2 Max 데이터가 없습니다.")
                             .foregroundStyle(.white.opacity(0.72))
                     } else {
-                        Chart(filteredSamples.indices, id: \.self) { index in
-                            let sample = filteredSamples[index]
+                        Chart(filteredSamples, id: \.date) { sample in
+                            AreaMark(
+                                x: .value("날짜", sample.date),
+                                y: .value("VO2 Max", sample.value)
+                            )
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.94, green: 0.41, blue: 0.45).opacity(0.28),
+                                        Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.04)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+
                             LineMark(
                                 x: .value("날짜", sample.date),
                                 y: .value("VO2 Max", sample.value)
                             )
-                            .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
-                            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.94, green: 0.41, blue: 0.45),
+                                        Color(red: 0.29, green: 0.88, blue: 0.63)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                             .interpolationMethod(.catmullRom)
 
                             PointMark(
                                 x: .value("날짜", sample.date),
                                 y: .value("VO2 Max", sample.value)
                             )
-                            .foregroundStyle(Color.white)
-                            .symbolSize(index == filteredSamples.count - 1 ? 46 : 18)
+                            .foregroundStyle(Color.white.opacity(focusedSample?.date == sample.date ? 1 : 0.8))
+                            .symbolSize(focusedSample?.date == sample.date ? 54 : 18)
+
+                            if let focusedSample, focusedSample.date == sample.date {
+                                RuleMark(x: .value("선택", sample.date))
+                                    .foregroundStyle(Color.white.opacity(0.22))
+                                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                                    .annotation(position: .top, spacing: 8, overflowResolution: .init(x: .fit, y: .fit)) {
+                                        FeatureChartCallout(
+                                            title: "선택 값",
+                                            value: String(format: "%.1f", sample.value),
+                                            detail: sample.date.formatted(date: .abbreviated, time: .omitted),
+                                            tint: Color(red: 0.94, green: 0.41, blue: 0.45)
+                                        )
+                                    }
+                            }
                         }
-                        .frame(height: 220)
+                        .frame(height: 240)
+                        .chartXSelection(value: $selectedSampleDate)
                         .chartYAxis {
-                            AxisMarks(position: .leading) { value in
-                                AxisGridLine().foregroundStyle(.white.opacity(0.12))
+                            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
+                                    .foregroundStyle(.white.opacity(0.08))
                                 AxisValueLabel {
                                     if let number = value.as(Double.self) {
                                         Text(String(format: "%.1f", number))
-                                            .foregroundStyle(.white.opacity(0.7))
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.white.opacity(0.58))
                                     }
                                 }
                             }
@@ -1963,8 +2578,13 @@ private struct VO2MaxTrendView: View {
                             AxisMarks(values: .stride(by: .month)) { _ in
                                 AxisGridLine().foregroundStyle(.white.opacity(0.08))
                                 AxisValueLabel(format: .dateTime.month(.abbreviated))
-                                    .foregroundStyle(.white.opacity(0.65))
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.55))
                             }
+                        }
+                        .chartPlotStyle { plotArea in
+                            plotArea
+                                .background(FeatureChartPlotBackground(tint: Color(red: 0.94, green: 0.41, blue: 0.45)))
                         }
                     }
                 }
@@ -1974,6 +2594,79 @@ private struct VO2MaxTrendView: View {
         .background(AppBackground())
         .navigationTitle("VO2 Max")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct VO2TrendHeroCard: View {
+    let selectedRangeLabel: String
+    let subtitleText: String
+    let currentText: String
+    let bestText: String
+    let changeText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                FeatureToneBadge(
+                    text: "VO2 Max",
+                    tint: Color(red: 0.94, green: 0.41, blue: 0.45),
+                    foreground: Color(red: 1.0, green: 0.84, blue: 0.86)
+                )
+
+                Spacer()
+
+                FeatureToneBadge(
+                    text: selectedRangeLabel,
+                    tint: Color(red: 0.42, green: 0.76, blue: 1.0),
+                    foreground: Color(red: 0.74, green: 0.9, blue: 1.0)
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("지구력 흐름")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text(subtitleText)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ViewThatFits(in: .vertical) {
+                HStack(spacing: 10) {
+                    FeatureMiniStatCard(title: "현재", value: currentText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
+                    FeatureMiniStatCard(title: "최고", value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
+                    FeatureMiniStatCard(title: "변화", value: changeText, tint: Color(red: 0.94, green: 0.41, blue: 0.45))
+                }
+
+                VStack(spacing: 10) {
+                    FeatureMiniStatCard(title: "현재", value: currentText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
+                    FeatureMiniStatCard(title: "최고", value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
+                    FeatureMiniStatCard(title: "변화", value: changeText, tint: Color(red: 0.94, green: 0.41, blue: 0.45))
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.17, green: 0.14, blue: 0.2),
+                            Color(red: 0.94, green: 0.41, blue: 0.45).opacity(0.18),
+                            Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.12)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
+        )
     }
 }
 
@@ -2002,216 +2695,480 @@ private enum VO2TrendRange: String, CaseIterable, Identifiable {
     }
 }
 
-private struct TrainingTrendView: View {
-    let runs: [RunningWorkout]
-    let summary: RunningSummary
-    @State private var selectedWeekDate: Date?
+private struct RecoveryReadinessView: View {
+    let readiness: RecoveryReadiness
+    @State private var selectedLoadDate: Date?
+    @State private var showingEvidence = false
 
-    private var points: [TrainingTrendPoint] {
-        TrainingTrendPoint.build(from: runs, weeks: 5)
-    }
-
-    private var latestPoint: TrainingTrendPoint? { points.last }
-    private var previousPoint: TrainingTrendPoint? {
-        guard points.count >= 2 else { return nil }
-        return points[points.count - 2]
-    }
-
-    private var changeText: String {
-        guard let latestPoint, let previousPoint else { return "-" }
-        let delta = latestPoint.distanceKilometers - previousPoint.distanceKilometers
-        let sign = delta > 0 ? "+" : delta < 0 ? "-" : ""
-        let distanceText = RunDisplayFormatter.distance(kilometers: abs(delta), fractionLength: 1)
-        return sign + distanceText
-    }
-
-    private var selectedPoint: TrainingTrendPoint? {
-        guard let selectedWeekDate else { return nil }
-        return points.min {
-            abs($0.startDate.timeIntervalSince(selectedWeekDate)) < abs($1.startDate.timeIntervalSince(selectedWeekDate))
+    private var primaryTint: Color {
+        guard readiness.isDataSufficient, let score = readiness.score else {
+            return Color(red: 0.42, green: 0.76, blue: 1.0)
         }
+
+        switch score {
+        case 82...:
+            return Color(red: 0.29, green: 0.88, blue: 0.63)
+        case 63..<82:
+            return Color(red: 0.42, green: 0.76, blue: 1.0)
+        case 45..<63:
+            return Color(red: 0.95, green: 0.59, blue: 0.32)
+        default:
+            return Color(red: 0.94, green: 0.41, blue: 0.45)
+        }
+    }
+
+    private var secondaryTint: Color {
+        guard readiness.isDataSufficient, let score = readiness.score else {
+            return Color(red: 0.29, green: 0.88, blue: 0.63)
+        }
+
+        switch score {
+        case 82...:
+            return Color(red: 0.42, green: 0.76, blue: 1.0)
+        case 63..<82:
+            return Color(red: 0.29, green: 0.88, blue: 0.63)
+        case 45..<63:
+            return Color(red: 0.42, green: 0.76, blue: 1.0)
+        default:
+            return Color(red: 0.95, green: 0.59, blue: 0.32)
+        }
+    }
+
+    private var badgeForeground: Color {
+        Color.white.opacity(0.92)
+    }
+
+    private var focusedLoadPoint: RecoveryLoadPoint? {
+        guard let selectedLoadDate else {
+            return readiness.weeklyLoadChart.last(where: { $0.load > 0 }) ?? readiness.weeklyLoadChart.last
+        }
+
+        return readiness.weeklyLoadChart.min {
+            abs($0.date.timeIntervalSince(selectedLoadDate)) < abs($1.date.timeIntervalSince(selectedLoadDate))
+        }
+    }
+
+    private var hasLoadChart: Bool {
+        readiness.weeklyLoadChart.contains(where: { $0.load > 0 })
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    SummaryCard(title: "현재 상태", value: summary.trainingStatus, detail: summary.trainingStatusDetail)
-                    SummaryCard(
-                        title: "이번 주 거리",
-                        value: latestPoint.map { formatKilometers($0.distanceKilometers) } ?? "-",
-                        detail: latestPoint.map(\.label) ?? "데이터 없음"
-                    )
-                    SummaryCard(
-                        title: "직전 주 거리",
-                        value: previousPoint.map { formatKilometers($0.distanceKilometers) } ?? "-",
-                        detail: previousPoint.map(\.label) ?? "데이터 없음"
-                    )
-                    SummaryCard(title: "주간 변화", value: changeText, detail: "이번 주 vs 직전 주")
+                RecoveryReadinessHeroCard(
+                    readiness: readiness,
+                    primaryTint: primaryTint,
+                    secondaryTint: secondaryTint,
+                    badgeForeground: badgeForeground
+                )
+
+                DetailSection(
+                    title: "오늘 권장 러닝",
+                    systemImage: "figure.run",
+                    tint: primaryTint
+                ) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(readiness.recommendationTitle)
+                            .font(.system(.title3, design: .rounded).weight(.bold))
+                            .foregroundStyle(.white)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(readiness.recommendationDetail)
+                            .foregroundStyle(.white.opacity(0.76))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(readiness.confidenceText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(primaryTint.opacity(0.92))
+                    }
                 }
 
-                DetailSection(title: "주간 훈련량") {
-                    if points.isEmpty {
-                        Text("훈련 추세를 계산할 러닝 데이터가 부족합니다.")
-                            .foregroundStyle(.white.opacity(0.72))
-                    } else {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Chart(points) { point in
-                                BarMark(
-                                    x: .value("주간", point.startDate),
-                                    y: .value("거리", point.distanceKilometers),
-                                    width: .fixed(20)
-                                )
-                                .foregroundStyle(
-                                    (selectedPoint?.id == point.id ? Color.white : Color(red: 0.29, green: 0.88, blue: 0.63))
-                                        .opacity(selectedPoint == nil || selectedPoint?.id == point.id ? 1 : 0.42)
-                                )
-                                .cornerRadius(6)
-                                .annotation(position: .top, spacing: 8) {
-                                    if selectedPoint?.id == point.id {
-                                        Text(point.distanceText)
-                                            .font(.caption2.weight(.bold))
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(
-                                                Capsule()
-                                                    .fill(Color.black.opacity(0.28))
-                                            )
-                                    }
-                                }
-                            }
-                            .frame(height: 220)
-                            .chartXSelection(value: $selectedWeekDate)
-                            .chartYAxis {
-                                AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                                        .foregroundStyle(.white.opacity(0.08))
-                                    AxisValueLabel {
-                                        if let distance = value.as(Double.self) {
-                                            Text(RunDisplayFormatter.distance(kilometers: distance, fractionLength: 0))
-                                                .foregroundStyle(.white.opacity(0.45))
-                                        }
-                                    }
-                                }
-                            }
-                            .chartXAxis(.hidden)
-                            .chartPlotStyle { plotArea in
-                                plotArea.background(.clear)
-                            }
+                DetailSection(
+                    title: readiness.isDataSufficient ? "왜 이렇게 봤나요" : "계산 조건",
+                    systemImage: readiness.isDataSufficient ? "sparkles" : "exclamationmark.circle.fill",
+                    tint: secondaryTint
+                ) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if !readiness.isDataSufficient, let dataRequirementText = readiness.dataRequirementText {
+                            Text(dataRequirementText)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
 
-                            TrainingTrendAxisRow(
-                                points: points,
-                                selectedPointID: selectedPoint?.id
+                        ForEach(Array(readiness.factors.enumerated()), id: \.offset) { _, factor in
+                            RecoveryReasonRow(
+                                text: factor,
+                                tint: secondaryTint
                             )
-                            .padding(.leading, 46)
-                            .padding(.trailing, 6)
                         }
                     }
                 }
 
-                DetailSection(title: "계산 방식") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("훈련 추세는 최근 7일 러닝 거리와 직전 7일 러닝 거리를 비교해 계산합니다.")
-                        Text("아래 주간 그래프는 최근 5주를 달력 기준 주차별로 보여줍니다.")
-                        Text("최근 7일 거리가 직전 7일보다 20% 이상 많으면 `빌드업`으로 표시합니다.")
-                        Text("최근 7일에 러닝이 있고 20% 이상 차이가 나지 않으면 `유지`로 표시합니다.")
-                        Text("최근 7일 러닝이 거의 없으면 `회복`으로 표시합니다.")
-                        Text("지금은 거리 기반의 간단한 추세 지표라 강도, 심박, 파워는 반영하지 않습니다.")
+                if hasLoadChart {
+                    DetailSection(
+                        title: "최근 부하",
+                        systemImage: "chart.bar.fill",
+                        tint: primaryTint
+                    ) {
+                        RecoveryLoadChartCard(
+                            points: readiness.weeklyLoadChart,
+                            focusedPoint: focusedLoadPoint,
+                            tint: primaryTint,
+                            secondaryTint: secondaryTint,
+                            selectedLoadDate: $selectedLoadDate
+                        )
                     }
-                    .font(.body)
-                    .foregroundStyle(.white.opacity(0.82))
                 }
+
+                Button {
+                    showingEvidence = true
+                } label: {
+                    HStack {
+                        Image(systemName: "book.closed")
+                        Text("근거 보기")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.07),
+                                        secondaryTint.opacity(0.16)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
             }
             .padding(16)
         }
         .background(AppBackground())
-        .navigationTitle("훈련 추세")
+        .navigationTitle("러닝 준비도")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingEvidence) {
+            ReadinessEvidenceView()
+        }
     }
 }
 
-private struct TrainingTrendAxisRow: View {
-    let points: [TrainingTrendPoint]
-    let selectedPointID: Date?
+private struct RecoveryReadinessHeroCard: View {
+    let readiness: RecoveryReadiness
+    let primaryTint: Color
+    let secondaryTint: Color
+    let badgeForeground: Color
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            ForEach(points) { point in
-                Text(point.axisLabel)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(point.id == selectedPointID ? .white : .white.opacity(0.68))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                FeatureToneBadge(
+                    text: "러닝 준비도",
+                    tint: primaryTint,
+                    foreground: badgeForeground
+                )
+
+                Spacer()
+
+                FeatureToneBadge(
+                    text: readiness.status,
+                    tint: secondaryTint,
+                    foreground: badgeForeground
+                )
             }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(readiness.scoreText)
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+
+                Text(readiness.detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.74))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ViewThatFits(in: .vertical) {
+                HStack(spacing: 10) {
+                    FeatureMiniStatCard(
+                        title: "최근 부하",
+                        value: readiness.recentLoadText,
+                        detail: readiness.loadRatioText ?? "최근 7일 기준",
+                        tint: primaryTint
+                    )
+                    FeatureMiniStatCard(
+                        title: "마지막 러닝",
+                        value: readiness.lastRunText,
+                        detail: readiness.isDataSufficient ? "회복 간격" : "최근 기록 기준",
+                        tint: secondaryTint
+                    )
+                    FeatureMiniStatCard(
+                        title: readiness.restingHeartRateText == nil ? "기준" : "안정시 심박",
+                        value: readiness.restingHeartRateText ?? readiness.confidenceText,
+                        detail: readiness.restingHeartRateText == nil ? "현재 계산 방식" : "기준 대비 변화",
+                        tint: Color(red: 0.95, green: 0.59, blue: 0.32)
+                    )
+                }
+
+                VStack(spacing: 10) {
+                    FeatureMiniStatCard(
+                        title: "최근 부하",
+                        value: readiness.recentLoadText,
+                        detail: readiness.loadRatioText ?? "최근 7일 기준",
+                        tint: primaryTint
+                    )
+                    FeatureMiniStatCard(
+                        title: "마지막 러닝",
+                        value: readiness.lastRunText,
+                        detail: readiness.isDataSufficient ? "회복 간격" : "최근 기록 기준",
+                        tint: secondaryTint
+                    )
+                    FeatureMiniStatCard(
+                        title: readiness.restingHeartRateText == nil ? "기준" : "안정시 심박",
+                        value: readiness.restingHeartRateText ?? readiness.confidenceText,
+                        detail: readiness.restingHeartRateText == nil ? "현재 계산 방식" : "기준 대비 변화",
+                        tint: Color(red: 0.95, green: 0.59, blue: 0.32)
+                    )
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.12, green: 0.17, blue: 0.24),
+                            primaryTint.opacity(0.18),
+                            secondaryTint.opacity(0.14)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
+        )
+    }
+}
+
+private struct RecoveryReasonRow: View {
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle()
+                .fill(tint)
+                .frame(width: 7, height: 7)
+                .padding(.top, 6)
+
+            Text(text)
+                .foregroundStyle(.white.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
 
-private struct TrainingTrendPoint: Identifiable {
-    let id: Date
-    let startDate: Date
-    let endDate: Date
-    let distanceKilometers: Double
+private struct RecoveryLoadChartCard: View {
+    let points: [RecoveryLoadPoint]
+    let focusedPoint: RecoveryLoadPoint?
+    let tint: Color
+    let secondaryTint: Color
+    @Binding var selectedLoadDate: Date?
 
-    var distanceText: String {
-        RunDisplayFormatter.distance(kilometers: distanceKilometers, fractionLength: 1)
-    }
-
-    var label: String {
-        "\(monthText) \(weekText)"
-    }
-
-    var axisLabel: String {
-        label
-    }
-
-    var dateRangeText: String {
-        let rangeEndDate = Calendar.current.date(byAdding: .day, value: -1, to: endDate) ?? endDate
-        return "\(formattedMonthDay(startDate)) - \(formattedMonthDay(rangeEndDate))"
-    }
-
-    private var monthText: String {
-        RunDisplayFormatter.monthOnly(startDate)
-    }
-
-    private var weekText: String {
-        L10n.format("%d주차", Calendar.current.component(.weekOfMonth, from: startDate))
-    }
-
-    private func formattedMonthDay(_ date: Date) -> String {
-        RunDisplayFormatter.shortMonthDay(date)
-    }
-
-    static func build(from runs: [RunningWorkout], weeks: Int = 8) -> [TrainingTrendPoint] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        guard
-            let currentWeek = calendar.dateInterval(of: .weekOfYear, for: today),
-            let firstWeekStart = calendar.date(byAdding: .weekOfYear, value: -(weeks - 1), to: currentWeek.start)
-        else {
-            return []
-        }
-
-        return (0..<weeks).compactMap { offset in
-            guard
-                let weekStart = calendar.date(byAdding: .weekOfYear, value: offset, to: firstWeekStart),
-                let weekInterval = calendar.dateInterval(of: .weekOfYear, for: weekStart)
-            else {
-                return nil
+    var body: some View {
+        Chart {
+            ForEach(points) { point in
+                BarMark(
+                    x: .value("날짜", point.date, unit: .day),
+                    y: .value("부하", point.load),
+                    width: .fixed(22)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: focusedPoint?.id == point.id
+                            ? [Color.white, tint]
+                            : [tint, secondaryTint.opacity(0.65)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .opacity(focusedPoint == nil || focusedPoint?.id == point.id ? 1 : 0.42)
+                .cornerRadius(8)
+                .annotation(position: .top, spacing: 8) {
+                    if focusedPoint?.id == point.id {
+                        FeatureChartCallout(
+                            title: point.label,
+                            value: point.loadText,
+                            detail: point.dateText,
+                            tint: tint
+                        )
+                    }
+                }
             }
+        }
+        .frame(height: 220)
+        .chartXSelection(value: $selectedLoadDate)
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
+                    .foregroundStyle(.white.opacity(0.08))
+                AxisValueLabel {
+                    if let load = value.as(Double.self) {
+                        Text(L10n.format("%d", Int(load.rounded())))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.54))
+                    }
+                }
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: points.map(\.date)) { value in
+                AxisGridLine()
+                    .foregroundStyle(.white.opacity(0.05))
+                AxisValueLabel {
+                    if let date = value.as(Date.self) {
+                        Text(date.formatted(.dateTime.weekday(.narrow)))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.58))
+                    }
+                }
+            }
+        }
+        .chartPlotStyle { plotArea in
+            plotArea
+                .background(FeatureChartPlotBackground(tint: tint))
+        }
+    }
+}
 
-            let distanceKilometers = runs
-                .filter { $0.startDate >= weekInterval.start && $0.startDate < weekInterval.end }
-                .reduce(0) { $0 + $1.distanceInKilometers }
+private struct ReadinessEvidenceView: View {
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    DetailSection(
+                        title: "이 점수는 무엇인가요",
+                        systemImage: "heart.text.square.fill",
+                        tint: Color(red: 0.42, green: 0.76, blue: 1.0)
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("러닝 준비도는 몸 상태를 진단하는 의료 점수가 아니라, 최근 러닝 부하와 회복 간격을 바탕으로 오늘 러닝 강도를 가볍게 가이드하는 점수예요.")
+                            Text("현재 버전은 최근 28일 러닝 기록, 마지막 러닝 이후 시간, 그리고 있으면 안정시 심박을 함께 참고합니다.")
+                            Text("논문에서 널리 쓰는 훈련 부하와 회복 모니터링 개념을 참고했지만, 점수화 방식은 RunOnly에 맞게 단순화한 가이드예요.")
+                        }
+                        .foregroundStyle(.white.opacity(0.82))
+                    }
 
-            return TrainingTrendPoint(
-                id: weekInterval.start,
-                startDate: weekInterval.start,
-                endDate: weekInterval.end,
-                distanceKilometers: distanceKilometers
-            )
+                    DetailSection(
+                        title: "참고 문헌",
+                        systemImage: "book.fill",
+                        tint: Color(red: 0.29, green: 0.88, blue: 0.63)
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ReadinessEvidenceLinkRow(
+                                title: "Foster et al. (2001)",
+                                subtitle: "A new approach to monitoring exercise training",
+                                urlString: "https://pubmed.ncbi.nlm.nih.gov/11708692/"
+                            )
+                            ReadinessEvidenceLinkRow(
+                                title: "Kiviniemi et al. (2007)",
+                                subtitle: "HRV-guided endurance training",
+                                urlString: "https://pubmed.ncbi.nlm.nih.gov/17849143/"
+                            )
+                            ReadinessEvidenceLinkRow(
+                                title: "Plews et al. (2013)",
+                                subtitle: "HRV and endurance monitoring review",
+                                urlString: "https://pubmed.ncbi.nlm.nih.gov/23852425/"
+                            )
+                            ReadinessEvidenceLinkRow(
+                                title: "Manresa-Rocamora et al. (2021)",
+                                subtitle: "HRV-guided training meta-analysis",
+                                urlString: "https://pubmed.ncbi.nlm.nih.gov/34639599/"
+                            )
+                        }
+                    }
+
+                    DetailSection(
+                        title: "한계",
+                        systemImage: "exclamationmark.triangle.fill",
+                        tint: Color(red: 0.95, green: 0.59, blue: 0.32)
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("수면, HRV, 스트레스 같은 데이터는 아직 반영하지 않아 실제 회복 상태를 완전히 대변하지는 못합니다.")
+                            Text("데이터가 부족하면 억지로 점수를 만들지 않고 `데이터 필요` 상태로 남겨둡니다.")
+                            Text("몸 상태가 평소와 다르거나 통증이 있다면 준비도 점수보다 내 컨디션을 우선해 주세요.")
+                        }
+                        .foregroundStyle(.white.opacity(0.82))
+                    }
+                }
+                .padding(16)
+            }
+            .background(AppBackground())
+            .navigationTitle("준비도 근거")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+private struct ReadinessEvidenceLinkRow: View {
+    let title: String
+    let subtitle: String
+    let urlString: String
+
+    var body: some View {
+        if let url = URL(string: urlString) {
+            Link(destination: url) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .padding(.top, 2)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.58))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.white.opacity(0.04))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 }
@@ -2221,6 +3178,7 @@ private struct PredictionTrendView: View {
     let runs: [RunningWorkout]
     @State private var selectedDistance: PredictionDistance = .fiveK
     @State private var showingMethod = false
+    @State private var selectedPredictionDate: Date?
 
     private var points: [PredictionTrendPoint] {
         PredictionTrendPoint.build(for: selectedDistance, runs: runs)
@@ -2228,56 +3186,146 @@ private struct PredictionTrendView: View {
 
     private var latestPoint: PredictionTrendPoint? { points.last }
     private var bestPoint: PredictionTrendPoint? { points.min(by: { $0.seconds < $1.seconds }) }
+    private var focusedPoint: PredictionTrendPoint? {
+        guard let selectedPredictionDate else { return latestPoint }
+        return points.min {
+            abs($0.date.timeIntervalSince(selectedPredictionDate)) < abs($1.date.timeIntervalSince(selectedPredictionDate))
+        }
+    }
     private var deltaText: String {
         guard let first = points.first, let latestPoint else { return "-" }
         return formatSignedDuration(latestPoint.seconds - first.seconds)
+    }
+    private var heroSubtitle: String {
+        guard let focusedPoint else {
+            return "러닝이 더 쌓이면 거리별 예상 흐름이 자연스럽게 보일 거예요."
+        }
+        return "\(focusedPoint.date.formatted(date: .abbreviated, time: .omitted))까지의 최근 흐름을 반영했어요."
+    }
+
+    private var pointBadgeText: String {
+        points.isEmpty ? "데이터 준비 중" : L10n.format("%d개 포인트", points.count)
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Picker("거리", selection: $selectedDistance) {
-                    ForEach(PredictionDistance.allCases) { distance in
-                        Text(distance.label).tag(distance)
+                PredictionTrendHeroCard(
+                    selectedDistance: selectedDistance,
+                    subtitle: heroSubtitle,
+                    badgeText: pointBadgeText,
+                    latestText: latestPoint.map { formatDuration($0.seconds) } ?? "-",
+                    bestText: bestPoint.map { formatDuration($0.seconds) } ?? "-",
+                    changeText: deltaText
+                )
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("비교 거리")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.58))
+
+                    Picker("거리", selection: $selectedDistance) {
+                        ForEach(PredictionDistance.allCases) { distance in
+                            Text(distance.label).tag(distance)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .tint(Color(red: 0.95, green: 0.59, blue: 0.32))
                 }
-                .pickerStyle(.segmented)
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.06),
+                                    Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.1)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                        )
+                )
 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    SummaryCard(title: "현재 예상", value: latestPoint.map { formatDuration($0.seconds) } ?? "-", detail: selectedDistance.label)
-                    SummaryCard(title: "최고 예상", value: bestPoint.map { formatDuration($0.seconds) } ?? "-", detail: bestPoint.map { $0.date.formatted(date: .abbreviated, time: .omitted) } ?? "데이터 없음")
-                    SummaryCard(title: "변화", value: deltaText, detail: "첫 포인트 대비")
-                }
-
-                DetailSection(title: "예상 기록 추세") {
+                DetailSection(
+                    title: "예상 흐름",
+                    systemImage: "chart.line.uptrend.xyaxis",
+                    tint: Color(red: 0.95, green: 0.59, blue: 0.32)
+                ) {
                     if points.isEmpty {
                         Text("추세를 계산할 러닝 데이터가 부족합니다.")
                             .foregroundStyle(.white.opacity(0.72))
                     } else {
                         Chart(points) { point in
+                            AreaMark(
+                                x: .value("날짜", point.date),
+                                y: .value("예상 기록", point.seconds)
+                            )
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.95, green: 0.59, blue: 0.32).opacity(0.28),
+                                        Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.04)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+
                             LineMark(
                                 x: .value("날짜", point.date),
                                 y: .value("예상 기록", point.seconds)
                             )
-                            .foregroundStyle(Color(red: 0.46, green: 0.66, blue: 0.98))
-                            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.95, green: 0.59, blue: 0.32),
+                                        Color(red: 0.42, green: 0.76, blue: 1.0)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                             .interpolationMethod(.catmullRom)
 
                             PointMark(
                                 x: .value("날짜", point.date),
                                 y: .value("예상 기록", point.seconds)
                             )
-                            .foregroundStyle(Color.white.opacity(0.9))
-                            .symbolSize(point.id == latestPoint?.id ? 46 : 18)
+                            .foregroundStyle(Color.white.opacity(focusedPoint?.id == point.id ? 1 : 0.82))
+                            .symbolSize(focusedPoint?.id == point.id ? 54 : 18)
+
+                            if let focusedPoint, focusedPoint.id == point.id {
+                                RuleMark(x: .value("선택", point.date))
+                                    .foregroundStyle(Color.white.opacity(0.22))
+                                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                                    .annotation(position: .top, spacing: 8, overflowResolution: .init(x: .fit, y: .fit)) {
+                                        FeatureChartCallout(
+                                            title: selectedDistance.label,
+                                            value: formatDuration(point.seconds),
+                                            detail: point.date.formatted(date: .abbreviated, time: .omitted),
+                                            tint: Color(red: 0.95, green: 0.59, blue: 0.32)
+                                        )
+                                    }
+                            }
                         }
-                        .frame(height: 220)
+                        .frame(height: 240)
+                        .chartXSelection(value: $selectedPredictionDate)
                         .chartYAxis {
-                            AxisMarks(position: .leading) { value in
-                                AxisGridLine().foregroundStyle(.white.opacity(0.12))
+                            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
+                                    .foregroundStyle(.white.opacity(0.08))
                                 AxisValueLabel {
                                     if let seconds = value.as(Double.self) {
                                         Text(formatDuration(seconds))
-                                            .foregroundStyle(.white.opacity(0.7))
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.white.opacity(0.58))
                                     }
                                 }
                             }
@@ -2286,8 +3334,13 @@ private struct PredictionTrendView: View {
                             AxisMarks(values: .stride(by: .month)) { _ in
                                 AxisGridLine().foregroundStyle(.white.opacity(0.08))
                                 AxisValueLabel(format: .dateTime.month(.abbreviated))
-                                    .foregroundStyle(.white.opacity(0.65))
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.55))
                             }
+                        }
+                        .chartPlotStyle { plotArea in
+                            plotArea
+                                .background(FeatureChartPlotBackground(tint: Color(red: 0.95, green: 0.59, blue: 0.32)))
                         }
                     }
                 }
@@ -2298,14 +3351,31 @@ private struct PredictionTrendView: View {
                     HStack {
                         Image(systemName: "info.circle")
                         Text("예측 기록 계산 방식 보기")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
                     .frame(maxWidth: .infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color.white.opacity(0.08))
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.07),
+                                        Color(red: 0.95, green: 0.59, blue: 0.32).opacity(0.12)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            )
                     )
                 }
                 .buttonStyle(.plain)
@@ -2318,6 +3388,80 @@ private struct PredictionTrendView: View {
         .sheet(isPresented: $showingMethod) {
             PredictionMethodView()
         }
+    }
+}
+
+private struct PredictionTrendHeroCard: View {
+    let selectedDistance: PredictionDistance
+    let subtitle: String
+    let badgeText: String
+    let latestText: String
+    let bestText: String
+    let changeText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                FeatureToneBadge(
+                    text: "예상 기록",
+                    tint: Color(red: 0.95, green: 0.59, blue: 0.32),
+                    foreground: Color(red: 1.0, green: 0.86, blue: 0.76)
+                )
+
+                Spacer()
+
+                FeatureToneBadge(
+                    text: badgeText,
+                    tint: Color(red: 0.42, green: 0.76, blue: 1.0),
+                    foreground: Color(red: 0.74, green: 0.90, blue: 1.0)
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("\(selectedDistance.label) 흐름")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ViewThatFits(in: .vertical) {
+                HStack(spacing: 10) {
+                    FeatureMiniStatCard(title: "현재", value: latestText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
+                    FeatureMiniStatCard(title: "최고", value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
+                    FeatureMiniStatCard(title: "변화", value: changeText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
+                }
+
+                VStack(spacing: 10) {
+                    FeatureMiniStatCard(title: "현재", value: latestText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
+                    FeatureMiniStatCard(title: "최고", value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
+                    FeatureMiniStatCard(title: "변화", value: changeText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.12, green: 0.17, blue: 0.27),
+                            Color(red: 0.95, green: 0.59, blue: 0.32).opacity(0.16),
+                            Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.14)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
+        )
     }
 }
 
@@ -2385,29 +3529,25 @@ struct ShoesTabView: View {
         SampleShoePreview.items
     }
 
+    private var totalTrackedDistance: Double {
+        shoeStore.shoes.reduce(0) { partial, shoe in
+            partial + shoeStore.distance(for: shoe.id, runs: runs)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        Spacer()
-
-                        Button("추가") {
-                            showingAddShoe = true
-                        }
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.white.opacity(0.06))
-                        )
+                    ShoesOverviewHeaderCard(
+                        shoeCount: shoeStore.shoes.count,
+                        totalTrackedDistance: totalTrackedDistance
+                    ) {
+                        showingAddShoe = true
                     }
-                    .padding(.horizontal, 4)
 
                     if shoeStore.shoes.isEmpty {
-                        DetailSection(title: "러닝화 추가하기") {
+                        DetailSection(title: "러닝화 추가하기", systemImage: "shoeprints.fill", tint: Color(red: 0.91, green: 0.69, blue: 0.38)) {
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("러닝화를 등록하면 신발별 누적 거리와 남은 수명을 볼 수 있습니다.")
                                     .foregroundStyle(.white.opacity(0.72))
@@ -2417,7 +3557,7 @@ struct ShoesTabView: View {
                             }
                         }
 
-                        DetailSection(title: "샘플 미리보기") {
+                        DetailSection(title: "샘플 미리보기", systemImage: "sparkles", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
                             VStack(alignment: .leading, spacing: 14) {
                                 ForEach(samplePreviewItems) { item in
                                     ShoeSummaryCard(
@@ -2465,7 +3605,9 @@ struct SettingsTabView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    DetailSection(title: "표시") {
+                    SettingsOverviewHeaderCard()
+
+                    DetailSection(title: "표시", systemImage: "paintbrush.pointed.fill", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
                         VStack(spacing: 14) {
                             NavigationLink {
                                 AppLanguageSettingsView()
@@ -2503,7 +3645,7 @@ struct SettingsTabView: View {
                         }
                     }
 
-                    DetailSection(title: "정책 및 지원") {
+                    DetailSection(title: "지원", systemImage: "lifepreserver.fill", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
                         VStack(spacing: 12) {
                             NavigationLink {
                                 DataPermissionsView()
@@ -2540,7 +3682,7 @@ struct SettingsTabView: View {
                         }
                     }
 
-                    DetailSection(title: "데이터") {
+                    DetailSection(title: "데이터", systemImage: "externaldrive.fill", tint: Color(red: 0.29, green: 0.88, blue: 0.63)) {
                         VStack(spacing: 12) {
                             NavigationLink {
                                 ShoeDataSettingsView()
@@ -2566,7 +3708,7 @@ struct SettingsTabView: View {
                         }
                     }
 
-                    DetailSection(title: "고지") {
+                    DetailSection(title: "고지", systemImage: "exclamationmark.bubble.fill", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(AppMetadata.nonMedicalNoticeLines, id: \.self) { item in
                                 Text(item)
@@ -2576,7 +3718,7 @@ struct SettingsTabView: View {
                         .foregroundStyle(.white.opacity(0.66))
                     }
 
-                    DetailSection(title: "앱 정보") {
+                    DetailSection(title: "앱 정보", systemImage: "app.badge.fill", tint: Color(red: 0.91, green: 0.69, blue: 0.38)) {
                         VStack(spacing: 14) {
                             SettingInfoRow(title: "앱 이름", value: AppMetadata.displayName)
                             SettingInfoRow(title: "버전", value: AppMetadata.versionText)
@@ -2594,12 +3736,86 @@ struct SettingsTabView: View {
     }
 }
 
+private struct SettingsOverviewHeaderCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            FeatureToneBadge(
+                text: "설정",
+                tint: Color(red: 0.42, green: 0.76, blue: 1.0),
+                foreground: Color(red: 0.82, green: 0.94, blue: 1.0)
+            )
+
+            Text("표시와 데이터 관리를 한곳에 모아뒀어요")
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+
+            Text("언어, 단위, 권한과 백업까지 여기서 차분하게 정리할 수 있어요")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.74))
+
+            HStack(spacing: 10) {
+                SettingsOverviewPill(title: "표시", detail: "언어 · 단위")
+                SettingsOverviewPill(title: "데이터", detail: "권한 · 백업")
+                SettingsOverviewPill(title: "지원", detail: "문의 · 정책")
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.07),
+                            Color(red: 0.26, green: 0.48, blue: 0.84).opacity(0.18)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
+        )
+    }
+}
+
+private struct SettingsOverviewPill: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.52))
+            Text(LocalizedStringKey(detail))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(0.16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
+    }
+}
+
 // 개인정보처리방침은 앱 안에서도 바로 읽을 수 있게 별도 화면으로 제공한다.
 private struct PrivacyPolicyView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                DetailSection(title: "개요") {
+                DetailSection(title: "개요", systemImage: "doc.text.fill", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(L10n.format("%@은 Apple 건강의 러닝 데이터를 iPhone에서 보기 쉽게 정리하는 앱입니다.", AppMetadata.displayName))
                         Text(AppMetadata.healthUsageSummary)
@@ -2610,7 +3826,7 @@ private struct PrivacyPolicyView: View {
                     .foregroundStyle(.white.opacity(0.78))
                 }
 
-                DetailSection(title: "읽는 건강 데이터") {
+                DetailSection(title: "읽는 건강 데이터", systemImage: "heart.text.square.fill", tint: Color(red: 0.29, green: 0.88, blue: 0.63)) {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(AppMetadata.healthDataSummaryItems, id: \.self) { item in
                             Text("• \(item)")
@@ -2620,7 +3836,7 @@ private struct PrivacyPolicyView: View {
                     .foregroundStyle(.white.opacity(0.78))
                 }
 
-                DetailSection(title: "저장 및 보호") {
+                DetailSection(title: "저장 및 보호", systemImage: "lock.shield.fill", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(AppMetadata.privacyStorageHighlights, id: \.self) { item in
                             Text(item)
@@ -2633,7 +3849,7 @@ private struct PrivacyPolicyView: View {
                     .foregroundStyle(.white.opacity(0.78))
                 }
 
-                DetailSection(title: "고지") {
+                DetailSection(title: "고지", systemImage: "exclamationmark.bubble.fill", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(AppMetadata.nonMedicalNoticeLines, id: \.self) { item in
                             Text(item)
@@ -2643,7 +3859,7 @@ private struct PrivacyPolicyView: View {
                     .foregroundStyle(.white.opacity(0.78))
                 }
 
-                DetailSection(title: "문의") {
+                DetailSection(title: "문의", systemImage: "envelope.fill", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
                     VStack(alignment: .leading, spacing: 12) {
                         Link("지원 메일 보내기", destination: AppMetadata.supportMailURL)
                             .font(.subheadline.weight(.semibold))
@@ -2668,7 +3884,7 @@ private struct SupportCenterView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                DetailSection(title: "문의 방법") {
+                DetailSection(title: "문의 방법", systemImage: "envelope.fill", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
                     VStack(alignment: .leading, spacing: 12) {
                         Link("메일로 문의하기", destination: AppMetadata.supportMailURL)
                             .font(.subheadline.weight(.semibold))
@@ -2682,7 +3898,7 @@ private struct SupportCenterView: View {
                     .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
                 }
 
-                DetailSection(title: "함께 보내주면 좋은 정보") {
+                DetailSection(title: "함께 보내주면 좋은 정보", systemImage: "checklist", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("• 사용 중인 iPhone 모델과 iOS 버전")
                         Text("• 문제가 발생한 러닝 날짜와 화면")
@@ -2706,7 +3922,7 @@ private struct DataPermissionsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                DetailSection(title: "데이터 및 권한") {
+                DetailSection(title: "데이터 및 권한", systemImage: "heart.text.square.fill", tint: Color(red: 0.29, green: 0.88, blue: 0.63)) {
                     VStack(alignment: .leading, spacing: 14) {
                         Text(AppMetadata.healthUsageSummary)
                             .font(.footnote)
@@ -2753,7 +3969,7 @@ private struct DataPermissionsView: View {
                     }
                 }
 
-                DetailSection(title: "고지") {
+                DetailSection(title: "고지", systemImage: "exclamationmark.bubble.fill", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(AppMetadata.nonMedicalNoticeLines, id: \.self) { item in
                             Text(item)
@@ -2783,7 +3999,7 @@ private struct ShoeDataSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                DetailSection(title: "신발 백업 및 복원") {
+                DetailSection(title: "신발 백업 및 복원", systemImage: "shippingbox.fill", tint: Color(red: 0.91, green: 0.69, blue: 0.38)) {
                     VStack(spacing: 14) {
                         SettingInfoRow(title: "저장 위치", value: "iPhone 내부 전용 저장소")
                         SettingInfoRow(title: "자동 백업", value: "자동 iCloud/Finder 백업 제외")
@@ -2909,7 +4125,7 @@ private struct DataManagementView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                DetailSection(title: "데이터 관리") {
+                DetailSection(title: "데이터 관리", systemImage: "externaldrive.fill.badge.xmark", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
                     VStack(spacing: 14) {
                         Button(role: .destructive) {
                             showingDeleteShoeDataConfirmation = true
@@ -2995,8 +4211,14 @@ private struct SettingLinkRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.16))
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+            }
+            .frame(width: 32, height: 32)
             VStack(alignment: .leading, spacing: 4) {
                 Text(LocalizedStringKey(title))
                     .font(.subheadline.weight(.semibold))
@@ -3028,8 +4250,14 @@ private struct SettingSelectionRow: View {
                 Spacer(minLength: 12)
 
                 Text(LocalizedStringKey(value))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.08))
+                    )
 
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
@@ -3217,6 +4445,121 @@ private struct SampleShoePreview: Identifiable {
     ]
 }
 
+private struct ShoesOverviewHeaderCard: View {
+    let shoeCount: Int
+    let totalTrackedDistance: Double
+    let onAdd: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    FeatureToneBadge(
+                        text: "러닝화",
+                        tint: Color(red: 0.91, green: 0.69, blue: 0.38),
+                        foreground: Color(red: 1.0, green: 0.9, blue: 0.76)
+                    )
+
+                    Text(titleText)
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .foregroundStyle(.white)
+
+                    Text(subtitleText)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.74))
+                }
+
+                Spacer(minLength: 12)
+
+                Button("추가", action: onAdd)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.black.opacity(0.18))
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
+                    )
+                    .buttonStyle(.plain)
+            }
+
+            if shoeCount > 0 {
+                HStack(spacing: 10) {
+                    ShoesOverviewMetric(title: "보유", value: L10n.format("%d켤레", shoeCount))
+                    ShoesOverviewMetric(title: "추적 거리", value: formatKilometers(totalTrackedDistance))
+                }
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.07),
+                            Color(red: 0.84, green: 0.63, blue: 0.3).opacity(0.2)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
+        )
+    }
+
+    private var titleText: String {
+        if shoeCount == 0 {
+            return L10n.tr("러닝화를 등록해보세요")
+        }
+
+        return L10n.format("%d켤레를 관리하고 있어요", shoeCount)
+    }
+
+    private var subtitleText: String {
+        if shoeCount == 0 {
+            return L10n.tr("누적 거리와 교체 시점을 더 쉽게 볼 수 있어요")
+        }
+
+        return L10n.format("현재 추적 거리 %@", formatKilometers(totalTrackedDistance))
+    }
+}
+
+private struct ShoesOverviewMetric: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.5))
+            Text(value)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(0.16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
+    }
+}
+
 // 신발 목록 카드 하나는 누적 거리와 교체까지 남은 거리를 요약한다.
 private struct ShoeSummaryCard: View {
     let shoe: RunningShoe
@@ -3256,57 +4599,62 @@ private struct ShoeSummaryCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.32),
-                                Color.white.opacity(0.08)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    usageColor.opacity(0.28),
+                                    Color.white.opacity(0.08)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                Image(systemName: "shoeprints.fill")
+                    Image(systemName: "shoeprints.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+                .frame(width: 34, height: 34)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(shoe.displayName)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                    Text(distanceSummaryText)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.78))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                }
+                .layoutPriority(1)
+
+                Spacer(minLength: 8)
+
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(usagePercentText)
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                        .foregroundStyle(usageColor)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+
+                Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.9))
-            }
-            .frame(width: 30, height: 30)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(shoe.displayName)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-                Text(distanceSummaryText)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.78))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-            }
-            .layoutPriority(1)
-
-            Spacer(minLength: 8)
-
-            VStack(alignment: .trailing, spacing: 0) {
-                Text(usagePercentText)
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundStyle(usageColor)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .foregroundStyle(.white.opacity(0.38))
             }
 
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white.opacity(0.38))
+            ProgressView(value: usageRatio)
+                .tint(usageColor)
         }
-        .frame(minHeight: 74)
+        .frame(minHeight: 88)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(
@@ -3314,8 +4662,8 @@ private struct ShoeSummaryCard: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.1),
-                            Color.white.opacity(0.04)
+                            Color.white.opacity(0.08),
+                            usageColor.opacity(0.12)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -3353,55 +4701,59 @@ private struct ShoeDetailView: View {
         currentShoe.startMileageKilometers + assignedRuns.reduce(0) { $0 + $1.distanceInKilometers }
     }
 
+    private var remainingKilometers: Double {
+        max(currentShoe.retirementKilometers - totalKilometers, 0)
+    }
+
+    private var usageRatio: Double {
+        min(totalKilometers / max(currentShoe.retirementKilometers, 1), 1)
+    }
+
+    private var usagePercentText: String {
+        "\(Int((usageRatio * 100).rounded()))%"
+    }
+
+    private var usageColor: Color {
+        usageRatio >= 0.85 ? Color(red: 0.95, green: 0.59, blue: 0.32) : Color(red: 0.29, green: 0.88, blue: 0.63)
+    }
+
+    private var usageStateText: String {
+        if usageRatio >= 1 {
+            return "교체 시점을 넘겼어요"
+        }
+        if usageRatio >= 0.85 {
+            return "교체를 슬슬 생각해볼 시점이에요"
+        }
+        return "아직 여유 있게 쓰고 있어요"
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                ViewThatFits(in: .vertical) {
-                    HStack(spacing: 12) {
-                        SummaryCard(title: "누적 거리", value: formatKilometers(totalKilometers), detail: "시작 거리 포함")
-                        SummaryCard(title: "목표 수명", value: formatKilometers(currentShoe.retirementKilometers), detail: currentShoe.brandModelText)
-                    }
+                ShoeDetailHeroCard(
+                    shoeName: currentShoe.displayName,
+                    brandModelText: currentShoe.brandModelText,
+                    usageStateText: usageStateText,
+                    usagePercentText: usagePercentText,
+                    progress: usageRatio,
+                    tint: usageColor,
+                    totalDistanceText: formatKilometers(totalKilometers),
+                    remainingDistanceText: formatKilometers(remainingKilometers),
+                    runsText: L10n.format("%d회", assignedRuns.count)
+                )
 
-                    VStack(spacing: 12) {
-                        SummaryCard(title: "누적 거리", value: formatKilometers(totalKilometers), detail: "시작 거리 포함")
-                        SummaryCard(title: "목표 수명", value: formatKilometers(currentShoe.retirementKilometers), detail: currentShoe.brandModelText)
-                    }
-                }
-
-                ViewThatFits(in: .vertical) {
-                    HStack(spacing: 12) {
-                        SummaryCard(title: "남은 거리", value: formatKilometers(max(currentShoe.retirementKilometers - totalKilometers, 0)), detail: "교체까지 남은 거리")
-                        SummaryCard(title: "착용 러닝", value: L10n.format("%d회", assignedRuns.count), detail: "현재 불러온 러닝 기준")
-                    }
-
-                    VStack(spacing: 12) {
-                        SummaryCard(title: "남은 거리", value: formatKilometers(max(currentShoe.retirementKilometers - totalKilometers, 0)), detail: "교체까지 남은 거리")
-                        SummaryCard(title: "착용 러닝", value: L10n.format("%d회", assignedRuns.count), detail: "현재 불러온 러닝 기준")
-                    }
-                }
-
-                DetailSection(title: "최근 착용 러닝") {
+                DetailSection(
+                    title: "최근 착용 러닝",
+                    systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
+                    tint: usageColor
+                ) {
                     if assignedRuns.isEmpty {
                         Text("이 신발에 연결된 러닝이 없습니다.")
                             .foregroundStyle(.white.opacity(0.72))
                     } else {
                         VStack(spacing: 10) {
                             ForEach(assignedRuns.prefix(10)) { run in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(run.titleText)
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(.white)
-                                        Text(run.distanceText)
-                                            .font(.caption)
-                                            .foregroundStyle(.white.opacity(0.55))
-                                    }
-                                    Spacer()
-                                    Text(run.paceText)
-                                        .font(.subheadline.weight(.bold))
-                                        .foregroundStyle(.white)
-                                        .monospacedDigit()
-                                }
+                                ShoeDetailRunRow(run: run)
                             }
                         }
                     }
@@ -3423,6 +4775,152 @@ private struct ShoeDetailView: View {
             AddShoeView(existingShoe: currentShoe)
                 .environmentObject(shoeStore)
         }
+    }
+}
+
+private struct ShoeDetailHeroCard: View {
+    let shoeName: String
+    let brandModelText: String
+    let usageStateText: String
+    let usagePercentText: String
+    let progress: Double
+    let tint: Color
+    let totalDistanceText: String
+    let remainingDistanceText: String
+    let runsText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                FeatureToneBadge(
+                    text: "러닝화",
+                    tint: Color(red: 0.91, green: 0.69, blue: 0.38),
+                    foreground: Color(red: 1.0, green: 0.9, blue: 0.72)
+                )
+
+                Spacer()
+
+                FeatureToneBadge(
+                    text: usagePercentText,
+                    tint: tint,
+                    foreground: .white
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(shoeName)
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text(brandModelText.isEmpty ? "러닝 흐름과 사용량을 한눈에 볼 수 있어요." : brandModelText)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.74))
+
+                Text(usageStateText)
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+
+            ProgressView(value: progress)
+                .tint(tint)
+
+            ViewThatFits(in: .vertical) {
+                HStack(spacing: 10) {
+                    FeatureMiniStatCard(title: "누적 거리", value: totalDistanceText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
+                    FeatureMiniStatCard(title: "남은 거리", value: remainingDistanceText, tint: tint)
+                    FeatureMiniStatCard(title: "착용 러닝", value: runsText, tint: Color(red: 0.91, green: 0.69, blue: 0.38))
+                }
+
+                VStack(spacing: 10) {
+                    FeatureMiniStatCard(title: "누적 거리", value: totalDistanceText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
+                    FeatureMiniStatCard(title: "남은 거리", value: remainingDistanceText, tint: tint)
+                    FeatureMiniStatCard(title: "착용 러닝", value: runsText, tint: Color(red: 0.91, green: 0.69, blue: 0.38))
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.13, green: 0.16, blue: 0.22),
+                            tint.opacity(0.18),
+                            Color(red: 0.91, green: 0.69, blue: 0.38).opacity(0.16)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
+        )
+    }
+}
+
+private struct ShoeDetailRunRow: View {
+    let run: RunningWorkout
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(run.titleText)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    Text(run.recordCompactDateText)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.52))
+                }
+
+                Spacer()
+
+                Text(run.paceText)
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+            }
+
+            HStack(spacing: 8) {
+                ShoeDetailMetaPill(text: run.distanceText)
+                ShoeDetailMetaPill(text: run.durationText)
+
+                if !run.environmentShortText.isEmpty {
+                    ShoeDetailMetaPill(text: run.environmentShortText)
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(0.18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct ShoeDetailMetaPill: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.76))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.08))
+            )
     }
 }
 
@@ -3509,35 +5007,114 @@ private struct AddShoeView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("기본 정보") {
-                    TextField("별칭", text: $nickname)
-                    TextField("브랜드", text: $brand)
-                    TextField("모델", text: $model)
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    AddShoeHeroCard(
+                        isEditing: existingShoe != nil,
+                        recommendedRetirementRangeText: recommendedRetirementRangeText
+                    )
 
-                Section("마일리지") {
-                    TextField(
-                        L10n.format("시작 거리 (%@)", displayUnit.distanceInputSuffix),
-                        value: startMileageBinding,
-                        format: .number
-                    )
-                        .keyboardType(.decimalPad)
-                    Text(L10n.format("단위는 %@입니다. 이미 다른 앱이나 실제 사용으로 누적된 거리가 있다면 입력하고, 새 신발이면 0으로 두면 됩니다.", displayUnit.distanceInputSuffix))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    TextField(
-                        L10n.format("목표 수명 거리 (%@)", displayUnit.distanceInputSuffix),
-                        value: retirementMileageBinding,
-                        format: .number
-                    )
-                        .keyboardType(.decimalPad)
-                    Text(L10n.format("단위는 %@입니다. 교체를 고려할 기준 거리이며, 보통 %@ 범위에서 잡습니다.", displayUnit.distanceInputSuffix, recommendedRetirementRangeText))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    DetailSection(
+                        title: "기본 정보",
+                        systemImage: "shoeprints.fill",
+                        tint: Color(red: 0.91, green: 0.69, blue: 0.38)
+                    ) {
+                        VStack(spacing: 12) {
+                            FeatureFormFieldCard(
+                                title: "별칭",
+                                caption: "기록 목록에서 가장 먼저 보여줄 이름이에요.",
+                                tint: Color(red: 0.91, green: 0.69, blue: 0.38)
+                            ) {
+                                TextField("예: 롱런용", text: $nickname)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(.headline, design: .rounded).weight(.bold))
+                                    .foregroundStyle(.white)
+                            }
+
+                            FeatureFormFieldCard(
+                                title: "브랜드",
+                                caption: "선택 사항이지만 나중에 신발을 구분하기 쉬워져요.",
+                                tint: Color(red: 0.42, green: 0.76, blue: 1.0)
+                            ) {
+                                TextField("예: Nike", text: $brand)
+                                    .textFieldStyle(.plain)
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.white)
+                            }
+
+                            FeatureFormFieldCard(
+                                title: "모델",
+                                caption: "브랜드와 함께 적어두면 컬렉션처럼 보기 좋아요.",
+                                tint: Color(red: 0.29, green: 0.88, blue: 0.63)
+                            ) {
+                                TextField("예: Zoom Fly 6", text: $model)
+                                    .textFieldStyle(.plain)
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                    }
+
+                    DetailSection(
+                        title: "마일리지",
+                        systemImage: "gauge.with.dots.needle.bottom.50percent",
+                        tint: Color(red: 0.42, green: 0.76, blue: 1.0)
+                    ) {
+                        VStack(spacing: 12) {
+                            FeatureFormFieldCard(
+                                title: "시작 거리",
+                                caption: L10n.format(
+                                    "단위는 %@입니다. 새 신발이면 0으로 두고, 이미 사용 중이면 누적 거리를 이어서 적어주세요.",
+                                    displayUnit.distanceInputSuffix
+                                ),
+                                tint: Color(red: 0.42, green: 0.76, blue: 1.0)
+                            ) {
+                                HStack(spacing: 10) {
+                                    TextField(
+                                        L10n.format("시작 거리 (%@)", displayUnit.distanceInputSuffix),
+                                        value: startMileageBinding,
+                                        format: .number.precision(.fractionLength(0...1))
+                                    )
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(.headline, design: .rounded).weight(.bold))
+                                    .foregroundStyle(.white)
+
+                                    Text(displayUnit.distanceInputSuffix)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.white.opacity(0.5))
+                                }
+                            }
+
+                            FeatureFormFieldCard(
+                                title: "교체 기준 거리",
+                                caption: L10n.format(
+                                    "보통 %@ 범위에서 잡습니다. 달리는 감각에 맞게 조금 넉넉하게 잡아도 괜찮아요.",
+                                    recommendedRetirementRangeText
+                                ),
+                                tint: Color(red: 0.95, green: 0.59, blue: 0.32)
+                            ) {
+                                HStack(spacing: 10) {
+                                    TextField(
+                                        L10n.format("목표 수명 거리 (%@)", displayUnit.distanceInputSuffix),
+                                        value: retirementMileageBinding,
+                                        format: .number.precision(.fractionLength(0...1))
+                                    )
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(.headline, design: .rounded).weight(.bold))
+                                    .foregroundStyle(.white)
+
+                                    Text(displayUnit.distanceInputSuffix)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.white.opacity(0.5))
+                                }
+                            }
+                        }
+                    }
                 }
+                .padding(16)
             }
-            .scrollContentBackground(.hidden)
             .background(AppBackground())
             .navigationTitle(existingShoe == nil ? L10n.tr("신발 추가") : L10n.tr("신발 수정"))
             .navigationBarTitleDisplayMode(.inline)
@@ -3570,6 +5147,62 @@ private struct AddShoeView: View {
                 }
             }
         }
+    }
+}
+
+private struct AddShoeHeroCard: View {
+    let isEditing: Bool
+    let recommendedRetirementRangeText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                FeatureToneBadge(
+                    text: isEditing ? "수정" : "새 러닝화",
+                    tint: Color(red: 0.91, green: 0.69, blue: 0.38),
+                    foreground: Color(red: 1.0, green: 0.9, blue: 0.72)
+                )
+
+                Spacer()
+
+                FeatureToneBadge(
+                    text: "권장 수명",
+                    tint: Color(red: 0.42, green: 0.76, blue: 1.0),
+                    foreground: Color(red: 0.74, green: 0.9, blue: 1.0)
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(isEditing ? "러닝화를 더 알아보기 쉽게 다듬어요" : "새 러닝화를 가볍게 등록해둘까요")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text("교체 기준은 보통 \(recommendedRetirementRangeText) 안에서 잡으면 무난해요.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.15, green: 0.17, blue: 0.23),
+                            Color(red: 0.91, green: 0.69, blue: 0.38).opacity(0.18),
+                            Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.12)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
+        )
     }
 }
 

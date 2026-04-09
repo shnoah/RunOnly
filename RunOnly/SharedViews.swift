@@ -61,7 +61,20 @@ struct SummaryCard: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.08),
+                            Color.black.opacity(0.12)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
         )
     }
 }
@@ -92,7 +105,11 @@ struct CompactMetricChip: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+                .fill(Color.black.opacity(0.16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
         )
     }
 }
@@ -252,34 +269,99 @@ private struct RunRowMetricColumn: View {
 
 struct DetailSection<Content: View>: View {
     let title: String
+    let systemImage: String?
+    let tint: Color
     @ViewBuilder let content: Content
+
+    init(
+        title: String,
+        systemImage: String? = nil,
+        tint: Color = Color(red: 0.37, green: 0.58, blue: 0.88),
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.tint = tint
+        self.content = content()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(LocalizedStringKey(title))
-                .font(.headline)
-                .foregroundStyle(.white)
+            if let systemImage {
+                HStack(spacing: 7) {
+                    Image(systemName: systemImage)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(tint.opacity(0.92))
+
+                    Text(LocalizedStringKey(title))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.88))
+                }
+            } else {
+                Text(LocalizedStringKey(title))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.92))
+            }
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(0.05))
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.055),
+                            tint.opacity(0.12)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 16, y: 8)
         )
     }
 }
 
 struct AppBackground: View {
     var body: some View {
-        LinearGradient(
-            colors: [
-                Color(red: 0.12, green: 0.14, blue: 0.20),
-                Color.black
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.11, blue: 0.17),
+                    Color(red: 0.05, green: 0.07, blue: 0.12),
+                    Color(red: 0.03, green: 0.04, blue: 0.08)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            RadialGradient(
+                colors: [
+                    Color(red: 0.25, green: 0.78, blue: 0.92).opacity(0.16),
+                    .clear
+                ],
+                center: .topLeading,
+                startRadius: 40,
+                endRadius: 360
+            )
+            .blendMode(.screen)
+
+            RadialGradient(
+                colors: [
+                    Color(red: 0.97, green: 0.61, blue: 0.35).opacity(0.12),
+                    .clear
+                ],
+                center: .bottomTrailing,
+                startRadius: 30,
+                endRadius: 320
+            )
+            .blendMode(.screen)
+        }
         .ignoresSafeArea()
     }
 }
