@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 제목과 값을 한 줄 묶음으로 보여주는 가장 작은 공용 메트릭 컴포넌트다.
 struct MetricView: View {
     let title: String
     let value: String
@@ -16,6 +17,7 @@ struct MetricView: View {
     }
 }
 
+// 로딩 실패/빈 상태처럼 화면 전체를 안내 문구 하나로 대체할 때 사용한다.
 struct StatusView: View {
     let title: String
     let message: String
@@ -39,6 +41,7 @@ struct StatusView: View {
     }
 }
 
+// 홈과 설정 계열에서 반복되는 큰 요약 카드를 같은 스타일로 맞춘다.
 struct SummaryCard: View {
     let title: String
     let value: String
@@ -79,6 +82,7 @@ struct SummaryCard: View {
     }
 }
 
+// 좁은 공간에서도 핵심 수치를 짧게 보여주기 위한 소형 칩이다.
 struct CompactMetricChip: View {
     let title: String
     let value: String
@@ -114,6 +118,7 @@ struct CompactMetricChip: View {
     }
 }
 
+// 실내/실외 같은 짧은 상태를 눈에 띄게 붙이는 배지다.
 struct RunEnvironmentBadge: View {
     let text: String
 
@@ -130,6 +135,7 @@ struct RunEnvironmentBadge: View {
     }
 }
 
+// 상세/공유 화면에서 거리·시간 같은 값을 작은 타일 단위로 재사용한다.
 struct RunMetricPill: View {
     let title: String
     let value: String
@@ -152,6 +158,7 @@ struct RunMetricPill: View {
     }
 }
 
+// 기록 리스트 한 행은 날짜, 신발, 핵심 3개 수치를 한 번에 읽히게 구성한다.
 struct RunRowCard: View {
     let run: RunningWorkout
     let shoeDisplay: RunShoeAssignmentDisplay
@@ -222,6 +229,7 @@ struct RunRowCard: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(run.recordCompactDateText), \(run.environmentShortText)"))
+        // 시각 카드 구성을 VoiceOver에서도 같은 의미 순서로 읽도록 합친다.
         .accessibilityValue(Text("\(L10n.tr("거리")) \(run.distanceText), \(L10n.tr("시간")) \(run.durationText), \(L10n.tr("페이스")) \(run.paceText), \(shoeDisplay.name)"))
     }
 
@@ -263,6 +271,7 @@ private struct RunRowMetricColumn: View {
     }
 }
 
+// 상세 화면 섹션은 아이콘/색/카드 배경 규칙을 공통으로 맞춰 시각 언어를 통일한다.
 struct DetailSection<Content: View>: View {
     let title: String
     let systemImage: String?
@@ -323,6 +332,7 @@ struct DetailSection<Content: View>: View {
     }
 }
 
+// 앱 전체 배경은 단색 대신 그라디언트와 광원 느낌을 섞어 러닝 앱 톤을 만든다.
 struct AppBackground: View {
     var body: some View {
         ZStack {
@@ -362,6 +372,7 @@ struct AppBackground: View {
     }
 }
 
+// 아래 helper는 오래된 화면 코드에서도 같은 표시 규칙을 바로 재사용하려는 얇은 래퍼다.
 func formatKilometers(_ kilometers: Double) -> String {
     RunDisplayFormatter.distance(kilometers: kilometers, fractionLength: 1)
 }

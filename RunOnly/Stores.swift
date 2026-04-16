@@ -1,5 +1,6 @@
 import SwiftUI
 
+// 러닝 리스트에서는 신발이 연결됐는지 여부까지 같이 표시해야 해서 별도 표시 모델로 둔다.
 struct RunShoeAssignmentDisplay: Equatable {
     let name: String
     let isAssigned: Bool
@@ -9,6 +10,7 @@ struct RunShoeAssignmentDisplay: Equatable {
     }
 }
 
+// 신발 목록, 러닝 연결, 백업/복원까지 신발 관련 로컬 상태를 한곳에서 관리한다.
 @MainActor
 final class ShoeStore: ObservableObject {
     @Published private(set) var shoes: [RunningShoe] = []
@@ -22,12 +24,14 @@ final class ShoeStore: ObservableObject {
         load()
     }
 
+    // 새 신발은 최근 생성 순으로 보이게 앞쪽에 넣는다.
     func addShoe(_ shoe: RunningShoe) {
         shoes.insert(shoe, at: 0)
         rebuildLookups()
         save()
     }
 
+    // 수정 후에는 lookup 캐시도 함께 다시 만들어 화면 조회 비용을 줄인다.
     func updateShoe(_ shoe: RunningShoe) {
         guard let index = shoes.firstIndex(where: { $0.id == shoe.id }) else { return }
         shoes[index] = shoe
@@ -46,6 +50,7 @@ final class ShoeStore: ObservableObject {
         return RunShoeAssignmentDisplay(name: shoe.displayName, isAssigned: true)
     }
 
+    // 한 러닝에는 신발 하나만 연결되도록 기존 연결을 먼저 비운 뒤 다시 기록한다.
     func assign(_ shoeID: UUID?, to runID: UUID) {
         assignments.removeAll { $0.runID == runID }
         if let shoeID {
@@ -76,6 +81,7 @@ final class ShoeStore: ObservableObject {
         return runs.filter { runIDs.contains($0.id) }.sorted(by: { $0.startDate > $1.startDate })
     }
 
+    // 백업에는 앱이 계산 가능한 로컬 신발 데이터만 담고 HealthKit 원본은 넣지 않는다.
     func exportBackupFile() throws -> URL {
         let payload = ShoeBackupPayload(
             schemaVersion: ShoeBackupPayload.currentSchemaVersion,
@@ -98,6 +104,7 @@ final class ShoeStore: ObservableObject {
         return url
     }
 
+    // 가져오기는 최신 포맷과 예전 포맷 둘 다 받아 기존 사용자 데이터 복구를 돕는다.
     func importBackupFile(from url: URL, strategy: ShoeImportStrategy) throws -> ShoeImportSummary {
         let didAccessSecurityScopedResource = url.startAccessingSecurityScopedResource()
         defer {
@@ -141,9 +148,11 @@ final class ShoeStore: ObservableObject {
 
         switch strategy {
         case .replace:
+            // 교체는 백업 파일 내용을 현재 로컬 상태로 그대로 덮어쓴다.
             shoes = importedShoes
             assignments = importedAssignments
         case .merge:
+            // 병합은 동일 ID만 덮어쓰고 나머지는 유지해 여러 기기 데이터를 합칠 때 쓴다.
             var shoeMap = Dictionary(uniqueKeysWithValues: shoes.map { ($0.id, $0) })
             for shoe in importedShoes {
                 shoeMap[shoe.id] = shoe
@@ -171,6 +180,7 @@ final class ShoeStore: ObservableObject {
         )
     }
 
+    // 앱 시작 시 저장된 스냅샷을 읽고 메모리 lookup 캐시까지 함께 복원한다.
     private func load() {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -187,6 +197,7 @@ final class ShoeStore: ObservableObject {
         rebuildLookups()
     }
 
+    // 화면은 Published 배열을 보고, 조회는 dictionary 캐시를 보는 구조라 둘을 같이 저장한다.
     private func save() {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -194,6 +205,7 @@ final class ShoeStore: ObservableObject {
         try? AppStorage.save(snapshot, to: storageFilename, encoder: encoder)
     }
 
+    // runID -> shoe, shoeID -> shoe lookup을 미리 만들어 목록 렌더링 중 반복 탐색을 줄인다.
     private func rebuildLookups() {
         shoesByID = Dictionary(uniqueKeysWithValues: shoes.map { ($0.id, $0) })
         shoeByRunID = assignments.reduce(into: [:]) { partial, assignment in
@@ -218,6 +230,7 @@ final class ShoeStore: ObservableObject {
     }
 }
 
+// 최신 백업 포맷은 버전과 참조 기준을 포함해 이후 포맷 확장에 대비한다.
 private struct ShoeBackupPayload: Codable {
     static let currentSchemaVersion = 1
 
@@ -229,12 +242,14 @@ private struct ShoeBackupPayload: Codable {
     let assignments: [ShoeAssignmentRecord]
 }
 
+// 예전 단순 백업 JSON도 복원할 수 있게 별도 디코더 모델을 남겨둔다.
 private struct LegacyShoeBackupPayload: Codable {
     let exportedAt: Date
     let shoes: [RunningShoe]
     let assignments: [ShoeAssignmentRecord]
 }
 
+// 사용자는 병합/교체 두 흐름 중 하나만 고르면 되게 단순화했다.
 enum ShoeImportStrategy {
     case merge
     case replace
@@ -255,6 +270,7 @@ struct ShoeImportSummary {
     }
 }
 
+// 백업 포맷 오류는 파일 손상과 버전 불일치 정도만 명확히 안내한다.
 private enum ShoeBackupError: LocalizedError {
     case unsupportedSchemaVersion(Int)
     case emptyBackup
@@ -269,11 +285,13 @@ private enum ShoeBackupError: LocalizedError {
     }
 }
 
+// 신발 저장소는 배열 스냅샷 형태로만 저장해 디버깅과 마이그레이션을 단순하게 유지한다.
 private struct ShoeStoreSnapshot: Codable {
     let shoes: [RunningShoe]
     let assignments: [ShoeAssignmentRecord]
 }
 
+// 앱 설정은 전부 UserDefaults 기반이라 앱 재실행 후에도 바로 복원된다.
 @MainActor
 final class AppSettingsStore: ObservableObject {
     static let defaultAppleOnlyFilterKey = "runonly.settings.defaultAppleOnlyFilter"
@@ -313,6 +331,7 @@ final class AppSettingsStore: ObservableObject {
 
     init() {
         let hadExistingDefaultAppleOnlySetting = UserDefaults.standard.object(forKey: Self.defaultAppleOnlyFilterKey) != nil
+        // 기존 사용자에게는 갑작스러운 온보딩 재노출이 생기지 않도록 초기값을 분기한다.
         if UserDefaults.standard.object(forKey: Self.defaultAppleOnlyFilterKey) == nil {
             UserDefaults.standard.set(true, forKey: Self.defaultAppleOnlyFilterKey)
         }
@@ -335,6 +354,7 @@ final class AppSettingsStore: ObservableObject {
         ) ?? .system
     }
 
+    // 설정 탭에서 권한 소개를 다시 열 수 있게 별도 presentation 상태를 둔다.
     func presentHealthKitIntro() {
         isPresentingHealthKitIntro = true
     }
@@ -345,6 +365,7 @@ final class AppSettingsStore: ObservableObject {
     }
 }
 
+// 월간 목표 거리는 아주 가벼운 단일 숫자 상태라 별도 파일 없이 defaults만 사용한다.
 @MainActor
 final class MileageGoalStore: ObservableObject {
     @Published var monthlyGoalKilometers: Double {
@@ -364,6 +385,7 @@ final class MileageGoalStore: ObservableObject {
     }
 }
 
+// 상세 화면 상단 요약 캐시는 버전형 스냅샷으로 저장해 이후 구조 변경에 대비한다.
 private struct RunSummaryCacheSnapshot: Codable {
     let version: Int
     let entries: [RunSummaryCacheEntry]
@@ -375,6 +397,7 @@ private struct RunSummaryCacheEntry: Codable {
     let cachedAt: Date
 }
 
+// 상세를 다시 열 때 평균 심박/케이던스 같은 요약값을 즉시 보여주기 위한 로컬 캐시다.
 @MainActor
 final class RunSummaryCacheStore {
     static let shared = RunSummaryCacheStore()
@@ -391,6 +414,7 @@ final class RunSummaryCacheStore {
         metricsByRunID[runID]
     }
 
+    // 값이 하나도 없으면 저장하지 않아 빈 캐시 엔트리가 쌓이지 않게 한다.
     func save(_ metrics: RunSummaryMetrics, for runID: UUID) {
         guard metrics.hasAnyValue else { return }
         metricsByRunID[runID] = metrics
@@ -402,6 +426,7 @@ final class RunSummaryCacheStore {
         persist()
     }
 
+    // 캐시 파일이 없거나 버전이 다르면 과감히 버리고 다시 채우는 쪽이 안전하다.
     private func load() {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -417,6 +442,7 @@ final class RunSummaryCacheStore {
         metricsByRunID = Dictionary(uniqueKeysWithValues: snapshot.entries.map { ($0.runID, $0.metrics) })
     }
 
+    // 저장 시에는 dictionary를 배열로 펼쳐 JSON 순서를 안정적으로 맞춘다.
     private func persist() {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

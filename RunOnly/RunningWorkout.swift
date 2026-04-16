@@ -145,6 +145,7 @@ struct RunningWorkout: Identifiable {
     )
 }
 
+// 최근 러닝 몇 개를 바탕으로 대표 거리 기록을 보수적으로 추정하는 계산 규칙이다.
 enum PredictionModel {
     static let lookbackDays = 120
 
@@ -155,6 +156,7 @@ enum PredictionModel {
     ) -> Double? {
         let calendar = Calendar.current
         let windowStart = calendar.date(byAdding: .day, value: -lookbackDays, to: referenceDate) ?? .distantPast
+        // 목표 거리별 최소 기준보다 짧은 러닝은 예측 품질이 떨어져 제외한다.
         let windowRuns = runs.filter {
             $0.startDate >= windowStart &&
             $0.startDate <= referenceDate &&
@@ -165,6 +167,7 @@ enum PredictionModel {
             return nil
         }
 
+        // 최근 후보 중 가장 빠른 값 몇 개만 보고 중앙값을 택해 과도한 낙관치를 줄인다.
         let projected = windowRuns
             .map { projectedSeconds(for: $0, targetDistance: targetDistance) }
             .sorted()
