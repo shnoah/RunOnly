@@ -196,8 +196,11 @@ struct RecordTabView: View {
                             PersonalRecordsManagementView(
                                 currentRecords: viewModel.personalRecords,
                                 pendingCandidates: viewModel.pendingPersonalRecordCandidates,
+                                isRefreshingRecords: viewModel.isRefreshingPersonalRecords,
+                                personalRecordProgress: viewModel.personalRecordProgress,
                                 onApproveCandidate: viewModel.approvePersonalRecordCandidate,
-                                onDismissCandidate: viewModel.dismissPersonalRecordCandidate
+                                onDismissCandidate: viewModel.dismissPersonalRecordCandidate,
+                                onResetAndReloadRecords: viewModel.resetAndReloadPersonalRecords
                             )
                         }
                     }

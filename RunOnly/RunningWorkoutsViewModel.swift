@@ -290,6 +290,16 @@ final class RunningWorkoutsViewModel: ObservableObject {
 
     // PR은 Apple 운동 앱 러닝만 기준으로 계산해 기록 탭과 일관성을 맞춘다.
     func refreshPersonalRecordsIfNeeded() async {
+        await refreshPersonalRecords(forceFullRebuild: false)
+    }
+
+    // TEST-ONLY PR TOOL: 기록 관리 화면의 임시 버튼에서 PR 캐시를 비우고 HealthKit 기록을 다시 스캔한다.
+    // 안정화 후 이 함수와 PersonalRecordsManagementView의 테스트 섹션을 함께 제거하면 된다.
+    func resetAndReloadPersonalRecords() async {
+        await refreshPersonalRecords(forceFullRebuild: true)
+    }
+
+    private func refreshPersonalRecords(forceFullRebuild: Bool) async {
         guard !isRefreshingPersonalRecords else { return }
         isRefreshingPersonalRecords = true
         defer {
@@ -298,24 +308,35 @@ final class RunningWorkoutsViewModel: ObservableObject {
         }
 
         do {
-            var snapshot = personalRecordSnapshot.version == personalRecordStore.version
+            var snapshot = !forceFullRebuild && personalRecordSnapshot.version == personalRecordStore.version
                 ? personalRecordSnapshot
                 : .empty(version: personalRecordStore.version)
 
             let runsToProcess: [RunningWorkout]
             let now = Date()
-            let cutoffDate = Calendar.current.date(byAdding: .year, value: -3, to: now) ?? .distantPast
+            let automaticRecordCutoffDate = Calendar.current.date(byAdding: .year, value: -1, to: now) ?? .distantPast
 
             if snapshot.processedRunIDs.isEmpty {
-                guard let oldestRunningWorkoutDate else { return }
-                let startDate = max(oldestRunningWorkoutDate, cutoffDate)
-                let historicalRuns = try await healthKitService.fetchRunningWorkouts(from: startDate, to: now)
-                runsToProcess = deduplicatedAndSortedChronologically(historicalRuns).filter(\.isAppleWorkout)
+                let scanStartDate = oldestRunningWorkoutDate ?? allRuns.map(\.startDate).min()
+                guard let scanStartDate else {
+                    personalRecords = snapshot.records
+                    pendingPersonalRecordCandidates = snapshot.pendingCandidates
+                    personalRecordHistory = snapshot.history
+                    personalRecordSnapshot = snapshot
+                    personalRecordProgress = 1
+                    personalRecordStore.save(snapshot)
+                    return
+                }
+                let historicalRuns = try await healthKitService.fetchRunningWorkouts(from: scanStartDate, to: now)
+                let appleHistoricalRuns = deduplicatedAndSortedChronologically(historicalRuns).filter(\.isAppleWorkout)
+                runsToProcess = appleHistoricalRuns.isEmpty
+                    ? deduplicatedAndSortedChronologically(allRuns).filter(\.isAppleWorkout)
+                    : appleHistoricalRuns
                 snapshot = .empty(version: personalRecordStore.version)
             } else {
                 let processedIDs = Set(snapshot.processedRunIDs)
                 runsToProcess = deduplicatedAndSortedChronologically(allRuns).filter {
-                    $0.isAppleWorkout && !processedIDs.contains($0.id) && $0.startDate >= cutoffDate
+                    $0.isAppleWorkout && !processedIDs.contains($0.id)
                 }
             }
 
@@ -329,7 +350,11 @@ final class RunningWorkoutsViewModel: ObservableObject {
             }
 
             personalRecordProgress = 0
-            snapshot = try await updatePersonalRecords(snapshot, with: runsToProcess)
+            snapshot = try await updatePersonalRecords(
+                snapshot,
+                with: runsToProcess,
+                automaticRecordCutoffDate: automaticRecordCutoffDate
+            )
             personalRecordSnapshot = snapshot
             personalRecords = snapshot.records
             pendingPersonalRecordCandidates = snapshot.pendingCandidates
@@ -342,7 +367,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
 
     // 사용자가 후보 기록을 승인하면 현재 PR 스냅샷을 즉시 갱신한다.
     func approvePersonalRecordCandidate(for distance: PersonalRecordDistance) {
-        guard let candidate = pendingPersonalRecordCandidates.first(where: { $0.distance == distance }) else { return }
+        guard let candidate = personalRecordSnapshot.pendingCandidates.first(where: { $0.distance == distance }) else { return }
 
         var recordMap = Dictionary(uniqueKeysWithValues: personalRecordSnapshot.records.map { ($0.distance, $0) })
         recordMap[distance] = PersonalRecordEntry(
@@ -531,10 +556,12 @@ final class RunningWorkoutsViewModel: ObservableObject {
 
     private func updatePersonalRecords(
         _ snapshot: PersonalRecordSnapshot,
-        with runs: [RunningWorkout]
+        with runs: [RunningWorkout],
+        automaticRecordCutoffDate: Date
     ) async throws -> PersonalRecordSnapshot {
         var updatedSnapshot = snapshot
         var recordMap = Dictionary(uniqueKeysWithValues: updatedSnapshot.records.map { ($0.distance, $0) })
+        var pendingMap = Dictionary(uniqueKeysWithValues: updatedSnapshot.pendingCandidates.map { ($0.distance, $0) })
         var history = updatedSnapshot.history.sorted {
             if $0.date == $1.date {
                 return $0.distance.meters < $1.distance.meters
@@ -542,19 +569,43 @@ final class RunningWorkoutsViewModel: ObservableObject {
             return $0.date < $1.date
         }
         var processedRunIDs = Set(updatedSnapshot.processedRunIDs)
-        let totalRuns = runs.count
+        let recentRuns = runs.filter { $0.startDate >= automaticRecordCutoffDate }
+        let olderRuns = runs.filter { $0.startDate < automaticRecordCutoffDate }
+        let orderedRuns = recentRuns + olderRuns
+        let totalRuns = orderedRuns.count
 
-        for (offset, run) in runs.enumerated() where !processedRunIDs.contains(run.id) {
+        for (offset, run) in orderedRuns.enumerated() where !processedRunIDs.contains(run.id) {
             let detail = try await healthKitService.fetchRunDetail(for: run)
+            var candidateDurations: [PersonalRecordDistance: TimeInterval] = [:]
 
             for distance in PersonalRecordDistance.allCases {
                 guard let candidateDuration = PersonalRecordCalculator.bestDuration(
                     for: distance.meters,
                     in: detail.distanceTimeline
                 ) else { continue }
+                candidateDurations[distance] = candidateDuration
+            }
 
+            let hasImprovingCandidate = candidateDurations.contains { distance, duration in
+                duration < (recordMap[distance]?.duration ?? .greatestFiniteMagnitude)
+            }
+            let isRecentAutomaticRecordCandidate = run.startDate >= automaticRecordCutoffDate
+            let hasReliableRecordData = if isRecentAutomaticRecordCandidate && hasImprovingCandidate {
+                await hasReliablePersonalRecordData(for: run, detail: detail)
+            } else {
+                false
+            }
+            let shouldAutoAcceptRecord = isRecentAutomaticRecordCandidate &&
+                hasImprovingCandidate &&
+                hasReliableRecordData
+
+            for distance in PersonalRecordDistance.allCases {
+                guard let candidateDuration = candidateDurations[distance] else { continue }
                 let current = recordMap[distance]
-                if current?.duration == nil || candidateDuration < (current?.duration ?? .greatestFiniteMagnitude) {
+                let hasExistingRecord = current?.duration != nil
+                let shouldUseAsBaselineRecord = !hasExistingRecord
+                if (shouldAutoAcceptRecord || shouldUseAsBaselineRecord) &&
+                    candidateDuration < (current?.duration ?? .greatestFiniteMagnitude) {
                     history.append(
                         PersonalRecordHistoryEntry(
                             distance: distance,
@@ -569,6 +620,16 @@ final class RunningWorkoutsViewModel: ObservableObject {
                         date: run.startDate,
                         workoutID: run.id
                     )
+                } else if !shouldAutoAcceptRecord, candidateDuration < (current?.duration ?? .greatestFiniteMagnitude) {
+                    let existingPending = pendingMap[distance]
+                    if existingPending == nil || candidateDuration < (existingPending?.duration ?? .greatestFiniteMagnitude) {
+                        pendingMap[distance] = PersonalRecordCandidate(
+                            distance: distance,
+                            duration: candidateDuration,
+                            date: run.startDate,
+                            workoutID: run.id
+                        )
+                    }
                 }
             }
 
@@ -576,7 +637,7 @@ final class RunningWorkoutsViewModel: ObservableObject {
             updatedSnapshot.records = PersonalRecordDistance.allCases.map {
                 recordMap[$0] ?? PersonalRecordEntry(distance: $0, duration: nil, date: nil, workoutID: nil)
             }
-            updatedSnapshot.pendingCandidates = []
+            updatedSnapshot.pendingCandidates = pendingCandidates(from: pendingMap, recordMap: recordMap)
             updatedSnapshot.history = history
             updatedSnapshot.processedRunIDs = Array(processedRunIDs)
             updatedSnapshot.updatedAt = .now
@@ -591,11 +652,60 @@ final class RunningWorkoutsViewModel: ObservableObject {
         updatedSnapshot.records = PersonalRecordDistance.allCases.map {
             recordMap[$0] ?? PersonalRecordEntry(distance: $0, duration: nil, date: nil, workoutID: nil)
         }
-        updatedSnapshot.pendingCandidates = []
+        updatedSnapshot.pendingCandidates = pendingCandidates(from: pendingMap, recordMap: recordMap)
         updatedSnapshot.history = history
         updatedSnapshot.processedRunIDs = Array(processedRunIDs)
         updatedSnapshot.updatedAt = .now
         return updatedSnapshot
+    }
+
+    private func hasReliablePersonalRecordData(for run: RunningWorkout, detail: RunDetail) async -> Bool {
+        guard detail.distanceTimeline.count >= 2 else { return false }
+        guard let finalDistance = detail.distanceTimeline.last?.distanceMeters, finalDistance >= run.distanceInMeters * 0.95 else {
+            return false
+        }
+        guard detail.heartRates.count >= minimumHeartRateSamples(for: run.duration) else {
+            return false
+        }
+        guard run.isIndoorWorkout == false else {
+            return false
+        }
+
+        let route: [RunRoutePoint]
+        if detail.route.isEmpty {
+            do {
+                route = try await healthKitService.fetchRunRoute(for: run)
+            } catch {
+                return false
+            }
+        } else {
+            route = detail.route
+        }
+        guard route.count >= minimumRouteSamples(for: run.distanceInMeters) else {
+            return false
+        }
+
+        let routeDistance = route.last?.distanceMeters ?? 0
+        return routeDistance >= run.distanceInMeters * 0.75
+    }
+
+    private func minimumHeartRateSamples(for duration: TimeInterval) -> Int {
+        max(5, min(30, Int(duration / 120)))
+    }
+
+    private func minimumRouteSamples(for distanceMeters: Double) -> Int {
+        max(5, min(60, Int(distanceMeters / 250)))
+    }
+
+    private func pendingCandidates(
+        from pendingMap: [PersonalRecordDistance: PersonalRecordCandidate],
+        recordMap: [PersonalRecordDistance: PersonalRecordEntry]
+    ) -> [PersonalRecordCandidate] {
+        PersonalRecordDistance.allCases.compactMap { distance in
+            guard let candidate = pendingMap[distance] else { return nil }
+            let currentDuration = recordMap[distance]?.duration ?? .greatestFiniteMagnitude
+            return candidate.duration < currentDuration ? candidate : nil
+        }
     }
 
     private func approvedCandidateHistory(_ candidate: PersonalRecordCandidate) -> [PersonalRecordHistoryEntry] {

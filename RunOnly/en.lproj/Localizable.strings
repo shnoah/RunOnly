@@ -291,6 +291,7 @@
 "예측 기록 계산 방식 보기" = "How predicted times are calculated";
 "예측 방식" = "Prediction Method";
 "오래된 기록 후보" = "Older record candidate";
+"검토 대상 기록" = "Record to review";
 "올해 %@" = "This year %@";
 "올해 범위는 앱 첫 로딩 데이터로 바로 볼 수 있습니다." = "The current-year range is available right after the initial load.";
 "올해" = "This year";
@@ -368,6 +369,7 @@
 "최근 3년 범위를 위해 과거 기록을 불러오는 중입니다." = "Loading older history for the last-3-years range.";
 "최근 3년" = "Last 3 years";
 "최근 3년보다 오래된 더 빠른 후보 기록이 없습니다." = "There are no faster candidate records older than the last 3 years.";
+"1년보다 오래됐거나 데이터가 빈약한 더 빠른 후보 기록이 없습니다." = "There are no faster candidate records older than 1 year or with limited data.";
 "최근 7일 거리가 직전 주보다 늘었습니다." = "Distance over the last 7 days increased compared with the previous week.";
 "최근 7일 거리가 직전 7일보다 20% 이상 많으면 `빌드업`으로 표시합니다." = "If the last 7 days' distance is more than 20% higher than the previous 7 days, it is shown as `Build`.";
 "최근 7일 러닝이 거의 없으면 `회복`으로 표시합니다." = "If there has been very little running in the last 7 days, it is shown as `Recovery`.";

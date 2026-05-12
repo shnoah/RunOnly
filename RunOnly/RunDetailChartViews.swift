@@ -83,6 +83,7 @@ struct PerformanceChartData {
     let strideLengthRange: ClosedRange<Double>
     let verticalOscillationRange: ClosedRange<Double>
     let groundContactTimeRange: ClosedRange<Double>
+    let averagePaceSecondsPerKilometer: Double?
     let availableMetrics: [PerformanceChartMetric]
     let strideValues: [Double]
     let maxDistance: Double
@@ -150,10 +151,16 @@ struct PerformanceChartData {
         let heartMaximum = max((heartValues.max() ?? 180) + 12, heartMinimum + 20)
         heartRateRange = heartMinimum...heartMaximum
 
-        let paceValues = builtPaceSeries.map(\.secondsPerKilometer)
-        let paceMinimum = paceValues.min() ?? 300
-        let paceMaximum = max(paceValues.max() ?? 420, paceMinimum + 1)
-        paceRange = paceMinimum...max(paceMaximum, paceMinimum + 1)
+        if run.distanceInMeters > 0 {
+            averagePaceSecondsPerKilometer = run.duration / max(run.distanceInMeters / 1_000, 0.001)
+        } else {
+            averagePaceSecondsPerKilometer = nil
+        }
+
+        paceRange = Self.stablePaceRange(
+            for: builtPaceSeries.map(\.secondsPerKilometer),
+            averagePace: averagePaceSecondsPerKilometer
+        )
 
         cadenceRange = Self.metricRange(for: builtCadenceSeries.map(\.value), minimumPadding: 6)
         altitudeRange = Self.metricRange(for: builtAltitudeSeries.map(\.value), minimumPadding: 4)
@@ -339,6 +346,40 @@ struct PerformanceChartData {
         return (minValue - padding)...(maxValue + padding)
     }
 
+    private static func stablePaceRange(for values: [Double], averagePace: Double?) -> ClosedRange<Double> {
+        let sorted = values.filter(\.isFinite).sorted()
+        guard !sorted.isEmpty else {
+            let average = averagePace ?? 360
+            return max(average - 360, 120)...min(average + 360, 1_000)
+        }
+
+        let lower = percentile(0.08, in: sorted)
+        let upper = percentile(0.92, in: sorted)
+        let center = averagePace ?? sorted[sorted.count / 2]
+        let rawSpan = max(upper - lower, 1)
+        let minimumSpan = 720.0
+        let paddedSpan = max(rawSpan * 1.6, minimumSpan)
+        let midpoint = (lower + upper) / 2
+        let anchoredMidpoint = (midpoint * 0.45) + (center * 0.55)
+        let rangeLower = min(anchoredMidpoint - paddedSpan / 2, center - 60)
+        let rangeUpper = max(anchoredMidpoint + paddedSpan / 2, center + 60)
+        return max(rangeLower, 120)...min(max(rangeUpper, rangeLower + minimumSpan), 1_000)
+    }
+
+    private static func percentile(_ percentile: Double, in sortedValues: [Double]) -> Double {
+        guard let first = sortedValues.first else { return 0 }
+        guard sortedValues.count > 1 else { return first }
+
+        let clampedPercentile = min(max(percentile, 0), 1)
+        let position = clampedPercentile * Double(sortedValues.count - 1)
+        let lowerIndex = Int(floor(position))
+        let upperIndex = Int(ceil(position))
+        guard lowerIndex != upperIndex else { return sortedValues[lowerIndex] }
+
+        let fraction = position - Double(lowerIndex)
+        return sortedValues[lowerIndex] + (sortedValues[upperIndex] - sortedValues[lowerIndex]) * fraction
+    }
+
     private static func makeStrideValues(maxDistance: Double) -> [Double] {
         guard maxDistance > 0 else { return [] }
 
@@ -429,10 +470,14 @@ struct PerformanceChartSection: View {
                         selectedPoint: activeSelectedPoint,
                         points: activeSeries,
                         valueRange: activeValueRange,
+                        averageValue: activeAverageValue,
+                        altitudePoints: chartData.altitudeSeries,
+                        altitudeRange: chartData.altitudeRange,
                         strideValues: strideValues,
                         maxDistance: maxDistance
                     )
                     .frame(height: 220)
+
                 }
                 .onAppear(perform: syncSelectedMetric)
                 .onChange(of: chartInputKey) {
@@ -457,20 +502,7 @@ struct PerformanceChartSection: View {
     }
 
     private var averageCadenceText: String? {
-        let weightedCadence = detail.splits.reduce(into: (weighted: 0.0, duration: 0.0)) { partial, split in
-            guard let cadence = split.averageCadence else { return }
-            partial.weighted += cadence * split.duration
-            partial.duration += split.duration
-        }
-
-        if weightedCadence.duration > 0 {
-            let average = weightedCadence.weighted / weightedCadence.duration
-            return RunDisplayFormatter.cadence(average)
-        }
-
-        guard !detail.runningMetrics.cadence.isEmpty else { return nil }
-        let average = detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
-        return RunDisplayFormatter.cadence(average)
+        RunDisplayFormatter.cadence(averageCadenceValue)
     }
 
     private var availableMetrics: [PerformanceChartMetric] {
@@ -509,6 +541,23 @@ struct PerformanceChartSection: View {
 
     private var activeValueRange: ClosedRange<Double> {
         chartData.valueRange(for: selectedMetric)
+    }
+
+    private var activeAverageValue: Double? {
+        switch selectedMetric {
+        case .pace:
+            return chartData.averagePaceSecondsPerKilometer
+        case .heartRate:
+            guard !detail.heartRates.isEmpty else { return nil }
+            return detail.heartRates.map(\.bpm).reduce(0, +) / Double(detail.heartRates.count)
+        case .cadence:
+            return averageCadenceValue
+        case .altitude:
+            return nil
+        case .power, .speed, .strideLength, .verticalOscillation, .groundContactTime:
+            guard !activeSeries.isEmpty else { return nil }
+            return activeSeries.map(\.value).reduce(0, +) / Double(activeSeries.count)
+        }
     }
 
     private var strideValues: [Double] {
@@ -552,6 +601,21 @@ struct PerformanceChartSection: View {
         case .power, .speed, .strideLength, .verticalOscillation, .groundContactTime:
             return selectedMetric.averageText(from: activeSeries)
         }
+    }
+
+    private var averageCadenceValue: Double? {
+        let weightedCadence = detail.splits.reduce(into: (weighted: 0.0, duration: 0.0)) { partial, split in
+            guard let cadence = split.averageCadence else { return }
+            partial.weighted += cadence * split.duration
+            partial.duration += split.duration
+        }
+
+        if weightedCadence.duration > 0 {
+            return weightedCadence.weighted / weightedCadence.duration
+        }
+
+        guard !detail.runningMetrics.cadence.isEmpty else { return nil }
+        return detail.runningMetrics.cadence.map(\.value).reduce(0, +) / Double(detail.runningMetrics.cadence.count)
     }
 
     private func rebuildChartData() {
@@ -719,11 +783,35 @@ struct RunMetricChartPlot: View {
     let selectedPoint: SimpleMetricChartPoint?
     let points: [SimpleMetricChartPoint]
     let valueRange: ClosedRange<Double>
+    let averageValue: Double?
+    let altitudePoints: [SimpleMetricChartPoint]
+    let altitudeRange: ClosedRange<Double>
     let strideValues: [Double]
     let maxDistance: Double
 
     var body: some View {
         Chart {
+            if metric == .pace {
+                ForEach(altitudePoints) { point in
+                    AreaMark(
+                        x: .value("거리", point.distanceKilometers),
+                        yStart: .value("고도 기준", 0),
+                        yEnd: .value("고도", displayedAltitude(point.value))
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.14),
+                                Color.white.opacity(0.02)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .interpolationMethod(.catmullRom)
+                }
+            }
+
             ForEach(points) { point in
                 AreaMark(
                     x: .value("거리", point.distanceKilometers),
@@ -750,7 +838,13 @@ struct RunMetricChartPlot: View {
                 )
                 .foregroundStyle(metric.tint)
                 .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
-                .interpolationMethod(.linear)
+                .interpolationMethod(.catmullRom)
+            }
+
+            if let averageValue {
+                RuleMark(y: .value("평균", displayedValue(averageValue)))
+                    .foregroundStyle(metric.tint.opacity(0.48))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 5]))
             }
 
             if let selectedPoint {
@@ -818,10 +912,21 @@ struct RunMetricChartPlot: View {
     private func displayedValue(_ rawValue: Double) -> Double {
         switch metric {
         case .pace:
-            return valueRange.upperBound - rawValue
+            return valueRange.upperBound - clamped(rawValue, to: valueRange)
         case .heartRate, .cadence, .altitude, .power, .speed, .strideLength, .verticalOscillation, .groundContactTime:
-            return rawValue
+            return clamped(rawValue, to: valueRange)
         }
+    }
+
+    private func displayedAltitude(_ rawValue: Double) -> Double {
+        let chartSpan = max(valueRange.upperBound - valueRange.lowerBound, 0.1)
+        let altitudeSpan = max(altitudeRange.upperBound - altitudeRange.lowerBound, 0.1)
+        let ratio = (clamped(rawValue, to: altitudeRange) - altitudeRange.lowerBound) / altitudeSpan
+        return chartSpan * min(max(ratio, 0), 1) * 0.55
+    }
+
+    private func clamped(_ value: Double, to range: ClosedRange<Double>) -> Double {
+        min(max(value, range.lowerBound), range.upperBound)
     }
 }
 

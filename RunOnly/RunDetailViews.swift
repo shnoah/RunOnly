@@ -114,14 +114,14 @@ struct RunDetailView: View {
 
     private func inferredPersonalRecordAchievements(from detail: RunDetail) -> [PersonalRecordDistance] {
         let historyMatches = workoutsViewModel.personalRecordHistory.compactMap { entry -> PersonalRecordDistance? in
-            guard let duration = PersonalRecordCalculator.bestDuration(
+            guard PersonalRecordCalculator.bestDuration(
                 for: entry.distance.meters,
                 in: detail.distanceTimeline
-            ) else {
+            ) != nil else {
                 return nil
             }
 
-            if abs(entry.date.timeIntervalSince(run.startDate)) < 1 || abs(duration - entry.duration) < 0.5 {
+            if entry.workoutID == run.id || abs(entry.date.timeIntervalSince(run.startDate)) < 1 {
                 return entry.distance
             }
 
@@ -129,19 +129,19 @@ struct RunDetailView: View {
         }
 
         let currentRecordMatches = workoutsViewModel.personalRecords.compactMap { record -> PersonalRecordDistance? in
-            guard let targetDuration = record.duration else { return nil }
-            guard let duration = PersonalRecordCalculator.bestDuration(
+            guard record.duration != nil else { return nil }
+            guard PersonalRecordCalculator.bestDuration(
                 for: record.distance.meters,
                 in: detail.distanceTimeline
-            ) else {
+            ) != nil else {
                 return nil
             }
 
-            if let recordDate = record.date, abs(recordDate.timeIntervalSince(run.startDate)) < 1 {
+            if record.workoutID == run.id {
                 return record.distance
             }
 
-            if abs(duration - targetDuration) < 0.5 {
+            if let recordDate = record.date, abs(recordDate.timeIntervalSince(run.startDate)) < 1 {
                 return record.distance
             }
 

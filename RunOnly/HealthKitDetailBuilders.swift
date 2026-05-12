@@ -7,11 +7,13 @@ extension HealthKitService {
         guard timeline.count > 1 else { return [] }
 
         var samples: [PaceSample] = []
-        var lastIncludedElapsed = timeline[0].elapsed - 10
+        let paceWindowSeconds: TimeInterval = 25
+        let sampleIntervalSeconds: TimeInterval = 4
+        var lastIncludedElapsed = timeline[0].elapsed - sampleIntervalSeconds
 
         for index in 1..<timeline.count {
             let currentPoint = timeline[index]
-            guard currentPoint.elapsed - lastIncludedElapsed >= 1 else { continue }
+            guard currentPoint.elapsed - lastIncludedElapsed >= sampleIntervalSeconds else { continue }
 
             let segmentStartIndex = timeline[..<index].lastIndex(where: {
                 $0.segmentIndex != currentPoint.segmentIndex
@@ -19,7 +21,7 @@ extension HealthKitService {
 
             var lookbackIndex = index - 1
             while lookbackIndex > segmentStartIndex,
-                  currentPoint.elapsed - timeline[lookbackIndex].elapsed < 10 {
+                  currentPoint.elapsed - timeline[lookbackIndex].elapsed < paceWindowSeconds {
                 lookbackIndex -= 1
             }
 
@@ -27,7 +29,7 @@ extension HealthKitService {
 
             let distanceWindow = currentPoint.distanceMeters - startPoint.distanceMeters
             let durationWindow = currentPoint.elapsed - startPoint.elapsed
-            guard distanceWindow >= 10, durationWindow >= 5 else { continue }
+            guard distanceWindow >= 20, durationWindow >= 10 else { continue }
 
             let secondsPerKilometer = durationWindow / (distanceWindow / 1_000)
             guard secondsPerKilometer.isFinite, (150...900).contains(secondsPerKilometer) else { continue }

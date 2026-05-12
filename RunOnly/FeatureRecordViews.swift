@@ -580,6 +580,7 @@ struct PersonalRecordsCard: View {
     let progress: Double?
     let onApproveCandidate: (PersonalRecordDistance) -> Void
     let onDismissCandidate: (PersonalRecordDistance) -> Void
+    let onResetAndReloadRecords: () async -> Void
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -595,8 +596,11 @@ struct PersonalRecordsCard: View {
                         PersonalRecordsManagementView(
                             currentRecords: records,
                             pendingCandidates: pendingCandidates,
+                            isRefreshingRecords: isRefreshing,
+                            personalRecordProgress: progress,
                             onApproveCandidate: onApproveCandidate,
-                            onDismissCandidate: onDismissCandidate
+                            onDismissCandidate: onDismissCandidate,
+                            onResetAndReloadRecords: onResetAndReloadRecords
                         )
                     } label: {
                         Text(L10n.format("검토 %d건", pendingCandidates.count))
@@ -783,8 +787,13 @@ struct PersonalRecordRunDestinationView: View {
 struct PersonalRecordsManagementView: View {
     let currentRecords: [PersonalRecordEntry]
     let pendingCandidates: [PersonalRecordCandidate]
+    let isRefreshingRecords: Bool
+    let personalRecordProgress: Double?
     let onApproveCandidate: (PersonalRecordDistance) -> Void
     let onDismissCandidate: (PersonalRecordDistance) -> Void
+    let onResetAndReloadRecords: () async -> Void
+
+    @State private var isResettingRecords = false
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -840,8 +849,42 @@ struct PersonalRecordsManagementView: View {
                     }
                 } else {
                     DetailSection(title: "검토 대기 없음") {
-                        Text("최근 3년보다 오래된 더 빠른 후보 기록이 없습니다.")
+                        Text("1년보다 오래됐거나 데이터가 빈약한 더 빠른 후보 기록이 없습니다.")
                             .foregroundStyle(.white.opacity(0.72))
+                    }
+                }
+
+                // TEST-ONLY PR TOOL: 최고 기록 계산 안정화 확인용 임시 UI다.
+                // 안정화 후 이 DetailSection과 관련 initializer 인자를 함께 제거하면 된다.
+                DetailSection(title: "테스트 도구") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("최고 기록 캐시를 비우고 HealthKit 러닝을 처음부터 다시 읽습니다.")
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.64))
+
+                        if isRefreshingRecords || isResettingRecords {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                    .tint(.white)
+                                Text(personalRecordProgressText)
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.78))
+                            }
+                        }
+
+                        Button {
+                            Task {
+                                isResettingRecords = true
+                                await onResetAndReloadRecords()
+                                isResettingRecords = false
+                            }
+                        } label: {
+                            Label("기록 초기화 및 다시읽기", systemImage: "arrow.clockwise.circle.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+                        .disabled(isRefreshingRecords || isResettingRecords)
                     }
                 }
             }
@@ -850,6 +893,15 @@ struct PersonalRecordsManagementView: View {
         .background(AppBackground())
         .navigationTitle("최고 기록")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var personalRecordProgressText: String {
+        guard let personalRecordProgress else {
+            return "최고 기록을 다시 읽는 중"
+        }
+
+        let percent = Int((personalRecordProgress * 100).rounded())
+        return "최고 기록을 다시 읽는 중 \(percent)%"
     }
 }
 
@@ -867,7 +919,7 @@ struct PersonalRecordCandidateRow: View {
                     Text(candidate.distance.label)
                         .font(.headline.weight(.bold))
                         .foregroundStyle(.white)
-                    Text("오래된 기록 후보")
+                    Text("검토 대상 기록")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.55))
                 }
