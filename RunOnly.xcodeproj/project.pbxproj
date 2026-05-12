@@ -23,10 +23,44 @@
 		00100000000000000000000F /* DisplayFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000111 /* DisplayFormatting.swift */; };
 		001000000000000000000010 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000112 /* Localizable.strings */; };
 		001000000000000000000011 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000114 /* InfoPlist.strings */; };
+		001000000000000000000012 /* RunningSummaryBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000116 /* RunningSummaryBuilder.swift */; };
+		001000000000000000000013 /* MileageCalculators.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000117 /* MileageCalculators.swift */; };
+		001000000000000000000014 /* PersonalRecordCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000118 /* PersonalRecordCalculator.swift */; };
+		001000000000000000000015 /* CalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000119 /* CalculatorTests.swift */; };
+		001000000000000000000016 /* FeatureCommonViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000011A /* FeatureCommonViews.swift */; };
+		001000000000000000000017 /* FeatureHomeRecordViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000011B /* FeatureHomeRecordViews.swift */; };
+		001000000000000000000018 /* FeatureShoesSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000011C /* FeatureShoesSettingsViews.swift */; };
+		001000000000000000000019 /* RunDetailSectionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000011D /* RunDetailSectionViews.swift */; };
+		00100000000000000000001A /* RunDetailChartViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000011E /* RunDetailChartViews.swift */; };
+		00100000000000000000001B /* HealthKitWorkoutQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000011F /* HealthKitWorkoutQueries.swift */; };
+		00100000000000000000001C /* HealthKitSampleQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000120 /* HealthKitSampleQueries.swift */; };
+		00100000000000000000001D /* HealthKitDetailBuilders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000121 /* HealthKitDetailBuilders.swift */; };
+		00100000000000000000001E /* HealthKitSupportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000122 /* HealthKitSupportModels.swift */; };
+		00100000000000000000001F /* FeatureOnboardingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000123 /* FeatureOnboardingViews.swift */; };
+		001000000000000000000020 /* FeatureRecordViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000124 /* FeatureRecordViews.swift */; };
+		001000000000000000000021 /* FeatureDashboardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000125 /* FeatureDashboardViews.swift */; };
+		001000000000000000000022 /* RunShareModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000126 /* RunShareModels.swift */; };
+		001000000000000000000023 /* RunShareExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000127 /* RunShareExport.swift */; };
+		001000000000000000000024 /* RunShareArtworkViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000128 /* RunShareArtworkViews.swift */; };
+		001000000000000000000025 /* FeatureVO2RecoveryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001000000000000000000129 /* FeatureVO2RecoveryViews.swift */; };
+		001000000000000000000026 /* FeaturePredictionMileageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012A /* FeaturePredictionMileageViews.swift */; };
+		001000000000000000000027 /* FeatureShoesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012B /* FeatureShoesViews.swift */; };
+		001000000000000000000028 /* FeatureSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012C /* FeatureSettingsViews.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0010000000000000000000F2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 001000000000000000000090 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0010000000000000000000B0;
+			remoteInfo = RunOnly;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		0010000000000000000000F0 /* RunOnly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RunOnly.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0010000000000000000000F1 /* RunOnlyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunOnlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		001000000000000000000101 /* RunOnlyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunOnlyApp.swift; sourceTree = "<group>"; };
 		001000000000000000000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		001000000000000000000103 /* RunningWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningWorkout.swift; sourceTree = "<group>"; };
@@ -45,10 +79,40 @@
 		001000000000000000000111 /* DisplayFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayFormatting.swift; sourceTree = "<group>"; };
 		001000000000000000000113 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		001000000000000000000115 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		001000000000000000000116 /* RunningSummaryBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningSummaryBuilder.swift; sourceTree = "<group>"; };
+		001000000000000000000117 /* MileageCalculators.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MileageCalculators.swift; sourceTree = "<group>"; };
+		001000000000000000000118 /* PersonalRecordCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalRecordCalculator.swift; sourceTree = "<group>"; };
+		001000000000000000000119 /* CalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorTests.swift; sourceTree = "<group>"; };
+		00100000000000000000011A /* FeatureCommonViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureCommonViews.swift; sourceTree = "<group>"; };
+		00100000000000000000011B /* FeatureHomeRecordViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureHomeRecordViews.swift; sourceTree = "<group>"; };
+		00100000000000000000011C /* FeatureShoesSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureShoesSettingsViews.swift; sourceTree = "<group>"; };
+		00100000000000000000011D /* RunDetailSectionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailSectionViews.swift; sourceTree = "<group>"; };
+		00100000000000000000011E /* RunDetailChartViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailChartViews.swift; sourceTree = "<group>"; };
+		00100000000000000000011F /* HealthKitWorkoutQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitWorkoutQueries.swift; sourceTree = "<group>"; };
+		001000000000000000000120 /* HealthKitSampleQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitSampleQueries.swift; sourceTree = "<group>"; };
+		001000000000000000000121 /* HealthKitDetailBuilders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitDetailBuilders.swift; sourceTree = "<group>"; };
+		001000000000000000000122 /* HealthKitSupportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitSupportModels.swift; sourceTree = "<group>"; };
+		001000000000000000000123 /* FeatureOnboardingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureOnboardingViews.swift; sourceTree = "<group>"; };
+		001000000000000000000124 /* FeatureRecordViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureRecordViews.swift; sourceTree = "<group>"; };
+		001000000000000000000125 /* FeatureDashboardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureDashboardViews.swift; sourceTree = "<group>"; };
+		001000000000000000000126 /* RunShareModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunShareModels.swift; sourceTree = "<group>"; };
+		001000000000000000000127 /* RunShareExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunShareExport.swift; sourceTree = "<group>"; };
+		001000000000000000000128 /* RunShareArtworkViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunShareArtworkViews.swift; sourceTree = "<group>"; };
+		001000000000000000000129 /* FeatureVO2RecoveryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureVO2RecoveryViews.swift; sourceTree = "<group>"; };
+		00100000000000000000012A /* FeaturePredictionMileageViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeaturePredictionMileageViews.swift; sourceTree = "<group>"; };
+		00100000000000000000012B /* FeatureShoesViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureShoesViews.swift; sourceTree = "<group>"; };
+		00100000000000000000012C /* FeatureSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureSettingsViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		0010000000000000000000C0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0010000000000000000000C3 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -62,6 +126,7 @@
 			isa = PBXGroup;
 			children = (
 				0010000000000000000000A1 /* RunOnly */,
+				0010000000000000000000A3 /* RunOnlyTests */,
 				0010000000000000000000A2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -72,14 +137,36 @@
 				001000000000000000000101 /* RunOnlyApp.swift */,
 				001000000000000000000102 /* ContentView.swift */,
 				00100000000000000000010C /* RunShareViews.swift */,
+				001000000000000000000126 /* RunShareModels.swift */,
+				001000000000000000000127 /* RunShareExport.swift */,
+				001000000000000000000128 /* RunShareArtworkViews.swift */,
 				00100000000000000000010D /* SharedViews.swift */,
 				00100000000000000000010E /* Stores.swift */,
 				001000000000000000000111 /* DisplayFormatting.swift */,
 				00100000000000000000010F /* RunDetailViews.swift */,
+				00100000000000000000011D /* RunDetailSectionViews.swift */,
+				00100000000000000000011E /* RunDetailChartViews.swift */,
 				001000000000000000000110 /* FeatureViews.swift */,
+				00100000000000000000011A /* FeatureCommonViews.swift */,
+				00100000000000000000011B /* FeatureHomeRecordViews.swift */,
+				001000000000000000000123 /* FeatureOnboardingViews.swift */,
+				001000000000000000000124 /* FeatureRecordViews.swift */,
+				001000000000000000000125 /* FeatureDashboardViews.swift */,
+				001000000000000000000129 /* FeatureVO2RecoveryViews.swift */,
+				00100000000000000000012A /* FeaturePredictionMileageViews.swift */,
+				00100000000000000000011C /* FeatureShoesSettingsViews.swift */,
+				00100000000000000000012B /* FeatureShoesViews.swift */,
+				00100000000000000000012C /* FeatureSettingsViews.swift */,
 				001000000000000000000103 /* RunningWorkout.swift */,
 				001000000000000000000104 /* HealthKitService.swift */,
+				00100000000000000000011F /* HealthKitWorkoutQueries.swift */,
+				001000000000000000000120 /* HealthKitSampleQueries.swift */,
+				001000000000000000000121 /* HealthKitDetailBuilders.swift */,
+				001000000000000000000122 /* HealthKitSupportModels.swift */,
 				001000000000000000000105 /* RunningWorkoutsViewModel.swift */,
+				001000000000000000000116 /* RunningSummaryBuilder.swift */,
+				001000000000000000000117 /* MileageCalculators.swift */,
+				001000000000000000000118 /* PersonalRecordCalculator.swift */,
 				001000000000000000000106 /* Info.plist */,
 				001000000000000000000114 /* InfoPlist.strings */,
 				001000000000000000000112 /* Localizable.strings */,
@@ -95,8 +182,17 @@
 			isa = PBXGroup;
 			children = (
 				0010000000000000000000F0 /* RunOnly.app */,
+				0010000000000000000000F1 /* RunOnlyTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0010000000000000000000A3 /* RunOnlyTests */ = {
+			isa = PBXGroup;
+			children = (
+				001000000000000000000119 /* CalculatorTests.swift */,
+			);
+			path = RunOnlyTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -138,6 +234,23 @@
 			productReference = 0010000000000000000000F0 /* RunOnly.app */;
 			productType = "com.apple.product-type.application";
 		};
+		0010000000000000000000B1 /* RunOnlyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0010000000000000000000D3 /* Build configuration list for PBXNativeTarget "RunOnlyTests" */;
+			buildPhases = (
+				0010000000000000000000C4 /* Sources */,
+				0010000000000000000000C3 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0010000000000000000000F3 /* PBXTargetDependency */,
+			);
+			name = RunOnlyTests;
+			productName = RunOnlyTests;
+			productReference = 0010000000000000000000F1 /* RunOnlyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -150,6 +263,10 @@
 				TargetAttributes = {
 					0010000000000000000000B0 = {
 						CreatedOnToolsVersion = 16.0;
+					};
+					0010000000000000000000B1 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 0010000000000000000000B0;
 					};
 				};
 			};
@@ -168,6 +285,7 @@
 			projectRoot = "";
 			targets = (
 				0010000000000000000000B0 /* RunOnly */,
+				0010000000000000000000B1 /* RunOnlyTests */,
 			);
 		};
 /* End PBXProject section */
@@ -201,12 +319,50 @@
 				00100000000000000000000B /* SharedViews.swift in Sources */,
 				00100000000000000000000C /* Stores.swift in Sources */,
 				00100000000000000000000F /* DisplayFormatting.swift in Sources */,
+				001000000000000000000012 /* RunningSummaryBuilder.swift in Sources */,
+				001000000000000000000013 /* MileageCalculators.swift in Sources */,
+				001000000000000000000014 /* PersonalRecordCalculator.swift in Sources */,
+				001000000000000000000016 /* FeatureCommonViews.swift in Sources */,
+				001000000000000000000017 /* FeatureHomeRecordViews.swift in Sources */,
+				001000000000000000000018 /* FeatureShoesSettingsViews.swift in Sources */,
+				001000000000000000000019 /* RunDetailSectionViews.swift in Sources */,
+				00100000000000000000001A /* RunDetailChartViews.swift in Sources */,
+				00100000000000000000001B /* HealthKitWorkoutQueries.swift in Sources */,
+				00100000000000000000001C /* HealthKitSampleQueries.swift in Sources */,
+				00100000000000000000001D /* HealthKitDetailBuilders.swift in Sources */,
+				00100000000000000000001E /* HealthKitSupportModels.swift in Sources */,
+				00100000000000000000001F /* FeatureOnboardingViews.swift in Sources */,
+				001000000000000000000020 /* FeatureRecordViews.swift in Sources */,
+				001000000000000000000021 /* FeatureDashboardViews.swift in Sources */,
+				001000000000000000000022 /* RunShareModels.swift in Sources */,
+				001000000000000000000023 /* RunShareExport.swift in Sources */,
+				001000000000000000000024 /* RunShareArtworkViews.swift in Sources */,
+				001000000000000000000025 /* FeatureVO2RecoveryViews.swift in Sources */,
+				001000000000000000000026 /* FeaturePredictionMileageViews.swift in Sources */,
+				001000000000000000000027 /* FeatureShoesViews.swift in Sources */,
+				001000000000000000000028 /* FeatureSettingsViews.swift in Sources */,
 				00100000000000000000000D /* RunDetailViews.swift in Sources */,
 				00100000000000000000000E /* FeatureViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0010000000000000000000C4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				001000000000000000000015 /* CalculatorTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0010000000000000000000F3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0010000000000000000000B0 /* RunOnly */;
+			targetProxy = 0010000000000000000000F2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0010000000000000000000E1 /* Debug */ = {
@@ -218,6 +374,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y892N6745W;
 				DEVELOPMENT_LANGUAGE = ko;
+				ENABLE_TESTABILITY = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -304,6 +461,63 @@
 			};
 			name = Release;
 		};
+		0010000000000000000000E5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = Y892N6745W;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shnoah.RunOnlyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RunOnly.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RunOnly";
+			};
+			name = Debug;
+		};
+		0010000000000000000000E6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = Y892N6745W;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shnoah.RunOnlyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RunOnly.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RunOnly";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -321,6 +535,15 @@
 			buildConfigurations = (
 				0010000000000000000000E1 /* Debug */,
 				0010000000000000000000E2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0010000000000000000000D3 /* Build configuration list for PBXNativeTarget "RunOnlyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0010000000000000000000E5 /* Debug */,
+				0010000000000000000000E6 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

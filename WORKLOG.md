@@ -1,5 +1,31 @@
 # RunOnly Work Log
 
+## 2026-05-12
+
+### 계산 로직 리팩토링 시작
+- 대시보드 요약, 러닝 준비도, 월/연 마일리지, 기록 월 요약, PR 구간 최고 기록 계산을 `RunningWorkoutsViewModel`에서 별도 계산기 파일로 분리했다.
+- 기존 공식과 표시 문구는 유지하고, 뷰모델은 로딩 상태와 화면용 컬렉션 갱신에 더 집중하도록 정리했다.
+- 새 계산 파일을 Xcode 타깃 Sources에 등록했고, iOS Simulator generic build로 컴파일을 확인했다.
+- `RunOnlyTests` 유닛 테스트 타깃을 추가하고, PR 구간 보간, 마일리지 월 요약, 러닝 준비도 데이터 조건, 홈 요약 거리 계산을 고정하는 계산 테스트 6개를 추가했다.
+- iPhone 17 시뮬레이터에서 `xcodebuild test`를 실행해 새 계산 테스트 전체 통과를 확인했다.
+- `FeatureViews.swift`, `RunDetailViews.swift`, `HealthKitService.swift`를 기능별 Swift 파일로 분리해 화면/차트/HealthKit 쿼리 책임을 더 찾기 쉽게 정리했다.
+- 리팩토링 후 generic iOS Simulator build와 계산 유닛 테스트 6개를 다시 통과시켰고, iPhone 17 시뮬레이터에서 온보딩과 샘플 러닝 상세 진입을 확인했다.
+- 공유 이미지 화면은 모델, export, 아트워크 렌더링, 컴포저 책임을 `RunShareModels.swift`, `RunShareExport.swift`, `RunShareArtworkViews.swift`, `RunShareViews.swift`로 나눴다.
+- 홈/대시보드 보조 화면도 `FeatureVO2RecoveryViews.swift`, `FeaturePredictionMileageViews.swift`, `FeatureShoesViews.swift`, `FeatureSettingsViews.swift`로 추가 분리해 기존 대형 feature 파일의 탐색 부담을 줄였다.
+- 수식 자체는 바꾸지 않고 파일 경계만 옮긴 뒤 generic iOS Simulator build와 계산 유닛 테스트 6개를 다시 통과시켰다.
+- iPhone 17 시뮬레이터에서 온보딩, 샘플 러닝 상세, 공유 이미지 컴포저까지 열어 리팩토링 후 주요 화면 진입이 유지되는지 확인했다.
+
+### UI 문구 밀도 축소
+- 홈의 `Apple 운동` 배지와 필터 설명 카드는 제거하고, 빈 상태와 샘플 러닝 카드는 핵심 동선만 남기도록 줄였다.
+- `예상 기록` 카드는 보조 설명을 빼고 더 작은 값 중심 카드로 압축했다.
+- 기록 탭의 `DemoRunAccessCard`는 유지하되 주변 안내 문구를 줄이고, 온보딩은 샘플 확인과 Apple 건강 권한 버튼 중심으로 재구성했다.
+- 설정 루트는 `표시 / 데이터 / 지원` 3개 묶음과 짧은 보조 라벨 중심으로 정리하고, 긴 앱 소개/고지 설명은 세부 화면으로만 남겼다.
+- 새 축약 문구의 영어 로컬라이즈를 추가했고, generic iOS Simulator build와 계산 유닛 테스트 6개 통과를 확인했다.
+- iPhone 17 시뮬레이터에서 홈 빈 상태, 기록 빈 상태, 설정 루트, 설정에서 여는 Apple 건강 안내 화면을 직접 확인했다.
+- 기록이 있는 상태도 iPhone 17 시뮬레이터에서 샘플 러닝으로 확인했고, 홈 `예상 기록`은 4개 값을 한 줄 compact row로 낮춰 보이게 조정했다.
+- 홈 준비도 보조 문구는 긴 설명 대신 짧은 상태값을 쓰도록 바꿔 카드 안에서 잘림이 생기지 않게 했다.
+- 기록 탭 월 헤더는 설명 문구를 빼고 높이를 줄여 첫 기록 카드가 더 빨리 보이게 했다.
+
 ## 2026-04-09
 
 ### 출시 전 정리

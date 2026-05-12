@@ -7,4 +7,4 @@ import UniformTypeIdentifiers
 import UIKit
 
 // 홈 탭은 요약 카드와 최근 상태를 빠르게 보는 대시보드 역할을 맡는다.
-// Feature tab views are split into focused files by area.
+// Shoes and settings feature views are split into focused files.
