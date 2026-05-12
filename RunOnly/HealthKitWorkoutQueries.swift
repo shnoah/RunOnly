@@ -14,6 +14,11 @@ extension HealthKitService {
         let restingHeartRateType = HKObjectType.quantityType(forIdentifier: .restingHeartRate)
         let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)
         let stepCountType = HKObjectType.quantityType(forIdentifier: .stepCount)
+        let runningPowerType = HKObjectType.quantityType(forIdentifier: .runningPower)
+        let runningSpeedType = HKObjectType.quantityType(forIdentifier: .runningSpeed)
+        let runningStrideLengthType = HKObjectType.quantityType(forIdentifier: .runningStrideLength)
+        let runningVerticalOscillationType = HKObjectType.quantityType(forIdentifier: .runningVerticalOscillation)
+        let runningGroundContactTimeType = HKObjectType.quantityType(forIdentifier: .runningGroundContactTime)
         let workoutRouteType = HKSeriesType.workoutRoute()
 
         var readTypes: Set<HKObjectType> = [workoutType, workoutRouteType]
@@ -31,6 +36,21 @@ extension HealthKitService {
         }
         if let stepCountType {
             readTypes.insert(stepCountType)
+        }
+        if let runningPowerType {
+            readTypes.insert(runningPowerType)
+        }
+        if let runningSpeedType {
+            readTypes.insert(runningSpeedType)
+        }
+        if let runningStrideLengthType {
+            readTypes.insert(runningStrideLengthType)
+        }
+        if let runningVerticalOscillationType {
+            readTypes.insert(runningVerticalOscillationType)
+        }
+        if let runningGroundContactTimeType {
+            readTypes.insert(runningGroundContactTimeType)
         }
 
         try await healthStore.requestAuthorization(toShare: [], read: readTypes)
@@ -215,6 +235,23 @@ extension HealthKitService {
         async let heartRateTask = fetchHeartRates(for: workout)
         async let distanceTask = fetchDistanceSamples(for: workout)
         async let stepCountTask = fetchStepCountSamples(for: workout)
+        async let powerTask = fetchQuantitySamples(for: workout, identifier: .runningPower, unit: .watt())
+        async let speedTask = fetchQuantitySamples(
+            for: workout,
+            identifier: .runningSpeed,
+            unit: .meter().unitDivided(by: .second())
+        )
+        async let strideLengthTask = fetchQuantitySamples(for: workout, identifier: .runningStrideLength, unit: .meter())
+        async let verticalOscillationTask = fetchQuantitySamples(
+            for: workout,
+            identifier: .runningVerticalOscillation,
+            unit: .meterUnit(with: .centi)
+        )
+        async let groundContactTimeTask = fetchQuantitySamples(
+            for: workout,
+            identifier: .runningGroundContactTime,
+            unit: .secondUnit(with: .milli)
+        )
 
         let activeIntervals = buildActiveIntervals(for: workout)
         let distanceSamples = try await distanceTask
@@ -234,11 +271,11 @@ extension HealthKitService {
         let stepSamples = try await stepCountTask
         let runningMetrics = buildRunningMetrics(
             stepSamples: stepSamples,
-            powerSamples: [],
-            speedSamples: [],
-            strideLengthSamples: [],
-            verticalOscillationSamples: [],
-            groundContactTimeSamples: [],
+            powerSamples: try await powerTask,
+            speedSamples: try await speedTask,
+            strideLengthSamples: try await strideLengthTask,
+            verticalOscillationSamples: try await verticalOscillationTask,
+            groundContactTimeSamples: try await groundContactTimeTask,
             timeline: distanceTimeline,
             activeIntervals: activeIntervals
         )

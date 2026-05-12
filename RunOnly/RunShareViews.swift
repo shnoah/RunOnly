@@ -1146,4 +1146,3 @@ struct RunShareComposerView: View {
         return UIImage(cgImage: cgImage)
     }
 }
-

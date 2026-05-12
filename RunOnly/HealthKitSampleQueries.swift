@@ -323,7 +323,7 @@ extension HealthKitService {
 
                 let quantitySamples = ((samples as? [HKQuantitySample]) ?? []).compactMap { sample -> RawQuantitySample? in
                     let value = sample.quantity.doubleValue(for: unit)
-                    guard value.isFinite, sample.endDate > sample.startDate else { return nil }
+                    guard value.isFinite, sample.endDate >= sample.startDate else { return nil }
                     return RawQuantitySample(
                         startDate: sample.startDate,
                         endDate: sample.endDate,

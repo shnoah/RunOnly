@@ -134,11 +134,15 @@ struct RunningWorkout: Identifiable {
         return L10n.format("%@에서 가져온 러닝 기록이에요.", sourceName)
     }
 
+    static let demoSampleStartDate = Calendar(identifier: .gregorian).date(
+        from: DateComponents(year: 2026, month: 3, day: 15, hour: 7, minute: 30)
+    ) ?? .now
+
     static let demoSample = RunningWorkout(
         id: UUID(uuidString: "8A6D2A35-4222-4E7E-A4E1-7D3B57F593A1") ?? UUID(),
-        startDate: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 3, day: 15, hour: 7, minute: 30)) ?? .now,
-        duration: 900,
-        distanceInMeters: 3_520,
+        startDate: demoSampleStartDate,
+        duration: 1_465,
+        distanceInMeters: 5_020,
         sourceName: "RunOnly Demo",
         sourceBundleIdentifier: "com.shnoah.RunOnly.demo",
         isIndoorWorkout: false
@@ -786,40 +790,77 @@ struct ShoeAssignmentRecord: Codable, Equatable {
 
 // 아래 mock 데이터는 개발 중 상세 화면 레이아웃을 점검할 때 사용한다.
 extension RunDetail {
+    private struct DemoTelemetryPoint {
+        let elapsed: TimeInterval
+        let distance: Double
+        let latitude: Double
+        let longitude: Double
+        let altitude: Double
+        let heartRate: Double
+        let cadence: Double
+        let power: Double
+        let pace: Double
+        let verticalOscillation: Double
+        let groundContactTime: Double
+    }
+
+    private static let demoTelemetry: [DemoTelemetryPoint] = [
+        DemoTelemetryPoint(elapsed: 0, distance: 0, latitude: 37.52893, longitude: 126.93473, altitude: 11.2, heartRate: 108, cadence: 158, power: 178, pace: 322, verticalOscillation: 8.8, groundContactTime: 268),
+        DemoTelemetryPoint(elapsed: 120, distance: 370, latitude: 37.52943, longitude: 126.93860, altitude: 11.8, heartRate: 132, cadence: 168, power: 215, pace: 313, verticalOscillation: 8.5, groundContactTime: 252),
+        DemoTelemetryPoint(elapsed: 240, distance: 760, latitude: 37.52992, longitude: 126.94258, altitude: 12.4, heartRate: 143, cadence: 172, power: 232, pace: 300, verticalOscillation: 8.2, groundContactTime: 244),
+        DemoTelemetryPoint(elapsed: 360, distance: 1_170, latitude: 37.53038, longitude: 126.94678, altitude: 13.6, heartRate: 151, cadence: 176, power: 246, pace: 288, verticalOscillation: 8.0, groundContactTime: 238),
+        DemoTelemetryPoint(elapsed: 480, distance: 1_580, latitude: 37.52978, longitude: 126.95086, altitude: 15.1, heartRate: 158, cadence: 178, power: 257, pace: 284, verticalOscillation: 7.9, groundContactTime: 234),
+        DemoTelemetryPoint(elapsed: 600, distance: 1_990, latitude: 37.52872, longitude: 126.95415, altitude: 17.4, heartRate: 163, cadence: 180, power: 266, pace: 281, verticalOscillation: 7.8, groundContactTime: 230),
+        DemoTelemetryPoint(elapsed: 720, distance: 2_395, latitude: 37.52718, longitude: 126.95648, altitude: 19.2, heartRate: 166, cadence: 181, power: 268, pace: 289, verticalOscillation: 7.9, groundContactTime: 229),
+        DemoTelemetryPoint(elapsed: 840, distance: 2_790, latitude: 37.52552, longitude: 126.95510, altitude: 18.8, heartRate: 168, cadence: 180, power: 261, pace: 297, verticalOscillation: 8.1, groundContactTime: 232),
+        DemoTelemetryPoint(elapsed: 960, distance: 3_185, latitude: 37.52410, longitude: 126.95198, altitude: 16.2, heartRate: 169, cadence: 179, power: 254, pace: 303, verticalOscillation: 8.3, groundContactTime: 236),
+        DemoTelemetryPoint(elapsed: 1_080, distance: 3_590, latitude: 37.52303, longitude: 126.94815, altitude: 14.6, heartRate: 171, cadence: 181, power: 271, pace: 286, verticalOscillation: 7.8, groundContactTime: 228),
+        DemoTelemetryPoint(elapsed: 1_200, distance: 4_015, latitude: 37.52448, longitude: 126.94466, altitude: 13.4, heartRate: 174, cadence: 183, power: 282, pace: 278, verticalOscillation: 7.6, groundContactTime: 224),
+        DemoTelemetryPoint(elapsed: 1_320, distance: 4_450, latitude: 37.52655, longitude: 126.94118, altitude: 12.6, heartRate: 176, cadence: 184, power: 286, pace: 274, verticalOscillation: 7.5, groundContactTime: 222),
+        DemoTelemetryPoint(elapsed: 1_465, distance: 5_020, latitude: 37.52893, longitude: 126.93473, altitude: 11.4, heartRate: 172, cadence: 182, power: 270, pace: 286, verticalOscillation: 7.8, groundContactTime: 226)
+    ]
+
+    private static func demoDate(elapsed: TimeInterval) -> Date {
+        RunningWorkout.demoSampleStartDate.addingTimeInterval(elapsed)
+    }
+
+    private static func demoMetricSamples(_ value: KeyPath<DemoTelemetryPoint, Double>) -> [RunningMetricSample] {
+        demoTelemetry.map {
+            RunningMetricSample(
+                date: demoDate(elapsed: $0.elapsed),
+                value: $0[keyPath: value],
+                elapsed: $0.elapsed,
+                distanceMeters: $0.distance,
+                segmentIndex: 0
+            )
+        }
+    }
+
     private static func mockRunningMetrics() -> RunningMetrics {
         RunningMetrics(
-            cadence: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 168, elapsed: 0, distanceMeters: 0, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-720), value: 172, elapsed: 180, distanceMeters: 620, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-540), value: 176, elapsed: 360, distanceMeters: 1_300, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-360), value: 178, elapsed: 540, distanceMeters: 2_080, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-180), value: 174, elapsed: 720, distanceMeters: 2_860, segmentIndex: 0)
-            ],
-            power: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 205, elapsed: 0, distanceMeters: 0, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-540), value: 228, elapsed: 360, distanceMeters: 1_300, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-180), value: 221, elapsed: 720, distanceMeters: 2_860, segmentIndex: 0)
-            ],
-            speed: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 2.8, elapsed: 0, distanceMeters: 0, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-540), value: 3.2, elapsed: 360, distanceMeters: 1_300, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-180), value: 3.1, elapsed: 720, distanceMeters: 2_860, segmentIndex: 0)
-            ],
-            strideLength: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 1.02, elapsed: 0, distanceMeters: 0, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-540), value: 1.08, elapsed: 360, distanceMeters: 1_300, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-180), value: 1.10, elapsed: 720, distanceMeters: 2_860, segmentIndex: 0)
-            ],
-            verticalOscillation: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 8.1, elapsed: 0, distanceMeters: 0, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-540), value: 8.5, elapsed: 360, distanceMeters: 1_300, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-180), value: 8.3, elapsed: 720, distanceMeters: 2_860, segmentIndex: 0)
-            ],
-            groundContactTime: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 256, elapsed: 0, distanceMeters: 0, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-540), value: 244, elapsed: 360, distanceMeters: 1_300, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-180), value: 248, elapsed: 720, distanceMeters: 2_860, segmentIndex: 0)
-            ]
+            cadence: demoMetricSamples(\.cadence),
+            power: demoMetricSamples(\.power),
+            speed: demoMetricSamples(\.pace).map {
+                RunningMetricSample(
+                    date: $0.date,
+                    value: 1_000 / $0.value,
+                    elapsed: $0.elapsed,
+                    distanceMeters: $0.distanceMeters,
+                    segmentIndex: $0.segmentIndex
+                )
+            },
+            strideLength: demoTelemetry.map {
+                let speedMetersPerSecond = 1_000 / $0.pace
+                return RunningMetricSample(
+                    date: demoDate(elapsed: $0.elapsed),
+                    value: speedMetersPerSecond * 60 / $0.cadence,
+                    elapsed: $0.elapsed,
+                    distanceMeters: $0.distance,
+                    segmentIndex: 0
+                )
+            },
+            verticalOscillation: demoMetricSamples(\.verticalOscillation),
+            groundContactTime: demoMetricSamples(\.groundContactTime)
         )
     }
 
@@ -879,45 +920,55 @@ extension RunDetail {
     )
 
     static let mockCompleteMetrics = RunDetail(
-        route: [
-            RunRoutePoint(latitude: 37.5664, longitude: 126.9780, timestamp: .now.addingTimeInterval(-900), distanceMeters: 0, altitudeMeters: 18),
-            RunRoutePoint(latitude: 37.5671, longitude: 126.9791, timestamp: .now.addingTimeInterval(-720), distanceMeters: 620, altitudeMeters: 22),
-            RunRoutePoint(latitude: 37.5678, longitude: 126.9804, timestamp: .now.addingTimeInterval(-540), distanceMeters: 1_300, altitudeMeters: 27),
-            RunRoutePoint(latitude: 37.5686, longitude: 126.9818, timestamp: .now.addingTimeInterval(-360), distanceMeters: 2_080, altitudeMeters: 31),
-            RunRoutePoint(latitude: 37.5694, longitude: 126.9830, timestamp: .now.addingTimeInterval(-180), distanceMeters: 2_860, altitudeMeters: 34),
-            RunRoutePoint(latitude: 37.5701, longitude: 126.9841, timestamp: .now, distanceMeters: 3_520, altitudeMeters: 33)
-        ],
-        distanceTimeline: [
-            DistanceTimelinePoint(date: .now.addingTimeInterval(-900), elapsed: 0, distanceMeters: 0, segmentIndex: 0),
-            DistanceTimelinePoint(date: .now.addingTimeInterval(-720), elapsed: 180, distanceMeters: 620, segmentIndex: 0),
-            DistanceTimelinePoint(date: .now.addingTimeInterval(-540), elapsed: 360, distanceMeters: 1_300, segmentIndex: 0),
-            DistanceTimelinePoint(date: .now.addingTimeInterval(-360), elapsed: 540, distanceMeters: 2_080, segmentIndex: 0),
-            DistanceTimelinePoint(date: .now.addingTimeInterval(-180), elapsed: 720, distanceMeters: 2_860, segmentIndex: 0),
-            DistanceTimelinePoint(date: .now, elapsed: 900, distanceMeters: 3_520, segmentIndex: 0)
-        ],
-        heartRates: [
-            HeartRateSample(date: .now.addingTimeInterval(-900), bpm: 134, elapsed: 0, distanceMeters: 0, segmentIndex: 0),
-            HeartRateSample(date: .now.addingTimeInterval(-720), bpm: 142, elapsed: 180, distanceMeters: 620, segmentIndex: 0),
-            HeartRateSample(date: .now.addingTimeInterval(-540), bpm: 148, elapsed: 360, distanceMeters: 1_300, segmentIndex: 0),
-            HeartRateSample(date: .now.addingTimeInterval(-360), bpm: 153, elapsed: 540, distanceMeters: 2_080, segmentIndex: 0),
-            HeartRateSample(date: .now.addingTimeInterval(-180), bpm: 157, elapsed: 720, distanceMeters: 2_860, segmentIndex: 0),
-            HeartRateSample(date: .now, bpm: 151, elapsed: 900, distanceMeters: 3_520, segmentIndex: 0)
-        ],
+        route: demoTelemetry.map {
+            RunRoutePoint(
+                latitude: $0.latitude,
+                longitude: $0.longitude,
+                timestamp: demoDate(elapsed: $0.elapsed),
+                distanceMeters: $0.distance,
+                altitudeMeters: $0.altitude
+            )
+        },
+        distanceTimeline: demoTelemetry.map {
+            DistanceTimelinePoint(
+                date: demoDate(elapsed: $0.elapsed),
+                elapsed: $0.elapsed,
+                distanceMeters: $0.distance,
+                segmentIndex: 0
+            )
+        },
+        heartRates: demoTelemetry.map {
+            HeartRateSample(
+                date: demoDate(elapsed: $0.elapsed),
+                bpm: $0.heartRate,
+                elapsed: $0.elapsed,
+                distanceMeters: $0.distance,
+                segmentIndex: 0
+            )
+        },
         runningMetrics: mockRunningMetrics(),
-        paceSamples: [
-            PaceSample(date: .now.addingTimeInterval(-900), distanceMeters: 0, secondsPerKilometer: 355, segmentIndex: 0),
-            PaceSample(date: .now.addingTimeInterval(-720), distanceMeters: 620, secondsPerKilometer: 335, segmentIndex: 0),
-            PaceSample(date: .now.addingTimeInterval(-540), distanceMeters: 1_300, secondsPerKilometer: 322, segmentIndex: 0),
-            PaceSample(date: .now.addingTimeInterval(-360), distanceMeters: 2_080, secondsPerKilometer: 318, segmentIndex: 0),
-            PaceSample(date: .now.addingTimeInterval(-180), distanceMeters: 2_860, secondsPerKilometer: 326, segmentIndex: 0),
-            PaceSample(date: .now, distanceMeters: 3_520, secondsPerKilometer: 336, segmentIndex: 0)
-        ],
+        paceSamples: demoTelemetry.dropFirst().map {
+            PaceSample(
+                date: demoDate(elapsed: $0.elapsed),
+                distanceMeters: $0.distance,
+                secondsPerKilometer: $0.pace,
+                segmentIndex: 0
+            )
+        },
         splits: [
-            RunSplit(index: 1, distanceMeters: 1_000, duration: 342, averageHeartRate: 141, averageCadence: 171),
-            RunSplit(index: 2, distanceMeters: 1_000, duration: 323, averageHeartRate: 151, averageCadence: 177),
-            RunSplit(index: 3, distanceMeters: 1_000, duration: 321, averageHeartRate: 156, averageCadence: 176),
-            RunSplit(index: 4, distanceMeters: 520, duration: 214, averageHeartRate: 152, averageCadence: 173)
-        ]
+            RunSplit(index: 1, distanceMeters: 1_000, duration: 303, averageHeartRate: 141, averageCadence: 171),
+            RunSplit(index: 2, distanceMeters: 1_000, duration: 292, averageHeartRate: 159, averageCadence: 179),
+            RunSplit(index: 3, distanceMeters: 1_000, duration: 301, averageHeartRate: 167, averageCadence: 180),
+            RunSplit(index: 4, distanceMeters: 1_000, duration: 292, averageHeartRate: 172, averageCadence: 181),
+            RunSplit(index: 5, distanceMeters: 1_000, duration: 271, averageHeartRate: 175, averageCadence: 183),
+            RunSplit(index: 6, distanceMeters: 20, duration: 6, averageHeartRate: 172, averageCadence: 182)
+        ],
+        activeDuration: 1_465,
+        heartRateZoneProfile: HeartRateZoneProfile(
+            method: .heartRateReserve,
+            restingHeartRateBPM: 52,
+            maximumHeartRateBPM: 188
+        )
     )
 
     static let mockPausedWorkout = RunDetail(

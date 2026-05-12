@@ -145,10 +145,7 @@ struct RecordTabView: View {
 
                             VStack(spacing: 14) {
                                 NavigationLink {
-                                    RunDetailView(
-                                        run: .demoSample,
-                                        initialDebugScenario: .completeMetrics
-                                    )
+                                    RunDetailView(run: .demoSample)
                                 } label: {
                                     DemoRunAccessCard()
                                 }

@@ -25,7 +25,9 @@ final class RunDetailViewModel: ObservableObject {
     init(run: RunningWorkout, initialScenario: DebugScenario? = nil) {
         self.run = run
         self.initialScenario = initialScenario
-        cachedSummary = summaryCacheStore.summary(for: run.id)
+        cachedSummary = run.isDemoWorkout
+            ? RunDetail.mockCompleteMetrics.summaryMetrics
+            : summaryCacheStore.summary(for: run.id)
     }
 
     // 화면이 처음 나타났을 때만 실제 상세 데이터를 요청한다.
@@ -36,11 +38,22 @@ final class RunDetailViewModel: ObservableObject {
             await applyDebugScenario(initialScenario)
             return
         }
+
+        if run.isDemoWorkout {
+            await applyDebugScenario(.completeMetrics)
+            return
+        }
+
         await load()
     }
 
-    // HealthKit 조회 결과를 그대로 상태에 반영한다.
+    // HealthKit 조회 결과를 상태에 반영한다. 샘플 러닝은 같은 mock detail을 항상 재사용한다.
     func load() async {
+        if run.isDemoWorkout {
+            await applyDebugScenario(.completeMetrics)
+            return
+        }
+
         loadGeneration += 1
         let currentGeneration = loadGeneration
         state = .loading

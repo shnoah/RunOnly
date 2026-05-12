@@ -558,6 +558,28 @@ extension HealthKitService {
         var mappedSamples: [RunningMetricSample] = []
 
         for sample in samples {
+            if sample.endDate <= sample.startDate {
+                guard let interval = activeInterval(containing: sample.startDate, activeIntervals: activeIntervals) else {
+                    continue
+                }
+                let distancePoint = nearestTimelinePoint(
+                    to: sample.startDate,
+                    segmentIndex: interval.index,
+                    lookup: timelineLookup
+                )
+
+                mappedSamples.append(
+                    RunningMetricSample(
+                        date: sample.startDate,
+                        value: sample.value,
+                        elapsed: activeElapsed(at: sample.startDate, activeIntervals: activeIntervals),
+                        distanceMeters: distancePoint?.distanceMeters,
+                        segmentIndex: interval.index
+                    )
+                )
+                continue
+            }
+
             let sampleInterval = DateInterval(start: sample.startDate, end: sample.endDate)
             let overlaps = activeIntervals.compactMap { interval -> (ActiveInterval, DateInterval)? in
                 guard let overlap = overlapInterval(between: sampleInterval, and: interval.dateInterval) else { return nil }

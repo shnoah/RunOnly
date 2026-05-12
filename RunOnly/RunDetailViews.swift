@@ -114,7 +114,10 @@ struct RunDetailView: View {
 
     private func inferredPersonalRecordAchievements(from detail: RunDetail) -> [PersonalRecordDistance] {
         let historyMatches = workoutsViewModel.personalRecordHistory.compactMap { entry -> PersonalRecordDistance? in
-            guard let duration = bestPersonalRecordDuration(for: entry.distance.meters, in: detail.distanceTimeline) else {
+            guard let duration = PersonalRecordCalculator.bestDuration(
+                for: entry.distance.meters,
+                in: detail.distanceTimeline
+            ) else {
                 return nil
             }
 
@@ -127,7 +130,10 @@ struct RunDetailView: View {
 
         let currentRecordMatches = workoutsViewModel.personalRecords.compactMap { record -> PersonalRecordDistance? in
             guard let targetDuration = record.duration else { return nil }
-            guard let duration = bestPersonalRecordDuration(for: record.distance.meters, in: detail.distanceTimeline) else {
+            guard let duration = PersonalRecordCalculator.bestDuration(
+                for: record.distance.meters,
+                in: detail.distanceTimeline
+            ) else {
                 return nil
             }
 
@@ -145,60 +151,6 @@ struct RunDetailView: View {
         let matchedDistances = Set(historyMatches + currentRecordMatches)
         return PersonalRecordDistance.allCases.filter { matchedDistances.contains($0) }
     }
-}
-
-private func bestPersonalRecordDuration(
-    for targetDistance: Double,
-    in timeline: [DistanceTimelinePoint]
-) -> TimeInterval? {
-    guard timeline.count > 1, let lastDistance = timeline.last?.distanceMeters, lastDistance >= targetDistance else {
-        return nil
-    }
-
-    var best: TimeInterval?
-    var lowerIndex = 0
-
-    for endIndex in timeline.indices {
-        let endPoint = timeline[endIndex]
-        guard endPoint.distanceMeters >= targetDistance else { continue }
-
-        let startDistance = endPoint.distanceMeters - targetDistance
-        while lowerIndex + 1 < timeline.count, timeline[lowerIndex + 1].distanceMeters < startDistance {
-            lowerIndex += 1
-        }
-
-        let startElapsed = interpolatedPersonalRecordElapsed(
-            for: startDistance,
-            in: timeline,
-            lowerIndex: lowerIndex
-        )
-        let duration = endPoint.elapsed - startElapsed
-        guard duration > 0 else { continue }
-
-        if best == nil || duration < (best ?? .greatestFiniteMagnitude) {
-            best = duration
-        }
-    }
-
-    return best
-}
-
-private func interpolatedPersonalRecordElapsed(
-    for distance: Double,
-    in timeline: [DistanceTimelinePoint],
-    lowerIndex: Int
-) -> TimeInterval {
-    let clampedIndex = min(max(lowerIndex, 0), timeline.count - 1)
-    let lowerPoint = timeline[clampedIndex]
-    guard clampedIndex + 1 < timeline.count else { return lowerPoint.elapsed }
-
-    let upperPoint = timeline[clampedIndex + 1]
-    let distanceSpan = upperPoint.distanceMeters - lowerPoint.distanceMeters
-    guard distanceSpan > 0 else { return upperPoint.elapsed }
-
-    let ratio = (distance - lowerPoint.distanceMeters) / distanceSpan
-    let clampedRatio = min(max(ratio, 0), 1)
-    return lowerPoint.elapsed + (upperPoint.elapsed - lowerPoint.elapsed) * clampedRatio
 }
 
 struct PredictionMethodView: View {

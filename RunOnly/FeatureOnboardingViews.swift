@@ -110,10 +110,7 @@ struct HealthKitOnboardingView: View {
         }
         .sheet(isPresented: $showingSampleRun) {
             NavigationStack {
-                RunDetailView(
-                    run: .demoSample,
-                    initialDebugScenario: .completeMetrics
-                )
+                RunDetailView(run: .demoSample)
                 .environmentObject(workoutsViewModel)
                 .environmentObject(shoeStore)
             }
@@ -147,10 +144,7 @@ struct RunReviewFallbackView: View {
                 DetailSection(title: "샘플 러닝으로 둘러보기", systemImage: "sparkles", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
                     VStack(alignment: .leading, spacing: 12) {
                         NavigationLink {
-                            RunDetailView(
-                                run: .demoSample,
-                                initialDebugScenario: .completeMetrics
-                            )
+                            RunDetailView(run: .demoSample)
                         } label: {
                             DemoRunAccessCard()
                         }
@@ -183,10 +177,7 @@ struct HomeEmptyStateView: View {
                 )
 
                 NavigationLink {
-                    RunDetailView(
-                        run: .demoSample,
-                        initialDebugScenario: .completeMetrics
-                    )
+                    RunDetailView(run: .demoSample)
                 } label: {
                     DemoRunAccessCard()
                 }
