@@ -329,6 +329,8 @@
 "저장" = "Save";
 "전체 기간을 보려면 과거 기록을 순차적으로 더 불러옵니다." = "To view the full period, older history is loaded incrementally.";
 "전체 보기" = "Show all";
+"최근 러닝" = "Recent Runs";
+"최근 러닝이 쌓이면 여기에 표시됩니다." = "Recent runs will appear here as they build up.";
 "전체" = "All";
 "정사각형" = "Square";
 "정책 및 지원" = "Policies & Support";

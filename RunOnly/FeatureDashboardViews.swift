@@ -13,31 +13,14 @@ struct DashboardHeader: View {
     let runs: [RunningWorkout]
     let vo2MaxSamples: [VO2MaxSample]
     @EnvironmentObject private var mileageGoalStore: MileageGoalStore
+    @EnvironmentObject private var shoeStore: ShoeStore
     @State private var showingGoalEditor = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                FeatureToneBadge(
-                    text: "홈",
-                    tint: Color(red: 0.95, green: 0.59, blue: 0.32),
-                    foreground: Color(red: 1.0, green: 0.86, blue: 0.76)
-                )
-
-                Text(RunDisplayFormatter.monthOnly(Date()))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.62))
-
-                Spacer()
-            }
-
-            Text(homeTitleText)
-                .font(.system(.title2, design: .rounded).weight(.bold))
+            Text("PNR")
+                .font(.system(.title, design: .rounded).weight(.black))
                 .foregroundStyle(.white)
-
-            Text(homeSubtitleText)
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.76))
 
             DashboardQuickOverviewPanel(
                 viewModel: viewModel,
@@ -67,6 +50,12 @@ struct DashboardHeader: View {
                 )
             }
             .buttonStyle(.plain)
+
+            RecentRunsPreviewSection(
+                previewRuns: Array(runs.prefix(3)),
+                allRuns: runs,
+                shoeStore: shoeStore
+            )
         }
         .sheet(isPresented: $showingGoalEditor) {
             MileageGoalEditorView(currentDistanceKilometers: summary.monthDistanceKilometers)
@@ -93,32 +82,6 @@ struct DashboardHeader: View {
                 )
         )
         .padding(.horizontal, 16)
-    }
-
-    private var homeTitleText: String {
-        guard summary.monthDistanceKilometers > 0 else {
-            return L10n.tr("이번 달 러닝을 시작해보세요")
-        }
-
-        return L10n.format("이번 달 %@ 달렸어요", summary.monthDistanceText)
-    }
-
-    private var homeSubtitleText: String {
-        let remaining = mileageGoalStore.monthlyGoalKilometers - summary.monthDistanceKilometers
-
-        if mileageGoalStore.monthlyGoalKilometers > 0, remaining > 0, summary.monthDistanceKilometers > 0 {
-            let remainingText = RunDisplayFormatter.distance(
-                kilometers: remaining,
-                fractionLength: 1
-            )
-            return L10n.format("목표까지 %@ 남았어요", remainingText)
-        }
-
-        if summary.monthDistanceKilometers > 0 {
-            return L10n.tr("거리, 준비도, 목표를 빠르게 봅니다")
-        }
-
-        return L10n.tr("첫 러닝이 쌓이면 여기에 표시됩니다")
     }
 }
 
@@ -148,7 +111,7 @@ struct DashboardQuickOverviewPanel: View {
                     systemImage: "figure.run",
                     title: "거리",
                     value: summary.monthDistanceText,
-                    detail: L10n.format("올해 %@", summary.yearDistanceText),
+                    detail: nil,
                     tint: Color(red: 0.42, green: 0.76, blue: 1.0)
                 )
             }
@@ -161,7 +124,7 @@ struct DashboardQuickOverviewPanel: View {
                     systemImage: "figure.run.circle.fill",
                     title: "준비도",
                     value: summary.recoveryReadiness.dashboardValueText,
-                    detail: summary.recoveryReadiness.status,
+                    detail: nil,
                     tint: Color(red: 0.45, green: 0.95, blue: 0.76)
                 )
             }
@@ -174,7 +137,7 @@ struct DashboardQuickOverviewPanel: View {
                     systemImage: "heart.circle.fill",
                     title: "VO2 Max",
                     value: summary.vo2MaxText,
-                    detail: summary.vo2MaxDateText,
+                    detail: nil,
                     tint: Color(red: 0.94, green: 0.41, blue: 0.45)
                 )
             }
@@ -187,11 +150,11 @@ struct DashboardCompactSummaryLink: View {
     let systemImage: String
     let title: String
     let value: String
-    let detail: String
+    let detail: String?
     let tint: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
                     .font(.caption.weight(.bold))
@@ -206,15 +169,18 @@ struct DashboardCompactSummaryLink: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(detail)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.56))
-                .lineLimit(2)
-                .minimumScaleFactor(0.75)
-                .fixedSize(horizontal: false, vertical: true)
+            if let detail, !detail.isEmpty {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.56))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
-        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 70, alignment: .topLeading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(
@@ -235,7 +201,129 @@ struct DashboardCompactSummaryLink: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(LocalizedStringKey(title)))
         .accessibilityValue(Text(value))
-        .accessibilityHint(Text(detail))
+        .accessibilityHint(Text(detail ?? ""))
+    }
+}
+
+struct RecentRunsPreviewSection: View {
+    let previewRuns: [RunningWorkout]
+    let allRuns: [RunningWorkout]
+    let shoeStore: ShoeStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                DashboardSectionHeader(title: "최근 러닝")
+                Spacer()
+                NavigationLink {
+                    RecentRunsListView(
+                        runs: allRuns,
+                        shoeStore: shoeStore
+                    )
+                } label: {
+                    Text("전체 보기")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                }
+                .buttonStyle(.plain)
+            }
+
+            if previewRuns.isEmpty {
+                Text("최근 러닝이 쌓이면 여기에 표시됩니다.")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.64))
+                    .padding(.vertical, 4)
+            } else {
+                ForEach(previewRuns) { run in
+                    NavigationLink {
+                        RunDetailView(run: run)
+                    } label: {
+                        RecentRunCompactRow(run: run)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.top, 2)
+    }
+}
+
+struct RecentRunsListView: View {
+    let runs: [RunningWorkout]
+    let shoeStore: ShoeStore
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            ScrollView {
+                VStack(spacing: 14) {
+                    ForEach(runs) { run in
+                        NavigationLink {
+                            RunDetailView(run: run)
+                        } label: {
+                            RunRowCard(
+                                run: run,
+                                shoeDisplay: shoeStore.shoeAssignmentDisplay(for: run.id)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .navigationTitle("최근 러닝")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct RecentRunCompactRow: View {
+    let run: RunningWorkout
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(compactDateText)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.9))
+
+            Spacer(minLength: 8)
+
+            Text(run.distanceText)
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+
+            Text(run.paceText)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.62))
+                .monospacedDigit()
+
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.34))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.black.opacity(0.16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(compactDateText))
+        .accessibilityValue(Text(run.distanceText))
+    }
+
+    private var compactDateText: String {
+        let formatter = DateFormatter()
+        formatter.locale = RunDisplayFormatter.currentAppLocale
+        formatter.timeZone = .current
+        formatter.dateFormat = "M/d"
+        return formatter.string(from: run.startDate)
     }
 }
 
@@ -264,29 +352,8 @@ struct GoalMileageCard: View {
         return "\(currentText) / \(goalText)"
     }
 
-    private var statusText: String {
-        let remaining = goalKilometers - currentDistanceKilometers
-        if remaining > 0 {
-            let remainingText = RunDisplayFormatter.distance(
-                kilometers: remaining,
-                preference: appSettings.distanceUnitPreference,
-                fractionLength: 1
-            )
-            return L10n.format("%@ 남음", remainingText)
-        }
-        if abs(remaining) < 0.05 {
-            return L10n.tr("목표 달성")
-        }
-        let overText = RunDisplayFormatter.distance(
-            kilometers: abs(remaining),
-            preference: appSettings.distanceUnitPreference,
-            fractionLength: 1
-        )
-        return L10n.format("%@ 초과 달성", overText)
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Label("목표 마일리지", systemImage: "target")
                     .font(.caption.weight(.semibold))
@@ -305,16 +372,6 @@ struct GoalMileageCard: View {
 
             ProgressView(value: progress)
                 .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
-
-            HStack {
-                Text(statusText)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.76))
-                Spacer()
-                Text(RunDisplayFormatter.monthOnly(Date()))
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.5))
-            }
         }
         .padding(16)
         .background(
