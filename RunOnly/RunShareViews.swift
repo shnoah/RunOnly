@@ -927,7 +927,7 @@ struct RunShareComposerView: View {
         let data = try renderPNGData()
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmm"
-        let filename = "RunOnly-Share-\(formatter.string(from: run.startDate))-\(selectedTemplate.rawValue).png"
+        let filename = "PNR-Share-\(formatter.string(from: run.startDate))-\(selectedTemplate.rawValue).png"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try data.write(to: url, options: .atomic)
         return url

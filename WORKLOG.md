@@ -1,4 +1,13 @@
-# RunOnly Work Log
+# PNR Run Work Log
+
+## 2026-05-13
+
+### PNR 브랜드 적용
+- 앱스토어용 이름은 `PNR Run`, 홈 화면 표시 이름은 `PNR`로 정리했다.
+- `PNR`의 외부 설명은 `Pace Notes & Records`로 잡고, README와 App Store 메타데이터 초안에 반영했다.
+- 앱 노출 문자열, Health 권한 설정 경로, 공유 이미지 로고, 공유/신발 백업 파일명, 개인정보 처리방침과 리뷰 노트의 앱 이름을 새 브랜드로 바꿨다.
+- 임시 앱 아이콘도 `PNR` 워드마크 중심으로 바꾸고, 생성 스크립트가 전체 AppIcon PNG 세트를 다시 만들도록 확장했다.
+- 기존 Xcode target/scheme, bundle identifier, 저장 키, 앱 지원 폴더명은 데이터 보존과 빌드 안정성을 위해 이번 단계에서는 유지했다.
 
 ## 2026-05-12
 

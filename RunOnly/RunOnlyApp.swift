@@ -8,11 +8,11 @@ enum AppMetadata {
     static let privacyPolicyURL = URL(string: "https://github.com/shnoah/RunOnly/blob/main/APP_STORE/PRIVACY_POLICY.md")!
 
     static var healthPermissionSettingsPath: String {
-        L10n.tr("설정 > 건강 > 데이터 접근 및 기기 > RunOnly")
+        L10n.tr("설정 > 건강 > 데이터 접근 및 기기 > PNR")
     }
 
     static var displayName: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "RunOnly"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "PNR"
     }
 
     static var versionText: String {

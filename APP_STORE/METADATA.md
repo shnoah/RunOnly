@@ -1,10 +1,12 @@
-# RunOnly App Store Metadata Draft
+# PNR Run App Store Metadata Draft
 
 ## Release
 
 - Version: `1.0`
 - Build: `1`
-- App name: `RunOnly`
+- App name: `PNR Run`
+- Home Screen display name: `PNR`
+- Brand meaning: `Pace Notes & Records`
 
 ## Suggested URLs
 
@@ -14,15 +16,17 @@
 
 ## Subtitle Draft
 
-`Apple Health 러닝 분석`
+`Apple Watch 러닝 기록`
 
 ## Promotional Text Draft
 
-Apple 건강 러닝 기록을 더 빠르게 읽고, 더 러너답게 정리해보세요.
+Apple Watch 러닝 기록을 더 빠르게 읽고, 더 러너답게 정리해보세요.
 
 ## Description Draft
 
-RunOnly는 Apple 건강의 러닝 기록을 더 보기 쉽고, 더 러너 친화적으로 정리하는 iPhone 앱입니다.
+PNR Run은 Apple 건강에 저장된 Apple Watch 러닝 기록을 더 보기 쉽고, 더 러너 친화적으로 정리하는 iPhone 앱입니다.
+
+PNR은 Pace Notes & Records의 줄임말입니다.
 
 앱 안에서 바로 확인할 수 있는 내용:
 
@@ -34,7 +38,7 @@ RunOnly는 Apple 건강의 러닝 기록을 더 보기 쉽고, 더 러너 친화
 - 신발별 누적 거리와 착용 기록
 - 공유용 러닝 이미지 생성
 
-RunOnly는 계정 생성 없이 동작하며, 현재는 서버 업로드나 외부 분석 SDK 없이 iPhone 안에서 러닝을 분석합니다.
+PNR Run은 계정 생성 없이 동작하며, 현재는 서버 업로드나 외부 분석 SDK 없이 iPhone 안에서 러닝을 분석합니다.
 
 ## Keywords Draft
 

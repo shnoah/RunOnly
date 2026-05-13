@@ -1,18 +1,18 @@
-# RunOnly Privacy Policy
+# PNR Run Privacy Policy
 
-Last updated: March 30, 2026
+Last updated: May 13, 2026
 
 ## Overview
 
-RunOnly is an iPhone app that reads running workouts from Apple Health and presents them in a runner-focused format.
+PNR Run is an iPhone app that reads running workouts from Apple Health and presents them in a runner-focused format.
 
-RunOnly does not require account creation.
-RunOnly does not include advertising SDKs, third-party analytics SDKs, or social tracking.
-RunOnly currently does not upload Apple Health running data to a backend server.
+PNR Run does not require account creation.
+PNR Run does not include advertising SDKs, third-party analytics SDKs, or social tracking.
+PNR Run currently does not upload Apple Health running data to a backend server.
 
 ## Health Data We Read
 
-When you allow Apple Health access, RunOnly may read:
+When you allow Apple Health access, PNR Run may read:
 
 - Running workouts
 - Workout routes
@@ -22,11 +22,11 @@ When you allow Apple Health access, RunOnly may read:
 - Distance walking/running
 - Step count
 
-RunOnly reads these items only to render summaries, detailed charts, personal record tracking, shoe assignment views, and sharing layouts inside the app.
+PNR Run reads these items only to render summaries, detailed charts, personal record tracking, shoe assignment views, and sharing layouts inside the app.
 
 ## Data Stored On Device
 
-RunOnly stores the following data locally on the iPhone:
+PNR Run stores the following data locally on the iPhone:
 
 - App settings
 - Shoe names, models, mileage targets, and shoe-to-run assignments
@@ -37,7 +37,7 @@ These local support files are stored in the app container and excluded from auto
 
 ## Data Not Uploaded
 
-RunOnly does not currently upload the following to a server:
+PNR Run does not currently upload the following to a server:
 
 - Apple Health running data
 - Workout route coordinates
@@ -47,7 +47,7 @@ RunOnly does not currently upload the following to a server:
 
 ## Data Sharing
 
-RunOnly shares data externally only when you explicitly choose an export action.
+PNR Run shares data externally only when you explicitly choose an export action.
 
 Examples:
 
@@ -58,7 +58,7 @@ Examples:
 
 You can:
 
-- Revoke Apple Health access in `Settings > Health > Data Access & Devices > RunOnly`
+- Revoke Apple Health access in `Settings > Health > Data Access & Devices > PNR`
 - Delete shoe data from the in-app Settings screen
 - Clear derived analysis cache from the in-app Settings screen
 - Delete the app to remove app-local data stored in the app container

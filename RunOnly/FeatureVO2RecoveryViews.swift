@@ -657,7 +657,7 @@ struct ReadinessEvidenceView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(L10n.tr("러닝 준비도는 몸 상태를 진단하는 의료 점수가 아니라, 최근 러닝 부하와 회복 간격을 바탕으로 오늘 러닝 강도를 가볍게 가이드하는 점수예요."))
                             Text(L10n.tr("현재 버전은 최근 28일 러닝 기록, 마지막 러닝 이후 시간, 그리고 있으면 안정시 심박을 함께 참고합니다."))
-                            Text(L10n.tr("논문에서 널리 쓰는 훈련 부하와 회복 모니터링 개념을 참고했지만, 점수화 방식은 RunOnly에 맞게 단순화한 가이드예요."))
+                            Text(L10n.tr("논문에서 널리 쓰는 훈련 부하와 회복 모니터링 개념을 참고했지만, 점수화 방식은 PNR에 맞게 단순화한 가이드예요."))
                         }
                         .foregroundStyle(.white.opacity(0.82))
                     }

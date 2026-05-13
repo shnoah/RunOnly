@@ -143,7 +143,7 @@ struct RunningWorkout: Identifiable {
         startDate: demoSampleStartDate,
         duration: 1_465,
         distanceInMeters: 5_020,
-        sourceName: "RunOnly Demo",
+        sourceName: "PNR Demo",
         sourceBundleIdentifier: "com.shnoah.RunOnly.demo",
         isIndoorWorkout: false
     )

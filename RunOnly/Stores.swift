@@ -98,7 +98,7 @@ final class ShoeStore: ObservableObject {
         let data = try encoder.encode(payload)
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmm"
-        let filename = "RunOnly-ShoeBackup-\(formatter.string(from: .now)).json"
+        let filename = "PNR-ShoeBackup-\(formatter.string(from: .now)).json"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try data.write(to: url, options: .atomic)
         return url

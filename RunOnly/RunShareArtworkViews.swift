@@ -116,7 +116,7 @@ struct RunShareArtworkView: View {
     private var header: some View {
         if enabledFields.contains(.logo) {
             if template == .sticker {
-                Text("RUNONLY")
+                Text("PNR")
                     .font(style.fontChoice.font(size: style.scaled(headerBrandFontSize), weight: .heavy))
                     .foregroundStyle(style.accentColor)
                     .tracking(1.2)
@@ -124,7 +124,7 @@ struct RunShareArtworkView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
             } else {
                 HStack {
-                    Text("RUNONLY")
+                    Text("PNR")
                         .font(style.fontChoice.font(size: style.scaled(headerBrandFontSize), weight: .heavy))
                         .foregroundStyle(style.accentColor)
                         .tracking(0.8)

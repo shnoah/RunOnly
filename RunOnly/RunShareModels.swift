@@ -147,7 +147,7 @@ enum RunShareField: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .logo:
-            return "RUNONLY"
+            return "PNR"
         case .route:
             return L10n.tr("경로")
         case .date:

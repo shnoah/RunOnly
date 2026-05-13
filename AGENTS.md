@@ -4,7 +4,8 @@ This file is the quick-start guide for coding agents and collaborators working i
 
 ## Project Snapshot
 
-- App name: `RunOnly`
+- App name: `PNR Run`
+- Home Screen display name: `PNR`
 - Platform: iPhone app built with SwiftUI
 - Xcode project: `RunOnly.xcodeproj`
 - Main source folder: `RunOnly/`
@@ -27,7 +28,7 @@ Open the `APP_STORE/` docs only when the task affects release copy, privacy word
 - Keep edits focused and avoid broad refactors unless they are necessary for the requested change.
 - Respect existing uncommitted changes. Do not revert user work unless explicitly asked.
 - Treat this app as local-first. Do not introduce backend or cloud assumptions unless requested.
-- If you change user-facing UX, preserve the existing RunOnly tone: clean, runner-focused, lightweight.
+- If you change user-facing UX, preserve the existing PNR Run tone: clean, runner-focused, lightweight.
 
 ## UI Rules
 

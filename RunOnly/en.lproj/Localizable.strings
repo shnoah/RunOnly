@@ -228,7 +228,7 @@
 "선택값Y" = "Selected value Y";
 "선택한 날짜에 러닝이 없습니다" = "No runs on the selected date";
 "선택한 달에 러닝이 없습니다" = "No runs in the selected month";
-"설정 > 건강 > 데이터 접근 및 기기 > RunOnly" = "Settings > Health > Data Access & Devices > RunOnly";
+"설정 > 건강 > 데이터 접근 및 기기 > PNR" = "Settings > Health > Data Access & Devices > PNR";
 "설정 목표" = "Goal";
 "설정" = "Settings";
 "세그먼트" = "Segment";
@@ -426,7 +426,7 @@
 "훈련 추세" = "Training Trend";
 "훈련 추세는 최근 7일 러닝 거리와 직전 7일 러닝 거리를 비교해 계산합니다." = "Training trend is calculated by comparing the last 7 days of running distance with the previous 7 days.";
 "훈련 추세를 계산할 러닝 데이터가 부족합니다." = "There isn't enough running data to calculate the training trend.";
-"RunOnly 소개" = "About RunOnly";
+"PNR 소개" = "About PNR";
 "샘플 러닝은 기록 탭에서 바로 확인할 수 있습니다." = "You can preview the sample run anytime from the Records tab.";
 "러닝화 추가하기" = "Add Running Shoes";
 "아래 샘플 카드에서 어떤 식으로 관리되는지 먼저 볼 수 있습니다." = "You can preview how shoes are tracked using the sample cards below.";
@@ -459,7 +459,7 @@
 "준비도 근거" = "Readiness Evidence";
 "러닝 준비도는 몸 상태를 진단하는 의료 점수가 아니라, 최근 러닝 부하와 회복 간격을 바탕으로 오늘 러닝 강도를 가볍게 가이드하는 점수예요." = "Running readiness isn't a medical score. It lightly guides today's run intensity based on recent running load and recovery spacing.";
 "현재 버전은 최근 28일 러닝 기록, 마지막 러닝 이후 시간, 그리고 있으면 안정시 심박을 함께 참고합니다." = "The current version considers your last 28 days of runs, time since the last run, and resting heart rate when available.";
-"논문에서 널리 쓰는 훈련 부하와 회복 모니터링 개념을 참고했지만, 점수화 방식은 RunOnly에 맞게 단순화한 가이드예요." = "It references commonly used training-load and recovery-monitoring ideas from the literature, but the scoring is simplified for RunOnly.";
+"논문에서 널리 쓰는 훈련 부하와 회복 모니터링 개념을 참고했지만, 점수화 방식은 PNR에 맞게 단순화한 가이드예요." = "It references commonly used training-load and recovery-monitoring ideas from the literature, but the scoring is simplified for PNR.";
 "수면, HRV, 스트레스 같은 데이터는 아직 반영하지 않아 실제 회복 상태를 완전히 대변하지는 못합니다." = "It doesn't yet include data like sleep, HRV, or stress, so it can't fully represent true recovery.";
 "데이터가 부족하면 억지로 점수를 만들지 않고 `데이터 필요` 상태로 남겨둡니다." = "When data is insufficient, it stays in a 'Need Data' state instead of forcing a score.";
 "몸 상태가 평소와 다르거나 통증이 있다면 준비도 점수보다 내 컨디션을 우선해 주세요." = "If your body feels different than usual or you have pain, trust your condition over the readiness score.";

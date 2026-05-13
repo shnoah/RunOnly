@@ -1,6 +1,6 @@
-# RunOnly
+# PNR Run
 
-RunOnly is a SwiftUI iPhone app for reviewing Apple Watch running workouts from Apple Health in a cleaner, more runner-focused way.
+PNR Run is a SwiftUI iPhone app for reviewing Apple Watch running workouts from Apple Health in a cleaner, more runner-focused way. The Home Screen display name is `PNR`, short for `Pace Notes & Records`.
 
 It reads running workouts recorded on Apple devices, summarizes running readiness, shows detailed run analysis, and includes lightweight gear and PR tracking tools inside the app.
 
@@ -25,7 +25,7 @@ It reads running workouts recorded on Apple devices, summarizes running readines
 
 ## Advanced metrics currently supported
 
-RunOnly reads these Apple Health metrics when available:
+PNR Run reads these Apple Health metrics when available:
 
 - Heart rate
 - Resting heart rate

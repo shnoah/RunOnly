@@ -1,8 +1,8 @@
-# RunOnly App Review Notes
+# PNR Run App Review Notes
 
 ## What the App Does
 
-RunOnly is an iPhone app for reviewing Apple Health running workouts in a cleaner, runner-focused format.
+PNR Run is an iPhone app for reviewing Apple Health running workouts in a cleaner, runner-focused format. The installed app appears as `PNR` on the Home Screen.
 
 It reads running workouts recorded on Apple devices and shows:
 
@@ -17,7 +17,7 @@ It reads running workouts recorded on Apple devices and shows:
 
 If the review device has Apple Health running data:
 
-1. Open `RunOnly`
+1. Open `PNR`
 2. Tap `Apple 건강 권한 허용하고 시작`
 3. Grant Apple Health read access
 4. Open any run from `기록`
@@ -25,7 +25,7 @@ If the review device has Apple Health running data:
 
 If the review device does not have running data:
 
-1. Open `RunOnly`
+1. Open `PNR`
 2. Tap `샘플 러닝 열기`, or
 3. After entering the app, open the `샘플 러닝 열기` card pinned at the top of `기록`
 4. In the detail screen, open `다른 샘플 보기` to inspect alternate scenarios such as paused runs, missing route, and missing heart rate
