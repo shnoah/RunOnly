@@ -1,5 +1,19 @@
 # PNR Run Work Log
 
+## 2026-05-14
+
+### 상세 차트 프리뷰 샌드박스
+- `RunDetailChartViews`에 차트 전용 `RunDetailChartViews_Previews` 샌드박스를 추가해 상세 화면 전체 없이 mock 차트를 바로 비교할 수 있게 했다.
+- 정상 메트릭, pause 포함, 고급 메트릭 없음, 경로 없음, 심박 없음, 인터벌 변동 시나리오를 전환하고 같은 화면에서 앱 기본 축, 타이트 축, 와이드 축, Catmull/Linear/Monotone 보간을 비교하도록 구성했다.
+- 실제 앱 기본 차트 렌더링은 유지하되 프리뷰 비교용으로 `RunMetricChartPlot`의 보간 방식을 주입할 수 있게 열어뒀다.
+- 빌드는 Swift 컴파일 단계까지 진행됐지만 현재 샌드박스 환경에서 CoreSimulatorService 접근이 막혀 asset catalog 단계에서 중단됐다.
+
+### App Store 스크린샷 데모 흐름
+- launch argument / environment 기반 `AppStoreScreenshotMode`를 추가해 HealthKit 권한 없이 홈 요약, 기록 목록, 상세 차트, 경로/스플릿, 공유 편집 화면을 샘플 데이터로 바로 열 수 있게 했다.
+- 스크린샷 모드에서는 `RunningWorkoutsViewModel`에 고정 March 2026 러닝 목록, VO2 Max, 안정시 심박, PR 샘플을 주입해 홈/기록 화면이 빈 상태 없이 바로 렌더링되게 했다.
+- 상세 차트와 경로/스플릿은 기존 상세 섹션 컴포넌트를 재사용하는 전용 캡처 루트로 분리했고, 공유 화면은 샘플 러닝 + mock detail로 직접 진입하게 했다.
+- `APP_STORE/SCREENSHOT_CAPTURE.md`에 launch argument 목록과 권장 캡처 순서를 정리했다.
+
 ## 2026-05-13
 
 ### PNR 브랜드 적용

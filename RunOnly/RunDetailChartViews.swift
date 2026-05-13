@@ -788,6 +788,7 @@ struct RunMetricChartPlot: View {
     let altitudeRange: ClosedRange<Double>
     let strideValues: [Double]
     let maxDistance: Double
+    var interpolationMethod: InterpolationMethod = .catmullRom
 
     var body: some View {
         Chart {
@@ -838,7 +839,7 @@ struct RunMetricChartPlot: View {
                 )
                 .foregroundStyle(metric.tint)
                 .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
-                .interpolationMethod(.catmullRom)
+                .interpolationMethod(interpolationMethod)
             }
 
             if let averageValue {
@@ -1113,3 +1114,510 @@ struct SelectedMetrics {
         return heartRateRange.lowerBound + ratio * (heartRateRange.upperBound - heartRateRange.lowerBound)
     }
 }
+
+#if DEBUG
+private struct RunDetailChartPreviewScenario: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let note: String
+    let run: RunningWorkout
+    let detail: RunDetail
+
+    static func == (lhs: RunDetailChartPreviewScenario, rhs: RunDetailChartPreviewScenario) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static let all: [RunDetailChartPreviewScenario] = [
+        RunDetailChartPreviewScenario(
+            id: "complete",
+            title: "정상 메트릭",
+            note: "페이스, 심박, 케이던스, 고도, 파워까지 모두 있는 기본 5K",
+            run: .demoSample,
+            detail: .mockCompleteMetrics
+        ),
+        RunDetailChartPreviewScenario(
+            id: "paused",
+            title: "pause 포함",
+            note: "segmentIndex가 갈라지는 구간과 pause 이후 연결감을 확인",
+            run: Self.previewRun(distanceMeters: 2_920, duration: 720, offset: 1),
+            detail: .mockPausedWorkout
+        ),
+        RunDetailChartPreviewScenario(
+            id: "missingAdvanced",
+            title: "고급 메트릭 없음",
+            note: "페이스/심박/고도만 있는 일반 기록",
+            run: Self.previewRun(distanceMeters: 2_980, duration: 840, offset: 2),
+            detail: .mockMissingAdvancedMetrics
+        ),
+        RunDetailChartPreviewScenario(
+            id: "noRoute",
+            title: "경로 없음",
+            note: "고도 배경 없이 거리 타임라인과 심박만 있는 케이스",
+            run: Self.previewRun(distanceMeters: 3_100, duration: 900, offset: 3),
+            detail: .mockMissingRoute
+        ),
+        RunDetailChartPreviewScenario(
+            id: "noHeartRate",
+            title: "심박 없음",
+            note: "심박 탭이 빠지고 페이스/고도 중심으로 보이는 케이스",
+            run: Self.previewRun(distanceMeters: 2_940, duration: 900, offset: 4),
+            detail: .mockMissingHeartRate
+        ),
+        RunDetailChartPreviewScenario(
+            id: "surges",
+            title: "인터벌 변동",
+            note: "급격한 페이스 변동에서 보간과 축 패딩을 비교",
+            run: Self.previewRun(distanceMeters: 6_000, duration: 1_710, offset: 5),
+            detail: .mockChartSurges
+        )
+    ]
+
+    private static func previewRun(distanceMeters: Double, duration: TimeInterval, offset: Int) -> RunningWorkout {
+        RunningWorkout(
+            id: UUID(uuidString: "10000000-0000-0000-0000-\(String(format: "%012d", offset))") ?? UUID(),
+            startDate: RunningWorkout.demoSampleStartDate.addingTimeInterval(Double(offset) * 86_400),
+            duration: duration,
+            distanceInMeters: distanceMeters,
+            sourceName: "PNR Chart Preview",
+            sourceBundleIdentifier: "com.shnoah.RunOnly.demo",
+            isIndoorWorkout: false
+        )
+    }
+}
+
+private enum RunDetailChartPreviewRangeMode: String, CaseIterable, Identifiable {
+    case production
+    case tight
+    case wide
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .production:
+            return "앱 기본 축"
+        case .tight:
+            return "타이트 축"
+        case .wide:
+            return "와이드 축"
+        }
+    }
+
+    func range(metric: PerformanceChartMetric, data: PerformanceChartData) -> ClosedRange<Double> {
+        let productionRange = data.valueRange(for: metric)
+        let values = data.series(for: metric).map(\.value).filter(\.isFinite)
+        guard !values.isEmpty else { return productionRange }
+
+        switch self {
+        case .production:
+            return productionRange
+        case .tight:
+            return paddedRange(for: values, minimumPadding: minimumPadding(for: metric))
+        case .wide:
+            let range = paddedRange(for: values, minimumPadding: minimumPadding(for: metric) * 2.5)
+            let extra = max(range.upperBound - range.lowerBound, 0.1) * 0.24
+            return (range.lowerBound - extra)...(range.upperBound + extra)
+        }
+    }
+
+    private func paddedRange(for values: [Double], minimumPadding: Double) -> ClosedRange<Double> {
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? minValue
+        let padding = max((maxValue - minValue) * 0.08, minimumPadding)
+        return (minValue - padding)...(maxValue + padding)
+    }
+
+    private func minimumPadding(for metric: PerformanceChartMetric) -> Double {
+        switch metric {
+        case .pace:
+            return 20
+        case .heartRate:
+            return 4
+        case .cadence:
+            return 3
+        case .altitude:
+            return 2
+        case .power:
+            return 8
+        case .speed:
+            return 0.08
+        case .strideLength:
+            return 0.02
+        case .verticalOscillation:
+            return 0.15
+        case .groundContactTime:
+            return 4
+        }
+    }
+}
+
+private enum RunDetailChartPreviewSmoothingMode: String, CaseIterable, Identifiable {
+    case catmullRom
+    case linear
+    case monotone
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .catmullRom:
+            return "Catmull"
+        case .linear:
+            return "Linear"
+        case .monotone:
+            return "Monotone"
+        }
+    }
+
+    var interpolationMethod: InterpolationMethod {
+        switch self {
+        case .catmullRom:
+            return .catmullRom
+        case .linear:
+            return .linear
+        case .monotone:
+            return .monotone
+        }
+    }
+}
+
+private struct RunDetailChartSandboxPreview: View {
+    @State private var scenario = RunDetailChartPreviewScenario.all[0]
+    @State private var selectedMetric: PerformanceChartMetric = .pace
+    @State private var selectedDistance: Double?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                header
+                controls
+                fullSection
+                comparisonGrid
+                scenarioMatrix
+            }
+            .padding(16)
+        }
+        .background(AppBackground())
+        .preferredColorScheme(.dark)
+        .onChange(of: scenario) {
+            syncSelectedMetric()
+        }
+    }
+
+    private var chartData: PerformanceChartData {
+        PerformanceChartData(run: scenario.run, detail: scenario.detail)
+    }
+
+    private var availableMetrics: [PerformanceChartMetric] {
+        chartData.availableMetrics
+    }
+
+    private var activeMetric: PerformanceChartMetric {
+        availableMetrics.contains(selectedMetric) ? selectedMetric : (availableMetrics.first ?? .pace)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("RunDetailChartViews Sandbox", systemImage: "chart.line.uptrend.xyaxis")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white)
+            Text("상세 화면 전체를 띄우지 않고 차트 데이터, 축 범위, 보간 차이를 바로 비교합니다.")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.white.opacity(0.68))
+        }
+    }
+
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("시나리오", selection: $scenario) {
+                ForEach(RunDetailChartPreviewScenario.all) { item in
+                    Text(item.title).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if !availableMetrics.isEmpty {
+                PerformanceMetricPicker(metrics: availableMetrics, selectedMetric: $selectedMetric)
+            }
+
+            Text(scenario.note)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.62))
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.055))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
+    }
+
+    private var fullSection: some View {
+        PerformanceChartSection(run: scenario.run, detail: scenario.detail)
+    }
+
+    private var comparisonGrid: some View {
+        DetailSection(title: "축 / 스무딩 비교", systemImage: "slider.horizontal.3", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                RunDetailChartComparisonCard(
+                    title: "앱 기본",
+                    rangeMode: .production,
+                    smoothingMode: .catmullRom,
+                    metric: activeMetric,
+                    chartData: chartData,
+                    selectedDistance: $selectedDistance
+                )
+                RunDetailChartComparisonCard(
+                    title: "선형 비교",
+                    rangeMode: .production,
+                    smoothingMode: .linear,
+                    metric: activeMetric,
+                    chartData: chartData,
+                    selectedDistance: $selectedDistance
+                )
+                RunDetailChartComparisonCard(
+                    title: "타이트 축",
+                    rangeMode: .tight,
+                    smoothingMode: .catmullRom,
+                    metric: activeMetric,
+                    chartData: chartData,
+                    selectedDistance: $selectedDistance
+                )
+                RunDetailChartComparisonCard(
+                    title: "와이드 + Monotone",
+                    rangeMode: .wide,
+                    smoothingMode: .monotone,
+                    metric: activeMetric,
+                    chartData: chartData,
+                    selectedDistance: $selectedDistance
+                )
+            }
+        }
+    }
+
+    private var scenarioMatrix: some View {
+        DetailSection(title: "시나리오 매트릭스", systemImage: "square.grid.2x2.fill", tint: Color(red: 0.29, green: 0.88, blue: 0.63)) {
+            VStack(spacing: 12) {
+                ForEach(RunDetailChartPreviewScenario.all) { item in
+                    RunDetailChartScenarioRow(
+                        scenario: item,
+                        metric: firstAvailableMetric(for: item),
+                        selectedDistance: $selectedDistance
+                    )
+                }
+            }
+        }
+    }
+
+    private func firstAvailableMetric(for scenario: RunDetailChartPreviewScenario) -> PerformanceChartMetric {
+        let data = PerformanceChartData(run: scenario.run, detail: scenario.detail)
+        if data.availableMetrics.contains(activeMetric) {
+            return activeMetric
+        }
+        return data.availableMetrics.first ?? .pace
+    }
+
+    private func syncSelectedMetric() {
+        guard !availableMetrics.isEmpty else { return }
+        if !availableMetrics.contains(selectedMetric) {
+            selectedMetric = availableMetrics.first ?? .pace
+        }
+    }
+}
+
+private struct RunDetailChartComparisonCard: View {
+    let title: String
+    let rangeMode: RunDetailChartPreviewRangeMode
+    let smoothingMode: RunDetailChartPreviewSmoothingMode
+    let metric: PerformanceChartMetric
+    let chartData: PerformanceChartData
+    @Binding var selectedDistance: Double?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                Spacer(minLength: 6)
+                Text("\(rangeMode.title) / \(smoothingMode.title)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.52))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+
+            RunMetricChartPlot(
+                metric: metric,
+                selectedDistance: $selectedDistance,
+                selectedPoint: selectedPoint,
+                points: chartData.series(for: metric),
+                valueRange: rangeMode.range(metric: metric, data: chartData),
+                averageValue: averageValue,
+                altitudePoints: chartData.altitudeSeries,
+                altitudeRange: chartData.altitudeRange,
+                strideValues: chartData.strideValues,
+                maxDistance: chartData.maxDistance,
+                interpolationMethod: smoothingMode.interpolationMethod
+            )
+            .frame(height: 132)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.045))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                )
+        )
+    }
+
+    private var selectedPoint: SimpleMetricChartPoint? {
+        guard let selectedDistance else { return nil }
+        return chartData.nearestSeriesPoint(for: metric, toKilometers: selectedDistance)
+    }
+
+    private var averageValue: Double? {
+        let points = chartData.series(for: metric)
+        guard !points.isEmpty else { return nil }
+        return points.map(\.value).reduce(0, +) / Double(points.count)
+    }
+}
+
+private struct RunDetailChartScenarioRow: View {
+    let scenario: RunDetailChartPreviewScenario
+    let metric: PerformanceChartMetric
+    @Binding var selectedDistance: Double?
+
+    var body: some View {
+        let data = PerformanceChartData(run: scenario.run, detail: scenario.detail)
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(scenario.title)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                Spacer()
+                Text(metric.title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(metric.tint)
+            }
+
+            RunMetricChartPlot(
+                metric: metric,
+                selectedDistance: $selectedDistance,
+                selectedPoint: nil,
+                points: data.series(for: metric),
+                valueRange: data.valueRange(for: metric),
+                averageValue: nil,
+                altitudePoints: data.altitudeSeries,
+                altitudeRange: data.altitudeRange,
+                strideValues: data.strideValues,
+                maxDistance: data.maxDistance,
+                interpolationMethod: .catmullRom
+            )
+            .frame(height: 86)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
+    }
+}
+
+private extension RunDetail {
+    static var mockChartSurges: RunDetail {
+        let start = RunningWorkout.demoSampleStartDate.addingTimeInterval(43_200)
+        let distances = stride(from: 0.0, through: 6_000.0, by: 300.0).map { $0 }
+
+        let timeline = distances.enumerated().map { index, distance in
+            DistanceTimelinePoint(
+                date: start.addingTimeInterval(Double(index) * 85),
+                elapsed: Double(index) * 85,
+                distanceMeters: distance,
+                segmentIndex: index < 10 ? 0 : 1
+            )
+        }
+
+        let paceSamples = distances.dropFirst().enumerated().map { index, distance in
+            let phase = Double(index % 5)
+            let seconds = [255, 305, 268, 345, 282][Int(phase)]
+            return PaceSample(
+                date: start.addingTimeInterval(Double(index + 1) * 85),
+                distanceMeters: distance,
+                secondsPerKilometer: Double(seconds),
+                segmentIndex: index < 9 ? 0 : 1
+            )
+        }
+
+        let heartRates = distances.dropFirst().enumerated().map { index, distance in
+            HeartRateSample(
+                date: start.addingTimeInterval(Double(index + 1) * 85),
+                bpm: 136 + min(Double(index) * 2.4, 38) + (index % 4 == 0 ? 8 : 0),
+                elapsed: Double(index + 1) * 85,
+                distanceMeters: distance,
+                segmentIndex: index < 9 ? 0 : 1
+            )
+        }
+
+        let route = distances.enumerated().map { index, distance in
+            RunRoutePoint(
+                latitude: 37.528 + Double(index) * 0.00035,
+                longitude: 126.935 + sin(Double(index) * 0.42) * 0.002,
+                timestamp: start.addingTimeInterval(Double(index) * 85),
+                distanceMeters: distance,
+                altitudeMeters: 14 + sin(Double(index) * 0.55) * 9 + Double(index % 3)
+            )
+        }
+
+        let cadence = distances.dropFirst().enumerated().map { index, distance in
+            RunningMetricSample(
+                date: start.addingTimeInterval(Double(index + 1) * 85),
+                value: Double([182, 174, 186, 168, 180][index % 5]),
+                elapsed: Double(index + 1) * 85,
+                distanceMeters: distance,
+                segmentIndex: index < 9 ? 0 : 1
+            )
+        }
+
+        return RunDetail(
+            route: route,
+            distanceTimeline: timeline,
+            heartRates: heartRates,
+            runningMetrics: RunningMetrics(cadence: cadence, power: [], speed: [], strideLength: [], verticalOscillation: [], groundContactTime: []),
+            paceSamples: paceSamples,
+            splits: [
+                RunSplit(index: 1, distanceMeters: 1_000, duration: 285, averageHeartRate: 145, averageCadence: 179),
+                RunSplit(index: 2, distanceMeters: 1_000, duration: 292, averageHeartRate: 153, averageCadence: 181),
+                RunSplit(index: 3, distanceMeters: 1_000, duration: 278, averageHeartRate: 162, averageCadence: 183),
+                RunSplit(index: 4, distanceMeters: 1_000, duration: 302, averageHeartRate: 168, averageCadence: 176),
+                RunSplit(index: 5, distanceMeters: 1_000, duration: 270, averageHeartRate: 174, averageCadence: 185),
+                RunSplit(index: 6, distanceMeters: 1_000, duration: 283, averageHeartRate: 171, averageCadence: 181)
+            ],
+            activeDuration: 1_710
+        )
+    }
+}
+
+struct RunDetailChartViews_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            RunDetailChartSandboxPreview()
+                .previewDisplayName("Chart Sandbox")
+
+            RunDetailChartSandboxPreview()
+                .previewDevice("iPhone SE (3rd generation)")
+                .previewDisplayName("Chart Sandbox SE")
+        }
+    }
+}
+#endif

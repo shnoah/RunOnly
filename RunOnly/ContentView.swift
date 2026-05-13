@@ -6,10 +6,13 @@ struct ContentView: View {
     @StateObject private var shoeStore = ShoeStore()
     @StateObject private var appSettings = AppSettingsStore()
     @StateObject private var mileageGoalStore = MileageGoalStore()
+    private let screenshotMode = AppStoreScreenshotMode.current
 
     var body: some View {
         Group {
-            if appSettings.hasCompletedHealthKitIntro {
+            if let screenshotMode {
+                AppStoreScreenshotDemoRootView(mode: screenshotMode)
+            } else if appSettings.hasCompletedHealthKitIntro {
                 mainTabs
             } else {
                 HealthKitOnboardingView(

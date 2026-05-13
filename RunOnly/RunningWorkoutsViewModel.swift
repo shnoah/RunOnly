@@ -130,6 +130,33 @@ final class RunningWorkoutsViewModel: ObservableObject {
         try await healthKitService.requestReadAuthorization()
     }
 
+    func loadAppStoreScreenshotData() {
+        let runs = AppStoreScreenshotFixtures.runs
+        allRuns = runs
+        filteredRunsCache = runs
+        latestVO2Max = AppStoreScreenshotFixtures.vo2MaxSamples.last
+        vo2MaxSamples = AppStoreScreenshotFixtures.vo2MaxSamples
+        restingHeartRateSnapshot = AppStoreScreenshotFixtures.restingHeartRateSnapshot
+        oldestRunningWorkoutDate = runs.map(\.startDate).min()
+        nextHistoryMonthStart = nil
+        hasMoreHistory = false
+        selectedRecordMonth = startOfMonth(AppStoreScreenshotFixtures.referenceDate)
+        selectedRecordDate = nil
+        personalRecords = AppStoreScreenshotFixtures.personalRecords
+        pendingPersonalRecordCandidates = []
+        personalRecordHistory = AppStoreScreenshotFixtures.personalRecordHistory
+        summary = RunningSummaryBuilder.build(
+            from: runs,
+            vo2Max: latestVO2Max,
+            restingHeartRateSnapshot: restingHeartRateSnapshot,
+            now: AppStoreScreenshotFixtures.referenceDate
+        )
+        monthlyMileage = MileageAggregator.monthlyPeriods(from: runs)
+        yearlyMileage = MileageAggregator.yearlyPeriods(from: runs)
+        rebuildRecordCollections()
+        state = .loaded(runs)
+    }
+
     // 소스 필터가 바뀌면 목록/요약/마일리지를 한 번에 다시 계산한다.
     func applyFilter() {
         let filteredRuns = showAppleWorkoutOnly ? allRuns.filter(\.isAppleWorkout) : allRuns

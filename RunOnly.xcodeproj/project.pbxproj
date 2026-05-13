@@ -46,6 +46,7 @@
 		001000000000000000000026 /* FeaturePredictionMileageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012A /* FeaturePredictionMileageViews.swift */; };
 		001000000000000000000027 /* FeatureShoesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012B /* FeatureShoesViews.swift */; };
 		001000000000000000000028 /* FeatureSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012C /* FeatureSettingsViews.swift */; };
+		001000000000000000000029 /* AppStoreScreenshotDemoViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012D /* AppStoreScreenshotDemoViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -102,6 +103,7 @@
 		00100000000000000000012A /* FeaturePredictionMileageViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeaturePredictionMileageViews.swift; sourceTree = "<group>"; };
 		00100000000000000000012B /* FeatureShoesViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureShoesViews.swift; sourceTree = "<group>"; };
 		00100000000000000000012C /* FeatureSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureSettingsViews.swift; sourceTree = "<group>"; };
+		00100000000000000000012D /* AppStoreScreenshotDemoViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshotDemoViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -136,6 +138,7 @@
 			children = (
 				001000000000000000000101 /* RunOnlyApp.swift */,
 				001000000000000000000102 /* ContentView.swift */,
+				00100000000000000000012D /* AppStoreScreenshotDemoViews.swift */,
 				00100000000000000000010C /* RunShareViews.swift */,
 				001000000000000000000126 /* RunShareModels.swift */,
 				001000000000000000000127 /* RunShareExport.swift */,
@@ -341,6 +344,7 @@
 				001000000000000000000026 /* FeaturePredictionMileageViews.swift in Sources */,
 				001000000000000000000027 /* FeatureShoesViews.swift in Sources */,
 				001000000000000000000028 /* FeatureSettingsViews.swift in Sources */,
+				001000000000000000000029 /* AppStoreScreenshotDemoViews.swift in Sources */,
 				00100000000000000000000D /* RunDetailViews.swift in Sources */,
 				00100000000000000000000E /* FeatureViews.swift in Sources */,
 			);
