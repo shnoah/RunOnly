@@ -460,14 +460,9 @@ extension HealthKitService {
         }
     }
 
-    // 추가 러닝 메트릭도 모두 같은 거리 타임라인 기준으로 맞춘다.
+    // 케이던스는 걸음 수 샘플을 거리 타임라인 기준으로 맞춰 만든다.
     func buildRunningMetrics(
         stepSamples: [RawStepSample],
-        powerSamples: [RawQuantitySample],
-        speedSamples: [RawQuantitySample],
-        strideLengthSamples: [RawQuantitySample],
-        verticalOscillationSamples: [RawQuantitySample],
-        groundContactTimeSamples: [RawQuantitySample],
         timeline: [DistanceTimelinePoint],
         activeIntervals: [ActiveInterval]
     ) -> RunningMetrics {
@@ -476,31 +471,6 @@ extension HealthKitService {
         return RunningMetrics(
             cadence: buildCadenceSamples(
                 from: stepSamples,
-                timelineLookup: timelineLookup,
-                activeIntervals: activeIntervals
-            ),
-            power: mapRunningMetricSamples(
-                powerSamples,
-                timelineLookup: timelineLookup,
-                activeIntervals: activeIntervals
-            ),
-            speed: mapRunningMetricSamples(
-                speedSamples,
-                timelineLookup: timelineLookup,
-                activeIntervals: activeIntervals
-            ),
-            strideLength: mapRunningMetricSamples(
-                strideLengthSamples,
-                timelineLookup: timelineLookup,
-                activeIntervals: activeIntervals
-            ),
-            verticalOscillation: mapRunningMetricSamples(
-                verticalOscillationSamples,
-                timelineLookup: timelineLookup,
-                activeIntervals: activeIntervals
-            ),
-            groundContactTime: mapRunningMetricSamples(
-                groundContactTimeSamples,
                 timelineLookup: timelineLookup,
                 activeIntervals: activeIntervals
             )
@@ -548,66 +518,6 @@ extension HealthKitService {
         }
 
         return normalizedRunningMetricSamples(samples)
-    }
-
-    func mapRunningMetricSamples(
-        _ samples: [RawQuantitySample],
-        timelineLookup: TimelineLookup,
-        activeIntervals: [ActiveInterval]
-    ) -> [RunningMetricSample] {
-        guard !timelineLookup.isEmpty else { return [] }
-
-        var mappedSamples: [RunningMetricSample] = []
-
-        for sample in samples {
-            if sample.endDate <= sample.startDate {
-                guard let interval = activeInterval(containing: sample.startDate, activeIntervals: activeIntervals) else {
-                    continue
-                }
-                let distancePoint = nearestTimelinePoint(
-                    to: sample.startDate,
-                    segmentIndex: interval.index,
-                    lookup: timelineLookup
-                )
-
-                mappedSamples.append(
-                    RunningMetricSample(
-                        date: sample.startDate,
-                        value: sample.value,
-                        elapsed: activeElapsed(at: sample.startDate, activeIntervals: activeIntervals),
-                        distanceMeters: distancePoint?.distanceMeters,
-                        segmentIndex: interval.index
-                    )
-                )
-                continue
-            }
-
-            let sampleInterval = DateInterval(start: sample.startDate, end: sample.endDate)
-            let overlaps = activeIntervals.compactMap { interval -> (ActiveInterval, DateInterval)? in
-                guard let overlap = overlapInterval(between: sampleInterval, and: interval.dateInterval) else { return nil }
-                return (interval, overlap)
-            }
-
-            for (interval, overlap) in overlaps where overlap.duration > 0 {
-                let distancePoint = nearestTimelinePoint(
-                    to: overlap.end,
-                    segmentIndex: interval.index,
-                    lookup: timelineLookup
-                )
-
-                mappedSamples.append(
-                    RunningMetricSample(
-                        date: overlap.end,
-                        value: sample.value,
-                        elapsed: activeElapsed(at: overlap.end, activeIntervals: activeIntervals),
-                        distanceMeters: distancePoint?.distanceMeters,
-                        segmentIndex: interval.index
-                    )
-                )
-            }
-        }
-
-        return normalizedRunningMetricSamples(mappedSamples)
     }
 
     func normalizedRunningMetricSamples(_ samples: [RunningMetricSample]) -> [RunningMetricSample] {

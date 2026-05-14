@@ -61,6 +61,9 @@ struct RunRouteSection: View {
 
 struct RunSplitSection: View {
     let detail: RunDetail
+    @State private var isExpanded = false
+
+    private let collapsedSplitCount = 5
 
     var body: some View {
         DetailSection(title: L10n.tr("구간"), systemImage: "flag.pattern.checkered", tint: Color(red: 0.29, green: 0.88, blue: 0.63)) {
@@ -70,18 +73,43 @@ struct RunSplitSection: View {
             } else {
                 VStack(spacing: 0) {
                     SplitTableHeader()
-                    ForEach(detail.splits) { split in
+                    ForEach(visibleSplits) { split in
                         SplitTableRow(split: split)
-                        if split.id != detail.splits.last?.id {
+                        if split.id != visibleSplits.last?.id {
                             Divider()
                                 .overlay(Color.white.opacity(0.06))
                                 .padding(.leading, 4)
                         }
                     }
+
+                    if shouldCollapse {
+                        SplitTableToggleButton(
+                            isExpanded: isExpanded,
+                            hiddenCount: hiddenSplitCount
+                        ) {
+                            withAnimation(.snappy(duration: 0.22)) {
+                                isExpanded.toggle()
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
                 }
                 .padding(.top, 4)
             }
         }
+    }
+
+    private var shouldCollapse: Bool {
+        detail.splits.count > collapsedSplitCount
+    }
+
+    private var hiddenSplitCount: Int {
+        max(detail.splits.count - collapsedSplitCount, 0)
+    }
+
+    private var visibleSplits: [RunSplit] {
+        guard shouldCollapse, !isExpanded else { return detail.splits }
+        return Array(detail.splits.prefix(collapsedSplitCount))
     }
 }
 
@@ -278,6 +306,18 @@ struct RunHeroMoodBadge: View {
 struct HeartRateZoneSection: View {
     let detail: RunDetail
     let isLoadingSupplementary: Bool
+    private let zoneRows: [HeartRateZoneRowModel]
+
+    init(detail: RunDetail, isLoadingSupplementary: Bool) {
+        self.detail = detail
+        self.isLoadingSupplementary = isLoadingSupplementary
+        self.zoneRows = HeartRateZoneRowModel.build(
+            distribution: detail.heartRateZoneDistribution,
+            heartRates: detail.heartRates,
+            zoneProfile: detail.heartRateZoneProfile,
+            activeDuration: detail.activeDuration
+        )
+    }
 
     var body: some View {
         DetailSection(title: "심박", systemImage: "heart.fill", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
@@ -298,51 +338,6 @@ struct HeartRateZoneSection: View {
                     }
                 }
             }
-        }
-    }
-
-    private var zoneRows: [HeartRateZoneRowModel] {
-        guard detail.heartRates.count >= 2 else { return [] }
-        guard let zoneProfile = detail.heartRateZoneProfile else { return [] }
-
-        let boundaries: [(label: String, lower: Double, upper: Double, color: Color)] = [
-            (L10n.tr("존 1"), 0.50, 0.60, Color(red: 0.42, green: 0.76, blue: 1.0)),
-            (L10n.tr("존 2"), 0.60, 0.70, Color(red: 0.45, green: 0.95, blue: 0.76)),
-            (L10n.tr("존 3"), 0.70, 0.80, Color(red: 0.95, green: 0.84, blue: 0.40)),
-            (L10n.tr("존 4"), 0.80, 0.90, Color(red: 0.95, green: 0.59, blue: 0.32)),
-            (L10n.tr("존 5"), 0.90, 1.01, Color(red: 0.94, green: 0.41, blue: 0.45))
-        ]
-
-        let sortedHeartRates = detail.heartRates.sorted {
-            ($0.elapsed ?? .greatestFiniteMagnitude) < ($1.elapsed ?? .greatestFiniteMagnitude)
-        }
-        let totalDuration = max(detail.activeDuration, 1)
-        var durations = Array(repeating: 0.0, count: boundaries.count)
-
-        for index in sortedHeartRates.indices {
-            let current = sortedHeartRates[index]
-            guard let currentElapsed = current.elapsed else { continue }
-            let nextElapsed = sortedHeartRates.indices.contains(index + 1)
-                ? (sortedHeartRates[index + 1].elapsed ?? detail.activeDuration)
-                : detail.activeDuration
-            let sampleDuration = max(nextElapsed - currentElapsed, 0)
-            guard sampleDuration > 0 else { continue }
-
-            if let zoneIndex = boundaries.firstIndex(where: {
-                let bpmRange = zoneProfile.bpmRange(lowerFraction: $0.lower, upperFraction: min($0.upper, 1.0))
-                return current.bpm >= Double(bpmRange.lowerBound) && current.bpm < Double(bpmRange.upperBound + 1)
-            }) {
-                durations[zoneIndex] += sampleDuration
-            }
-        }
-
-        return boundaries.enumerated().map { index, boundary in
-            return HeartRateZoneRowModel(
-                title: boundary.label,
-                duration: durations[index],
-                percentage: durations[index] / totalDuration,
-                color: boundary.color
-            )
         }
     }
 }
@@ -373,6 +368,41 @@ struct HeartRateZoneRowModel: Identifiable {
     let duration: TimeInterval
     let percentage: Double
     let color: Color
+
+    static func build(
+        distribution: HeartRateZoneDistribution?,
+        heartRates: [HeartRateSample],
+        zoneProfile: HeartRateZoneProfile?,
+        activeDuration: TimeInterval
+    ) -> [HeartRateZoneRowModel] {
+        let displayRows: [(label: String, color: Color)] = [
+            (L10n.tr("존 1"), Color(red: 0.42, green: 0.76, blue: 1.0)),
+            (L10n.tr("존 2"), Color(red: 0.45, green: 0.95, blue: 0.76)),
+            (L10n.tr("존 3"), Color(red: 0.95, green: 0.84, blue: 0.40)),
+            (L10n.tr("존 4"), Color(red: 0.95, green: 0.59, blue: 0.32)),
+            (L10n.tr("존 5"), Color(red: 0.94, green: 0.41, blue: 0.45))
+        ]
+
+        let resolvedDistribution = distribution ?? HeartRateZoneDistribution.build(
+            heartRates: heartRates,
+            zoneProfile: zoneProfile,
+            activeDuration: activeDuration
+        )
+        guard let resolvedDistribution else { return [] }
+
+        return resolvedDistribution.entries.compactMap { entry in
+            guard displayRows.indices.contains(entry.zoneIndex) else {
+                return nil
+            }
+            let displayRow = displayRows[entry.zoneIndex]
+            return HeartRateZoneRowModel(
+                title: displayRow.label,
+                duration: entry.duration,
+                percentage: entry.percentage,
+                color: displayRow.color
+            )
+        }
+    }
 }
 
 struct HeartRateZoneRow: View {
@@ -635,6 +665,43 @@ struct SplitTableRow: View {
     }
 }
 
+struct SplitTableToggleButton: View {
+    let isExpanded: Bool
+    let hiddenCount: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.footnote.weight(.semibold))
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundStyle(.white.opacity(0.86))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var title: String {
+        if isExpanded {
+            return L10n.tr("간단히 보기")
+        }
+
+        return L10n.format("%d개 구간 더보기", hiddenCount)
+    }
+}
+
 enum SplitColumnLayout {
     static let spacing: CGFloat = 10
     static let distanceWidth: CGFloat = 48
@@ -644,37 +711,56 @@ enum SplitColumnLayout {
 }
 
 struct RouteMapView: View {
-    let points: [RunRoutePoint]
+    private let displayData: RouteMapDisplayData
     @State private var position: MapCameraPosition = .automatic
+
+    init(points: [RunRoutePoint]) {
+        self.displayData = RouteMapDisplayData(points: points)
+    }
 
     var body: some View {
         Map(position: $position) {
-            if let start = points.first {
-                Annotation("Start", coordinate: start.coordinate) {
+            if let start = displayData.startCoordinate {
+                Annotation("Start", coordinate: start) {
                     Circle()
                         .fill(Color.green)
                         .frame(width: 12, height: 12)
                 }
             }
 
-            if let end = points.last {
-                Annotation("End", coordinate: end.coordinate) {
+            if let end = displayData.endCoordinate {
+                Annotation("End", coordinate: end) {
                     Circle()
                         .fill(Color.red)
                         .frame(width: 12, height: 12)
                 }
             }
 
-            MapPolyline(coordinates: points.map(\.coordinate))
+            MapPolyline(coordinates: displayData.coordinates)
                 .stroke(Color(red: 0.29, green: 0.88, blue: 0.63), lineWidth: 5)
         }
         .mapStyle(.standard(elevation: .flat))
         .onAppear {
-            position = .rect(mapRect)
+            position = .rect(displayData.mapRect)
         }
     }
+}
 
-    private var mapRect: MKMapRect {
+private struct RouteMapDisplayData {
+    let coordinates: [CLLocationCoordinate2D]
+    let startCoordinate: CLLocationCoordinate2D?
+    let endCoordinate: CLLocationCoordinate2D?
+    let mapRect: MKMapRect
+
+    init(points: [RunRoutePoint]) {
+        let displayPoints = Self.downsample(points, maxCount: 800)
+        coordinates = displayPoints.map(\.coordinate)
+        startCoordinate = points.first?.coordinate
+        endCoordinate = points.last?.coordinate
+        mapRect = Self.makeMapRect(from: displayPoints)
+    }
+
+    private static func makeMapRect(from points: [RunRoutePoint]) -> MKMapRect {
         let mapPoints = points.map { MKMapPoint($0.coordinate) }
         guard let first = mapPoints.first else { return .world }
 
@@ -683,6 +769,25 @@ struct RouteMapView: View {
         ) { partialResult, point in
             partialResult.union(MKMapRect(origin: point, size: MKMapSize(width: 0, height: 0)))
         }
+    }
+
+    private static func downsample(_ points: [RunRoutePoint], maxCount: Int) -> [RunRoutePoint] {
+        guard points.count > maxCount, maxCount > 2 else { return points }
+        let stride = Double(points.count - 1) / Double(maxCount - 1)
+        var result: [RunRoutePoint] = []
+        var lastIndex = -1
+
+        for sampleIndex in 0..<maxCount {
+            let sourceIndex = min(Int((Double(sampleIndex) * stride).rounded()), points.count - 1)
+            guard sourceIndex != lastIndex else { continue }
+            result.append(points[sourceIndex])
+            lastIndex = sourceIndex
+        }
+
+        if result.last?.id != points.last?.id {
+            result.append(points[points.count - 1])
+        }
+        return result
     }
 }
 
@@ -807,9 +912,9 @@ struct DemoScenarioPanel: View {
                         await viewModel.applyDebugScenario(.missingHeartRate)
                     }
                 }
-                Button("고급 메트릭 없음") {
+                Button("케이던스 없음") {
                     Task {
-                        await viewModel.applyDebugScenario(.missingAdvancedMetrics)
+                        await viewModel.applyDebugScenario(.missingCadence)
                     }
                 }
                 Button("빈 상세") {

@@ -24,13 +24,6 @@ struct RawStepSample {
     let count: Double
 }
 
-// 추가 러닝 메트릭 원본은 공통 숫자 구조로 통일한다.
-struct RawQuantitySample {
-    let startDate: Date
-    let endDate: Date
-    let value: Double
-}
-
 // pause/resume를 반영한 실제 활동 구간 하나를 뜻한다.
 struct ActiveInterval {
     let index: Int

@@ -21,9 +21,9 @@ It reads running workouts recorded on Apple devices, summarizes running readines
 - Split table with distance, pace, heart rate, and cadence
 - Pause / auto-pause aware calculations
 - Distance timeline based on Apple Health samples when available
-- Fallback detail handling when route, heart rate, or advanced metrics are missing
+- Fallback detail handling when route, heart rate, or cadence is missing
 
-## Advanced metrics currently supported
+## Health metrics currently supported
 
 PNR Run reads these Apple Health metrics when available:
 

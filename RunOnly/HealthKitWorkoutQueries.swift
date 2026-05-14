@@ -14,11 +14,6 @@ extension HealthKitService {
         let restingHeartRateType = HKObjectType.quantityType(forIdentifier: .restingHeartRate)
         let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)
         let stepCountType = HKObjectType.quantityType(forIdentifier: .stepCount)
-        let runningPowerType = HKObjectType.quantityType(forIdentifier: .runningPower)
-        let runningSpeedType = HKObjectType.quantityType(forIdentifier: .runningSpeed)
-        let runningStrideLengthType = HKObjectType.quantityType(forIdentifier: .runningStrideLength)
-        let runningVerticalOscillationType = HKObjectType.quantityType(forIdentifier: .runningVerticalOscillation)
-        let runningGroundContactTimeType = HKObjectType.quantityType(forIdentifier: .runningGroundContactTime)
         let workoutRouteType = HKSeriesType.workoutRoute()
 
         var readTypes: Set<HKObjectType> = [workoutType, workoutRouteType]
@@ -36,21 +31,6 @@ extension HealthKitService {
         }
         if let stepCountType {
             readTypes.insert(stepCountType)
-        }
-        if let runningPowerType {
-            readTypes.insert(runningPowerType)
-        }
-        if let runningSpeedType {
-            readTypes.insert(runningSpeedType)
-        }
-        if let runningStrideLengthType {
-            readTypes.insert(runningStrideLengthType)
-        }
-        if let runningVerticalOscillationType {
-            readTypes.insert(runningVerticalOscillationType)
-        }
-        if let runningGroundContactTimeType {
-            readTypes.insert(runningGroundContactTimeType)
         }
 
         try await healthStore.requestAuthorization(toShare: [], read: readTypes)
@@ -227,35 +207,27 @@ extension HealthKitService {
     }
 
     // 상세 화면 첫 진입에서는 핵심 차트와 스플릿에 필요한 데이터만 우선 읽는다.
-    func fetchRunDetail(for runningWorkout: RunningWorkout) async throws -> RunDetail {
+    func fetchRunDetail(
+        for runningWorkout: RunningWorkout,
+        trace: RunDetailPerformanceTrace? = nil
+    ) async throws -> RunDetail {
         guard let workout = runningWorkout.workout else {
             throw HealthKitServiceError.missingWorkoutReference
         }
 
+        trace?.mark("healthkit.initial_query_start")
         async let heartRateTask = fetchHeartRates(for: workout)
         async let distanceTask = fetchDistanceSamples(for: workout)
         async let stepCountTask = fetchStepCountSamples(for: workout)
-        async let powerTask = fetchQuantitySamples(for: workout, identifier: .runningPower, unit: .watt())
-        async let speedTask = fetchQuantitySamples(
-            for: workout,
-            identifier: .runningSpeed,
-            unit: .meter().unitDivided(by: .second())
-        )
-        async let strideLengthTask = fetchQuantitySamples(for: workout, identifier: .runningStrideLength, unit: .meter())
-        async let verticalOscillationTask = fetchQuantitySamples(
-            for: workout,
-            identifier: .runningVerticalOscillation,
-            unit: .meterUnit(with: .centi)
-        )
-        async let groundContactTimeTask = fetchQuantitySamples(
-            for: workout,
-            identifier: .runningGroundContactTime,
-            unit: .secondUnit(with: .milli)
-        )
 
         let activeIntervals = buildActiveIntervals(for: workout)
+        trace?.mark("healthkit.active_intervals_built", detail: "count=\(activeIntervals.count)")
         let distanceSamples = try await distanceTask
+        trace?.mark("healthkit.distance_done", detail: "samples=\(distanceSamples.count)")
         let route = distanceSamples.isEmpty ? (try await fetchRoute(for: workout)) : []
+        if distanceSamples.isEmpty {
+            trace?.mark("healthkit.route_fallback_done", detail: "points=\(route.count)")
+        }
         let distanceTimeline = buildDistanceTimeline(
             from: distanceSamples,
             route: route,
@@ -263,24 +235,30 @@ extension HealthKitService {
             targetDistance: runningWorkout.distanceInMeters,
             totalDuration: runningWorkout.duration
         )
+        trace?.mark("healthkit.timeline_built", detail: "points=\(distanceTimeline.count)")
         let heartRates = mapHeartRatesToDistanceTimeline(
             try await heartRateTask,
             timeline: distanceTimeline,
             activeIntervals: activeIntervals
         )
+        trace?.mark("healthkit.heart_rate_mapped", detail: "points=\(heartRates.count)")
         let stepSamples = try await stepCountTask
+        trace?.mark("healthkit.steps_done", detail: "samples=\(stepSamples.count)")
         let runningMetrics = buildRunningMetrics(
             stepSamples: stepSamples,
-            powerSamples: try await powerTask,
-            speedSamples: try await speedTask,
-            strideLengthSamples: try await strideLengthTask,
-            verticalOscillationSamples: try await verticalOscillationTask,
-            groundContactTimeSamples: try await groundContactTimeTask,
             timeline: distanceTimeline,
             activeIntervals: activeIntervals
         )
+        trace?.mark("healthkit.cadence_built", detail: "points=\(runningMetrics.cadence.count)")
+        let initialHeartRateZoneProfile = heartRates.map(\.bpm).max().map {
+            HeartRateZoneProfile(
+                method: .observedWorkoutMaximum,
+                restingHeartRateBPM: nil,
+                maximumHeartRateBPM: $0
+            )
+        }
 
-        return RunDetail(
+        let detail = RunDetail(
             route: route,
             distanceTimeline: distanceTimeline,
             heartRates: heartRates,
@@ -297,8 +275,10 @@ extension HealthKitService {
             activeDuration: activeIntervals.reduce(0) { partialResult, interval in
                 partialResult + interval.endDate.timeIntervalSince(interval.startDate)
             },
-            heartRateZoneProfile: nil
+            heartRateZoneProfile: initialHeartRateZoneProfile
         )
+        trace?.mark("healthkit.detail_built", detail: "splits=\(detail.splits.count)")
+        return detail
     }
 
     // 지도와 심박 존은 첫 화면이 뜬 뒤 보강 로딩할 수 있게 별도 진입점을 둔다.

@@ -341,42 +341,46 @@ struct VO2MaxSample {
 }
 
 // 심박 샘플은 상세 차트와 존 계산에서 함께 사용한다.
-struct HeartRateSample: Identifiable {
+struct HeartRateSample: Identifiable, Codable {
     let id = UUID()
     let date: Date
     let bpm: Double
     let elapsed: TimeInterval?
     let distanceMeters: Double?
     let segmentIndex: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case date
+        case bpm
+        case elapsed
+        case distanceMeters
+        case segmentIndex
+    }
 }
 
-// 케이던스/파워 같은 러닝 메트릭은 공통 구조로 다룬다.
-struct RunningMetricSample: Identifiable {
+// 케이던스 샘플은 상세 차트와 스플릿 보조값으로 함께 사용한다.
+struct RunningMetricSample: Identifiable, Codable {
     let id = UUID()
     let date: Date
     let value: Double
     let elapsed: TimeInterval?
     let distanceMeters: Double?
     let segmentIndex: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case date
+        case value
+        case elapsed
+        case distanceMeters
+        case segmentIndex
+    }
 }
 
 // 상세 화면에서 지원하는 러닝 메트릭 모음이다.
-struct RunningMetrics {
+struct RunningMetrics: Codable {
     let cadence: [RunningMetricSample]
-    let power: [RunningMetricSample]
-    let speed: [RunningMetricSample]
-    let strideLength: [RunningMetricSample]
-    let verticalOscillation: [RunningMetricSample]
-    let groundContactTime: [RunningMetricSample]
 
-    static let empty = RunningMetrics(
-        cadence: [],
-        power: [],
-        speed: [],
-        strideLength: [],
-        verticalOscillation: [],
-        groundContactTime: []
-    )
+    static let empty = RunningMetrics(cadence: [])
 }
 
 // 상세 화면 상단 요약에 필요한 파생 수치를 공용 구조로 묶는다.
@@ -411,7 +415,7 @@ struct RunSummaryMetrics: Codable, Equatable {
 }
 
 // 심박 존 계산 기준은 데이터 가용성에 따라 달라진다.
-enum HeartRateZoneMethod: String {
+enum HeartRateZoneMethod: String, Codable {
     case heartRateReserve
     case maximumHeartRate
     case observedWorkoutMaximum
@@ -429,7 +433,7 @@ enum HeartRateZoneMethod: String {
 }
 
 // 심박 존 범위를 계산하기 위해 필요한 사용자 프로필 값이다.
-struct HeartRateZoneProfile {
+struct HeartRateZoneProfile: Codable {
     let method: HeartRateZoneMethod
     let restingHeartRateBPM: Double?
     let maximumHeartRateBPM: Double
@@ -450,6 +454,70 @@ struct HeartRateZoneProfile {
     }
 }
 
+struct HeartRateZoneDistribution: Codable, Equatable {
+    let entries: [HeartRateZoneDistributionEntry]
+
+    static func build(
+        heartRates: [HeartRateSample],
+        zoneProfile: HeartRateZoneProfile?,
+        activeDuration: TimeInterval
+    ) -> HeartRateZoneDistribution? {
+        guard heartRates.count >= 2 else { return nil }
+        guard let zoneProfile else { return nil }
+
+        let boundaries = HeartRateZoneDistributionEntry.boundaries
+        let sortedHeartRates = heartRates.sorted {
+            ($0.elapsed ?? .greatestFiniteMagnitude) < ($1.elapsed ?? .greatestFiniteMagnitude)
+        }
+        let totalDuration = max(activeDuration, 1)
+        var durations = Array(repeating: 0.0, count: boundaries.count)
+
+        for index in sortedHeartRates.indices {
+            let current = sortedHeartRates[index]
+            guard let currentElapsed = current.elapsed else { continue }
+            let nextElapsed = sortedHeartRates.indices.contains(index + 1)
+                ? (sortedHeartRates[index + 1].elapsed ?? activeDuration)
+                : activeDuration
+            let sampleDuration = max(nextElapsed - currentElapsed, 0)
+            guard sampleDuration > 0 else { continue }
+
+            if let zoneIndex = boundaries.firstIndex(where: {
+                let bpmRange = zoneProfile.bpmRange(
+                    lowerFraction: $0.lowerFraction,
+                    upperFraction: min($0.upperFraction, 1.0)
+                )
+                return current.bpm >= Double(bpmRange.lowerBound) && current.bpm < Double(bpmRange.upperBound + 1)
+            }) {
+                durations[zoneIndex] += sampleDuration
+            }
+        }
+
+        return HeartRateZoneDistribution(
+            entries: durations.enumerated().map { index, duration in
+                HeartRateZoneDistributionEntry(
+                    zoneIndex: index,
+                    duration: duration,
+                    percentage: duration / totalDuration
+                )
+            }
+        )
+    }
+}
+
+struct HeartRateZoneDistributionEntry: Codable, Equatable {
+    let zoneIndex: Int
+    let duration: TimeInterval
+    let percentage: Double
+
+    static let boundaries: [(lowerFraction: Double, upperFraction: Double)] = [
+        (0.50, 0.60),
+        (0.60, 0.70),
+        (0.70, 0.80),
+        (0.80, 0.90),
+        (0.90, 1.01)
+    ]
+}
+
 // 러닝 상세 화면에 필요한 모든 가공 데이터를 한 번에 묶는다.
 struct RunDetail {
     let route: [RunRoutePoint]
@@ -460,6 +528,7 @@ struct RunDetail {
     let splits: [RunSplit]
     let activeDuration: TimeInterval
     let heartRateZoneProfile: HeartRateZoneProfile?
+    let heartRateZoneDistribution: HeartRateZoneDistribution?
 
     init(
         route: [RunRoutePoint],
@@ -469,7 +538,8 @@ struct RunDetail {
         paceSamples: [PaceSample],
         splits: [RunSplit],
         activeDuration: TimeInterval? = nil,
-        heartRateZoneProfile: HeartRateZoneProfile? = nil
+        heartRateZoneProfile: HeartRateZoneProfile? = nil,
+        heartRateZoneDistribution: HeartRateZoneDistribution? = nil
     ) {
         self.route = route
         self.distanceTimeline = distanceTimeline
@@ -479,6 +549,11 @@ struct RunDetail {
         self.splits = splits
         self.activeDuration = activeDuration ?? distanceTimeline.last?.elapsed ?? 0
         self.heartRateZoneProfile = heartRateZoneProfile
+        self.heartRateZoneDistribution = heartRateZoneDistribution ?? HeartRateZoneDistribution.build(
+            heartRates: heartRates,
+            zoneProfile: heartRateZoneProfile,
+            activeDuration: self.activeDuration
+        )
     }
 
     // route 고도는 샘플이 촘촘해 미세 상승이 잘게 쪼개질 수 있어,
@@ -597,14 +672,16 @@ struct RunDetail {
         paceSamples: [],
         splits: [],
         activeDuration: 0,
-        heartRateZoneProfile: nil
+        heartRateZoneProfile: nil,
+        heartRateZoneDistribution: nil
     )
 
     func updatingSupplementary(
         route: [RunRoutePoint],
         heartRateZoneProfile: HeartRateZoneProfile?
     ) -> RunDetail {
-        RunDetail(
+        let updatedProfile = heartRateZoneProfile ?? self.heartRateZoneProfile
+        return RunDetail(
             route: route.isEmpty ? self.route : route,
             distanceTimeline: distanceTimeline,
             heartRates: heartRates,
@@ -612,7 +689,42 @@ struct RunDetail {
             paceSamples: paceSamples,
             splits: splits,
             activeDuration: activeDuration,
-            heartRateZoneProfile: heartRateZoneProfile ?? self.heartRateZoneProfile
+            heartRateZoneProfile: updatedProfile,
+            heartRateZoneDistribution: HeartRateZoneDistribution.build(
+                heartRates: heartRates,
+                zoneProfile: updatedProfile,
+                activeDuration: activeDuration
+            )
+        )
+    }
+
+    func mergingSupplementary(from fallback: RunDetail?) -> RunDetail {
+        guard let fallback else { return self }
+        return RunDetail(
+            route: route.isEmpty ? fallback.route : route,
+            distanceTimeline: distanceTimeline,
+            heartRates: heartRates,
+            runningMetrics: runningMetrics,
+            paceSamples: paceSamples,
+            splits: splits,
+            activeDuration: activeDuration,
+            heartRateZoneProfile: fallback.heartRateZoneProfile ?? heartRateZoneProfile,
+            heartRateZoneDistribution: fallback.heartRateZoneDistribution ?? heartRateZoneDistribution
+        )
+    }
+
+    func detailCacheSnapshot(for run: RunningWorkout) -> RunDetailCacheSnapshot {
+        return RunDetailCacheSnapshot(
+            runID: run.id,
+            startDate: run.startDate,
+            duration: run.duration,
+            distanceInMeters: run.distanceInMeters,
+            distanceTimeline: distanceTimeline,
+            heartRates: heartRates,
+            cadence: runningMetrics.cadence,
+            paceSamples: paceSamples,
+            splits: splits,
+            activeDuration: activeDuration
         )
     }
 }
@@ -642,7 +754,7 @@ struct RunRoutePoint: Identifiable {
 }
 
 // 거리 타임라인은 러닝 전체를 같은 축으로 연결하는 기준선이다.
-struct DistanceTimelinePoint: Identifiable {
+struct DistanceTimelinePoint: Identifiable, Codable {
     let id: Double
     let date: Date
     let elapsed: TimeInterval
@@ -659,22 +771,37 @@ struct DistanceTimelinePoint: Identifiable {
 }
 
 // 페이스 샘플은 거리별 페이스 차트를 만들 때 사용한다.
-struct PaceSample: Identifiable {
+struct PaceSample: Identifiable, Codable {
     let id = UUID()
     let date: Date
     let distanceMeters: Double
     let secondsPerKilometer: Double
     let segmentIndex: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case date
+        case distanceMeters
+        case secondsPerKilometer
+        case segmentIndex
+    }
 }
 
 // 스플릿은 구간별 평균값을 테이블에 뿌리기 쉽게 가공한 결과다.
-struct RunSplit: Identifiable {
+struct RunSplit: Identifiable, Codable {
     let id = UUID()
     let index: Int
     let distanceMeters: Double
     let duration: TimeInterval
     let averageHeartRate: Double?
     let averageCadence: Double?
+
+    private enum CodingKeys: String, CodingKey {
+        case index
+        case distanceMeters
+        case duration
+        case averageHeartRate
+        case averageCadence
+    }
 
     var paceSecondsPerKilometer: Double {
         duration / max(distanceMeters / 1_000, 0.001)
@@ -798,26 +925,23 @@ extension RunDetail {
         let altitude: Double
         let heartRate: Double
         let cadence: Double
-        let power: Double
         let pace: Double
-        let verticalOscillation: Double
-        let groundContactTime: Double
     }
 
     private static let demoTelemetry: [DemoTelemetryPoint] = [
-        DemoTelemetryPoint(elapsed: 0, distance: 0, latitude: 37.52893, longitude: 126.93473, altitude: 11.2, heartRate: 108, cadence: 158, power: 178, pace: 322, verticalOscillation: 8.8, groundContactTime: 268),
-        DemoTelemetryPoint(elapsed: 120, distance: 370, latitude: 37.52943, longitude: 126.93860, altitude: 11.8, heartRate: 132, cadence: 168, power: 215, pace: 313, verticalOscillation: 8.5, groundContactTime: 252),
-        DemoTelemetryPoint(elapsed: 240, distance: 760, latitude: 37.52992, longitude: 126.94258, altitude: 12.4, heartRate: 143, cadence: 172, power: 232, pace: 300, verticalOscillation: 8.2, groundContactTime: 244),
-        DemoTelemetryPoint(elapsed: 360, distance: 1_170, latitude: 37.53038, longitude: 126.94678, altitude: 13.6, heartRate: 151, cadence: 176, power: 246, pace: 288, verticalOscillation: 8.0, groundContactTime: 238),
-        DemoTelemetryPoint(elapsed: 480, distance: 1_580, latitude: 37.52978, longitude: 126.95086, altitude: 15.1, heartRate: 158, cadence: 178, power: 257, pace: 284, verticalOscillation: 7.9, groundContactTime: 234),
-        DemoTelemetryPoint(elapsed: 600, distance: 1_990, latitude: 37.52872, longitude: 126.95415, altitude: 17.4, heartRate: 163, cadence: 180, power: 266, pace: 281, verticalOscillation: 7.8, groundContactTime: 230),
-        DemoTelemetryPoint(elapsed: 720, distance: 2_395, latitude: 37.52718, longitude: 126.95648, altitude: 19.2, heartRate: 166, cadence: 181, power: 268, pace: 289, verticalOscillation: 7.9, groundContactTime: 229),
-        DemoTelemetryPoint(elapsed: 840, distance: 2_790, latitude: 37.52552, longitude: 126.95510, altitude: 18.8, heartRate: 168, cadence: 180, power: 261, pace: 297, verticalOscillation: 8.1, groundContactTime: 232),
-        DemoTelemetryPoint(elapsed: 960, distance: 3_185, latitude: 37.52410, longitude: 126.95198, altitude: 16.2, heartRate: 169, cadence: 179, power: 254, pace: 303, verticalOscillation: 8.3, groundContactTime: 236),
-        DemoTelemetryPoint(elapsed: 1_080, distance: 3_590, latitude: 37.52303, longitude: 126.94815, altitude: 14.6, heartRate: 171, cadence: 181, power: 271, pace: 286, verticalOscillation: 7.8, groundContactTime: 228),
-        DemoTelemetryPoint(elapsed: 1_200, distance: 4_015, latitude: 37.52448, longitude: 126.94466, altitude: 13.4, heartRate: 174, cadence: 183, power: 282, pace: 278, verticalOscillation: 7.6, groundContactTime: 224),
-        DemoTelemetryPoint(elapsed: 1_320, distance: 4_450, latitude: 37.52655, longitude: 126.94118, altitude: 12.6, heartRate: 176, cadence: 184, power: 286, pace: 274, verticalOscillation: 7.5, groundContactTime: 222),
-        DemoTelemetryPoint(elapsed: 1_465, distance: 5_020, latitude: 37.52893, longitude: 126.93473, altitude: 11.4, heartRate: 172, cadence: 182, power: 270, pace: 286, verticalOscillation: 7.8, groundContactTime: 226)
+        DemoTelemetryPoint(elapsed: 0, distance: 0, latitude: 37.52893, longitude: 126.93473, altitude: 11.2, heartRate: 108, cadence: 158, pace: 322),
+        DemoTelemetryPoint(elapsed: 120, distance: 370, latitude: 37.52943, longitude: 126.93860, altitude: 11.8, heartRate: 132, cadence: 168, pace: 313),
+        DemoTelemetryPoint(elapsed: 240, distance: 760, latitude: 37.52992, longitude: 126.94258, altitude: 12.4, heartRate: 143, cadence: 172, pace: 300),
+        DemoTelemetryPoint(elapsed: 360, distance: 1_170, latitude: 37.53038, longitude: 126.94678, altitude: 13.6, heartRate: 151, cadence: 176, pace: 288),
+        DemoTelemetryPoint(elapsed: 480, distance: 1_580, latitude: 37.52978, longitude: 126.95086, altitude: 15.1, heartRate: 158, cadence: 178, pace: 284),
+        DemoTelemetryPoint(elapsed: 600, distance: 1_990, latitude: 37.52872, longitude: 126.95415, altitude: 17.4, heartRate: 163, cadence: 180, pace: 281),
+        DemoTelemetryPoint(elapsed: 720, distance: 2_395, latitude: 37.52718, longitude: 126.95648, altitude: 19.2, heartRate: 166, cadence: 181, pace: 289),
+        DemoTelemetryPoint(elapsed: 840, distance: 2_790, latitude: 37.52552, longitude: 126.95510, altitude: 18.8, heartRate: 168, cadence: 180, pace: 297),
+        DemoTelemetryPoint(elapsed: 960, distance: 3_185, latitude: 37.52410, longitude: 126.95198, altitude: 16.2, heartRate: 169, cadence: 179, pace: 303),
+        DemoTelemetryPoint(elapsed: 1_080, distance: 3_590, latitude: 37.52303, longitude: 126.94815, altitude: 14.6, heartRate: 171, cadence: 181, pace: 286),
+        DemoTelemetryPoint(elapsed: 1_200, distance: 4_015, latitude: 37.52448, longitude: 126.94466, altitude: 13.4, heartRate: 174, cadence: 183, pace: 278),
+        DemoTelemetryPoint(elapsed: 1_320, distance: 4_450, latitude: 37.52655, longitude: 126.94118, altitude: 12.6, heartRate: 176, cadence: 184, pace: 274),
+        DemoTelemetryPoint(elapsed: 1_465, distance: 5_020, latitude: 37.52893, longitude: 126.93473, altitude: 11.4, heartRate: 172, cadence: 182, pace: 286)
     ]
 
     private static func demoDate(elapsed: TimeInterval) -> Date {
@@ -837,31 +961,7 @@ extension RunDetail {
     }
 
     private static func mockRunningMetrics() -> RunningMetrics {
-        RunningMetrics(
-            cadence: demoMetricSamples(\.cadence),
-            power: demoMetricSamples(\.power),
-            speed: demoMetricSamples(\.pace).map {
-                RunningMetricSample(
-                    date: $0.date,
-                    value: 1_000 / $0.value,
-                    elapsed: $0.elapsed,
-                    distanceMeters: $0.distanceMeters,
-                    segmentIndex: $0.segmentIndex
-                )
-            },
-            strideLength: demoTelemetry.map {
-                let speedMetersPerSecond = 1_000 / $0.pace
-                return RunningMetricSample(
-                    date: demoDate(elapsed: $0.elapsed),
-                    value: speedMetersPerSecond * 60 / $0.cadence,
-                    elapsed: $0.elapsed,
-                    distanceMeters: $0.distance,
-                    segmentIndex: 0
-                )
-            },
-            verticalOscillation: demoMetricSamples(\.verticalOscillation),
-            groundContactTime: demoMetricSamples(\.groundContactTime)
-        )
+        RunningMetrics(cadence: demoMetricSamples(\.cadence))
     }
 
     static let mockMissingRoute = RunDetail(
@@ -1002,26 +1102,6 @@ extension RunDetail {
                 RunningMetricSample(date: .now.addingTimeInterval(-720), value: 173, elapsed: 360, distanceMeters: 1_160, segmentIndex: 0),
                 RunningMetricSample(date: .now.addingTimeInterval(-240), value: 176, elapsed: 480, distanceMeters: 1_740, segmentIndex: 1),
                 RunningMetricSample(date: .now.addingTimeInterval(-60), value: 178, elapsed: 660, distanceMeters: 2_540, segmentIndex: 1)
-            ],
-            power: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 214, elapsed: 180, distanceMeters: 560, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-240), value: 232, elapsed: 480, distanceMeters: 1_740, segmentIndex: 1)
-            ],
-            speed: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 3.0, elapsed: 180, distanceMeters: 560, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-240), value: 3.3, elapsed: 480, distanceMeters: 1_740, segmentIndex: 1)
-            ],
-            strideLength: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 1.01, elapsed: 180, distanceMeters: 560, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-240), value: 1.07, elapsed: 480, distanceMeters: 1_740, segmentIndex: 1)
-            ],
-            verticalOscillation: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 8.4, elapsed: 180, distanceMeters: 560, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-240), value: 8.7, elapsed: 480, distanceMeters: 1_740, segmentIndex: 1)
-            ],
-            groundContactTime: [
-                RunningMetricSample(date: .now.addingTimeInterval(-900), value: 252, elapsed: 180, distanceMeters: 560, segmentIndex: 0),
-                RunningMetricSample(date: .now.addingTimeInterval(-240), value: 241, elapsed: 480, distanceMeters: 1_740, segmentIndex: 1)
             ]
         ),
         paceSamples: [
@@ -1038,7 +1118,7 @@ extension RunDetail {
         ]
     )
 
-    static let mockMissingAdvancedMetrics = RunDetail(
+    static let mockMissingCadence = RunDetail(
         route: [
             RunRoutePoint(latitude: 37.5657, longitude: 126.9771, timestamp: .now.addingTimeInterval(-840), distanceMeters: 0, altitudeMeters: 9),
             RunRoutePoint(latitude: 37.5666, longitude: 126.9789, timestamp: .now.addingTimeInterval(-630), distanceMeters: 710, altitudeMeters: 14),

@@ -1,5 +1,34 @@
 import Foundation
 
+final class RunDetailPerformanceTrace {
+    private let runID: String
+    private let startTime = ProcessInfo.processInfo.systemUptime
+    private var previousTime: TimeInterval
+    private let lock = NSLock()
+
+    init(runID: UUID) {
+        self.runID = String(runID.uuidString.prefix(8))
+        self.previousTime = startTime
+        mark("start")
+    }
+
+    func mark(_ event: String, detail: String = "") {
+        #if DEBUG
+        lock.lock()
+        defer { lock.unlock() }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        let totalMilliseconds = Int((now - startTime) * 1_000)
+        let deltaMilliseconds = Int((now - previousTime) * 1_000)
+        previousTime = now
+
+        let suffix = detail.isEmpty ? "" : " \(detail)"
+        let message = "PNR_DETAIL_PERF run=\(runID) event=\(event) total=\(totalMilliseconds)ms delta=\(deltaMilliseconds)ms\(suffix)"
+        print(message)
+        #endif
+    }
+}
+
 // 상세 화면은 한 번 선택한 러닝의 HealthKit 데이터를 비동기로 읽어 상태를 관리한다.
 @MainActor
 final class RunDetailViewModel: ObservableObject {
@@ -17,6 +46,8 @@ final class RunDetailViewModel: ObservableObject {
 
     private let healthKitService = HealthKitService()
     private let summaryCacheStore = RunSummaryCacheStore.shared
+    private let detailCacheStore = RunDetailCacheStore.shared
+    private let heartRateZoneProfileCacheStore = HeartRateZoneProfileCacheStore.shared
     private let run: RunningWorkout
     private let initialScenario: DebugScenario?
     private var hasAppliedInitialScenario = false
@@ -56,18 +87,51 @@ final class RunDetailViewModel: ObservableObject {
 
         loadGeneration += 1
         let currentGeneration = loadGeneration
-        state = .loading
         isLoadingSupplementary = false
 
+        let trace = RunDetailPerformanceTrace(runID: run.id)
+        let cachedProfile = heartRateZoneProfileCacheStore.freshProfile
+        if cachedProfile != nil {
+            trace.mark("zone_profile_cache_hit")
+        } else {
+            trace.mark("zone_profile_cache_miss")
+        }
+
+        let cachedDetail = detailCacheStore.detail(for: run, heartRateZoneProfile: cachedProfile)
+        if let cachedDetail {
+            trace.mark("cache_hit")
+            updateCachedSummary(from: cachedDetail)
+            state = .loaded(cachedDetail)
+            trace.mark("cache_state_set", detail: "splits=\(cachedDetail.splits.count) hr=\(cachedDetail.heartRates.count)")
+            trace.mark("detail_cache_skip_healthkit")
+            await loadSupplementary(for: cachedDetail, generation: currentGeneration, trace: trace)
+            trace.mark("view_model.done")
+            return
+        } else {
+            trace.mark("cache_miss")
+            state = .loading
+        }
+
         do {
-            let detail = try await healthKitService.fetchRunDetail(for: run)
+            let detail = try await healthKitService.fetchRunDetail(for: run, trace: trace)
             guard currentGeneration == loadGeneration else { return }
-            updateCachedSummary(from: detail)
-            state = .loaded(detail)
-            await loadSupplementary(for: detail, generation: currentGeneration)
+            trace.mark("view_model.initial_detail_ready", detail: "splits=\(detail.splits.count) hr=\(detail.heartRates.count) route=\(detail.route.count)")
+            let profileAdjustedDetail = cachedProfile.map {
+                detail.updatingSupplementary(route: [], heartRateZoneProfile: $0)
+            } ?? detail
+            let displayDetail = profileAdjustedDetail.mergingSupplementary(from: loadedDetail)
+            updateCachedSummary(from: displayDetail)
+            detailCacheStore.save(displayDetail, for: run)
+            trace.mark("cache_save")
+            state = .loaded(displayDetail)
+            trace.mark("view_model.initial_state_set")
+            await loadSupplementary(for: displayDetail, generation: currentGeneration, trace: trace)
+            trace.mark("view_model.done")
         } catch {
             guard currentGeneration == loadGeneration else { return }
-            state = .failed(error.localizedDescription)
+            if cachedDetail == nil {
+                state = .failed(error.localizedDescription)
+            }
             isLoadingSupplementary = false
         }
     }
@@ -78,7 +142,7 @@ final class RunDetailViewModel: ObservableObject {
         case pausedWorkout
         case missingRoute
         case missingHeartRate
-        case missingAdvancedMetrics
+        case missingCadence
         case empty
     }
 
@@ -102,46 +166,98 @@ final class RunDetailViewModel: ObservableObject {
         case .missingHeartRate:
             state = .loaded(.mockMissingHeartRate)
             cachedSummary = RunDetail.mockMissingHeartRate.summaryMetrics
-        case .missingAdvancedMetrics:
-            state = .loaded(.mockMissingAdvancedMetrics)
-            cachedSummary = RunDetail.mockMissingAdvancedMetrics.summaryMetrics
+        case .missingCadence:
+            state = .loaded(.mockMissingCadence)
+            cachedSummary = RunDetail.mockMissingCadence.summaryMetrics
         case .empty:
             state = .loaded(.empty)
             cachedSummary = nil
         }
     }
 
-    private func loadSupplementary(for detail: RunDetail, generation: Int) async {
+    private func loadSupplementary(
+        for detail: RunDetail,
+        generation: Int,
+        trace: RunDetailPerformanceTrace? = nil
+    ) async {
         isLoadingSupplementary = true
+        trace?.mark("supplementary.start")
         defer {
             if generation == loadGeneration {
                 isLoadingSupplementary = false
+                trace?.mark("supplementary.loading_flag_cleared")
             }
         }
 
-        async let heartRateZoneProfileTask = healthKitService.fetchRunHeartRateZoneProfile(
-            for: run,
-            observedMaximumHeartRate: detail.heartRates.map(\.bpm).max()
-        )
+        let cachedProfile = heartRateZoneProfileCacheStore.freshProfile
+        let heartRateZoneProfileTask: Task<HeartRateZoneProfile?, Never>? = cachedProfile == nil
+            ? Task {
+                await healthKitService.fetchRunHeartRateZoneProfile(
+                    for: run,
+                    observedMaximumHeartRate: detail.heartRates.map(\.bpm).max()
+                )
+            }
+            : nil
 
         let route: [RunRoutePoint]
         if detail.route.isEmpty {
+            trace?.mark("supplementary.route_query_start")
             route = (try? await healthKitService.fetchRunRoute(for: run)) ?? []
+            trace?.mark("supplementary.route_query_done", detail: "points=\(route.count)")
+            applySupplementaryUpdate(
+                route: route,
+                heartRateZoneProfile: nil,
+                generation: generation
+            )
+            trace?.mark("supplementary.route_state_set", detail: "route=\(route.count)")
         } else {
             route = detail.route
+            trace?.mark("supplementary.route_reused", detail: "points=\(route.count)")
         }
 
-        let heartRateZoneProfile = await heartRateZoneProfileTask
+        let heartRateZoneProfile: HeartRateZoneProfile?
+        if let cachedProfile {
+            heartRateZoneProfile = cachedProfile
+            trace?.mark("supplementary.zone_profile_cache_hit")
+        } else {
+            heartRateZoneProfile = await heartRateZoneProfileTask?.value
+            heartRateZoneProfileCacheStore.save(heartRateZoneProfile)
+            trace?.mark("supplementary.zone_profile_done")
+        }
 
         guard generation == loadGeneration else { return }
         guard case .loaded(let currentDetail) = state else { return }
 
         let updatedDetail = currentDetail.updatingSupplementary(
-            route: route,
+            route: route.isEmpty ? currentDetail.route : route,
+            heartRateZoneProfile: heartRateZoneProfile
+        )
+        updateCachedSummary(from: updatedDetail)
+        detailCacheStore.save(updatedDetail, for: run)
+        trace?.mark("cache_save")
+        state = .loaded(updatedDetail)
+        trace?.mark("supplementary.state_set", detail: "route=\(route.count)")
+    }
+
+    private func applySupplementaryUpdate(
+        route: [RunRoutePoint],
+        heartRateZoneProfile: HeartRateZoneProfile?,
+        generation: Int
+    ) {
+        guard generation == loadGeneration else { return }
+        guard case .loaded(let currentDetail) = state else { return }
+
+        let updatedDetail = currentDetail.updatingSupplementary(
+            route: route.isEmpty ? currentDetail.route : route,
             heartRateZoneProfile: heartRateZoneProfile
         )
         updateCachedSummary(from: updatedDetail)
         state = .loaded(updatedDetail)
+    }
+
+    private var loadedDetail: RunDetail? {
+        guard case .loaded(let detail) = state else { return nil }
+        return detail
     }
 
     private func updateCachedSummary(from detail: RunDetail) {

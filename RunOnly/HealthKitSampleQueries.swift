@@ -296,47 +296,5 @@ extension HealthKitService {
         }
     }
 
-    // 파워, 속도, 보폭 등 추가 메트릭은 공통 쿼리 함수 하나로 읽는다.
-    func fetchQuantitySamples(
-        for workout: HKWorkout,
-        identifier: HKQuantityTypeIdentifier,
-        unit: HKUnit
-    ) async throws -> [RawQuantitySample] {
-        guard let quantityType = HKObjectType.quantityType(forIdentifier: identifier) else {
-            return []
-        }
-
-        let predicate = HKQuery.predicateForObjects(from: workout)
-        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKSampleQuery(
-                sampleType: quantityType,
-                predicate: predicate,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: [sortDescriptor]
-            ) { _, samples, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-
-                let quantitySamples = ((samples as? [HKQuantitySample]) ?? []).compactMap { sample -> RawQuantitySample? in
-                    let value = sample.quantity.doubleValue(for: unit)
-                    guard value.isFinite, sample.endDate >= sample.startDate else { return nil }
-                    return RawQuantitySample(
-                        startDate: sample.startDate,
-                        endDate: sample.endDate,
-                        value: value
-                    )
-                }
-
-                continuation.resume(returning: quantitySamples)
-            }
-
-            healthStore.execute(query)
-        }
-    }
-
     // 거리 타임라인에서 일정 간격의 페이스 샘플만 추려 차트 노이즈를 줄인다.
 }

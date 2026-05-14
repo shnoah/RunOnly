@@ -581,11 +581,13 @@ struct DataManagementView: View {
         .confirmationDialog("분석 캐시 초기화", isPresented: $showingDeleteAnalysisCacheConfirmation, titleVisibility: .visible) {
             Button("초기화", role: .destructive) {
                 RunSummaryCacheStore.shared.clearAllData()
-                analysisCacheStatusMessage = L10n.tr("평균 심박, 케이던스, 상승 고도 캐시를 삭제했습니다.")
+                RunDetailCacheStore.shared.clearAllData()
+                HeartRateZoneProfileCacheStore.shared.clearAllData()
+                analysisCacheStatusMessage = L10n.tr("평균 심박, 케이던스, 상승 고도, 상세 차트, 심박존 기준 캐시를 삭제했습니다.")
             }
             Button("취소", role: .cancel) {}
         } message: {
-            Text(L10n.tr("상세 화면을 빠르게 보여주기 위해 저장한 파생 요약값만 삭제합니다. Apple 건강 원본 러닝 데이터와 신발 데이터는 그대로 유지됩니다."))
+            Text(L10n.tr("상세 화면을 빠르게 보여주기 위해 기기에 저장한 파생 요약값, 차트 데이터, 심박존 기준 캐시만 삭제합니다. Apple 건강 원본 러닝 데이터, 경로 좌표, 신발 데이터는 그대로 유지됩니다."))
         }
     }
 }

@@ -13,18 +13,6 @@ struct PerformanceChartInputKey: Hashable {
     let heartRateLastMeters: Double
     let cadenceCount: Int
     let cadenceLastMeters: Double
-    let powerCount: Int
-    let powerLastMeters: Double
-    let speedCount: Int
-    let speedLastMeters: Double
-    let strideLengthCount: Int
-    let strideLengthLastMeters: Double
-    let verticalOscillationCount: Int
-    let verticalOscillationLastMeters: Double
-    let groundContactTimeCount: Int
-    let groundContactTimeLastMeters: Double
-    let routeCount: Int
-    let routeLastMeters: Double
 
     init(run: RunningWorkout, detail: RunDetail) {
         runID = run.id
@@ -37,20 +25,21 @@ struct PerformanceChartInputKey: Hashable {
         heartRateLastMeters = detail.heartRates.last?.distanceMeters ?? 0
         cadenceCount = detail.runningMetrics.cadence.count
         cadenceLastMeters = detail.runningMetrics.cadence.last?.distanceMeters ?? 0
-        powerCount = detail.runningMetrics.power.count
-        powerLastMeters = detail.runningMetrics.power.last?.distanceMeters ?? 0
-        speedCount = detail.runningMetrics.speed.count
-        speedLastMeters = detail.runningMetrics.speed.last?.distanceMeters ?? 0
-        strideLengthCount = detail.runningMetrics.strideLength.count
-        strideLengthLastMeters = detail.runningMetrics.strideLength.last?.distanceMeters ?? 0
-        verticalOscillationCount = detail.runningMetrics.verticalOscillation.count
-        verticalOscillationLastMeters = detail.runningMetrics.verticalOscillation.last?.distanceMeters ?? 0
-        groundContactTimeCount = detail.runningMetrics.groundContactTime.count
-        groundContactTimeLastMeters = detail.runningMetrics.groundContactTime.last?.distanceMeters ?? 0
+    }
+}
+
+struct PerformanceChartRouteKey: Hashable {
+    let runID: UUID
+    let routeCount: Int
+    let routeLastMeters: Double
+
+    init(run: RunningWorkout, detail: RunDetail) {
+        runID = run.id
         routeCount = detail.route.count
         routeLastMeters = detail.route.last?.distanceMeters ?? 0
     }
 }
+
 struct PerformanceChartData {
     let distanceTimeline: [DistanceTimelinePoint]
     let timelineDistances: [Double]
@@ -64,25 +53,10 @@ struct PerformanceChartData {
     let cadenceDistances: [Double]
     let altitudeSeries: [SimpleMetricChartPoint]
     let altitudeDistances: [Double]
-    let powerSeries: [SimpleMetricChartPoint]
-    let powerDistances: [Double]
-    let speedSeries: [SimpleMetricChartPoint]
-    let speedDistances: [Double]
-    let strideLengthSeries: [SimpleMetricChartPoint]
-    let strideLengthDistances: [Double]
-    let verticalOscillationSeries: [SimpleMetricChartPoint]
-    let verticalOscillationDistances: [Double]
-    let groundContactTimeSeries: [SimpleMetricChartPoint]
-    let groundContactTimeDistances: [Double]
     let heartRateRange: ClosedRange<Double>
     let paceRange: ClosedRange<Double>
     let cadenceRange: ClosedRange<Double>
     let altitudeRange: ClosedRange<Double>
-    let powerRange: ClosedRange<Double>
-    let speedRange: ClosedRange<Double>
-    let strideLengthRange: ClosedRange<Double>
-    let verticalOscillationRange: ClosedRange<Double>
-    let groundContactTimeRange: ClosedRange<Double>
     let averagePaceSecondsPerKilometer: Double?
     let availableMetrics: [PerformanceChartMetric]
     let strideValues: [Double]
@@ -93,12 +67,8 @@ struct PerformanceChartData {
         let builtPaceSeries = PaceChartPoint.build(from: detail.paceSamples)
         let builtHeartSeries = HeartRateChartPoint.build(from: detail.heartRates)
         let builtCadenceSeries = Self.metricSeries(from: detail.runningMetrics.cadence)
-        let builtPowerSeries = Self.metricSeries(from: detail.runningMetrics.power)
-        let builtSpeedSeries = Self.metricSeries(from: detail.runningMetrics.speed)
-        let builtStrideLengthSeries = Self.metricSeries(from: detail.runningMetrics.strideLength)
-        let builtVerticalOscillationSeries = Self.metricSeries(from: detail.runningMetrics.verticalOscillation)
-        let builtGroundContactTimeSeries = Self.metricSeries(from: detail.runningMetrics.groundContactTime)
-        let builtAltitudeSeries = detail.route
+        let builtAltitudeSeries = Self.downsample(
+            detail.route
             .compactMap { point -> SimpleMetricChartPoint? in
                 guard let altitudeMeters = point.altitudeMeters, altitudeMeters.isFinite else { return nil }
                 return SimpleMetricChartPoint(
@@ -107,7 +77,9 @@ struct PerformanceChartData {
                     segmentIndex: nil
                 )
             }
-            .sorted(by: { $0.distanceKilometers < $1.distanceKilometers })
+            .sorted(by: { $0.distanceKilometers < $1.distanceKilometers }),
+            maxCount: 800
+        )
         let builtPacePlotPoints = builtPaceSeries.map {
             SimpleMetricChartPoint(
                 distanceKilometers: $0.distanceKilometers,
@@ -135,16 +107,6 @@ struct PerformanceChartData {
         cadenceDistances = builtCadenceSeries.map(\.distanceKilometers)
         self.altitudeSeries = builtAltitudeSeries
         altitudeDistances = builtAltitudeSeries.map(\.distanceKilometers)
-        self.powerSeries = builtPowerSeries
-        powerDistances = builtPowerSeries.map(\.distanceKilometers)
-        self.speedSeries = builtSpeedSeries
-        speedDistances = builtSpeedSeries.map(\.distanceKilometers)
-        self.strideLengthSeries = builtStrideLengthSeries
-        strideLengthDistances = builtStrideLengthSeries.map(\.distanceKilometers)
-        self.verticalOscillationSeries = builtVerticalOscillationSeries
-        verticalOscillationDistances = builtVerticalOscillationSeries.map(\.distanceKilometers)
-        self.groundContactTimeSeries = builtGroundContactTimeSeries
-        groundContactTimeDistances = builtGroundContactTimeSeries.map(\.distanceKilometers)
 
         let heartValues = builtHeartSeries.map(\.bpm)
         let heartMinimum = max((heartValues.min() ?? 110) - 12, 60)
@@ -164,11 +126,6 @@ struct PerformanceChartData {
 
         cadenceRange = Self.metricRange(for: builtCadenceSeries.map(\.value), minimumPadding: 6)
         altitudeRange = Self.metricRange(for: builtAltitudeSeries.map(\.value), minimumPadding: 4)
-        powerRange = Self.metricRange(for: builtPowerSeries.map(\.value), minimumPadding: 12)
-        speedRange = Self.metricRange(for: builtSpeedSeries.map(\.value), minimumPadding: 0.15)
-        strideLengthRange = Self.metricRange(for: builtStrideLengthSeries.map(\.value), minimumPadding: 0.04)
-        verticalOscillationRange = Self.metricRange(for: builtVerticalOscillationSeries.map(\.value), minimumPadding: 0.3)
-        groundContactTimeRange = Self.metricRange(for: builtGroundContactTimeSeries.map(\.value), minimumPadding: 8)
 
         var builtMaxDistance = run.distanceInKilometers
         builtMaxDistance = max(builtMaxDistance, (sortedDistanceTimeline.last?.distanceMeters ?? 0) / 1_000)
@@ -176,11 +133,6 @@ struct PerformanceChartData {
         builtMaxDistance = max(builtMaxDistance, builtHeartSeries.last?.distanceKilometers ?? 0)
         builtMaxDistance = max(builtMaxDistance, builtCadenceSeries.last?.distanceKilometers ?? 0)
         builtMaxDistance = max(builtMaxDistance, builtAltitudeSeries.last?.distanceKilometers ?? 0)
-        builtMaxDistance = max(builtMaxDistance, builtPowerSeries.last?.distanceKilometers ?? 0)
-        builtMaxDistance = max(builtMaxDistance, builtSpeedSeries.last?.distanceKilometers ?? 0)
-        builtMaxDistance = max(builtMaxDistance, builtStrideLengthSeries.last?.distanceKilometers ?? 0)
-        builtMaxDistance = max(builtMaxDistance, builtVerticalOscillationSeries.last?.distanceKilometers ?? 0)
-        builtMaxDistance = max(builtMaxDistance, builtGroundContactTimeSeries.last?.distanceKilometers ?? 0)
         maxDistance = builtMaxDistance
         strideValues = Self.makeStrideValues(maxDistance: builtMaxDistance)
 
@@ -194,16 +146,6 @@ struct PerformanceChartData {
                 return !builtCadenceSeries.isEmpty
             case .altitude:
                 return !builtAltitudeSeries.isEmpty
-            case .power:
-                return !builtPowerSeries.isEmpty
-            case .speed:
-                return !builtSpeedSeries.isEmpty
-            case .strideLength:
-                return !builtStrideLengthSeries.isEmpty
-            case .verticalOscillation:
-                return !builtVerticalOscillationSeries.isEmpty
-            case .groundContactTime:
-                return !builtGroundContactTimeSeries.isEmpty
             }
         }
     }
@@ -234,8 +176,6 @@ struct PerformanceChartData {
     }
 
     func nearestMetricPoint(for metric: PerformanceChartMetric, toKilometers distanceKilometers: Double) -> SimpleMetricChartPoint? {
-        let distances: [Double]
-        let points: [SimpleMetricChartPoint]
         switch metric {
         case .pace:
             guard let point = nearestPacePoint(toKilometers: distanceKilometers) else { return nil }
@@ -255,25 +195,7 @@ struct PerformanceChartData {
             return nearestCadencePoint(toKilometers: distanceKilometers)
         case .altitude:
             return nearestAltitudePoint(toKilometers: distanceKilometers)
-        case .power:
-            distances = powerDistances
-            points = powerSeries
-        case .speed:
-            distances = speedDistances
-            points = speedSeries
-        case .strideLength:
-            distances = strideLengthDistances
-            points = strideLengthSeries
-        case .verticalOscillation:
-            distances = verticalOscillationDistances
-            points = verticalOscillationSeries
-        case .groundContactTime:
-            distances = groundContactTimeDistances
-            points = groundContactTimeSeries
         }
-
-        guard let index = Self.nearestIndex(for: distanceKilometers, in: distances) else { return nil }
-        return points[index]
     }
 
     func series(for metric: PerformanceChartMetric) -> [SimpleMetricChartPoint] {
@@ -286,16 +208,6 @@ struct PerformanceChartData {
             return cadenceSeries
         case .altitude:
             return altitudeSeries
-        case .power:
-            return powerSeries
-        case .speed:
-            return speedSeries
-        case .strideLength:
-            return strideLengthSeries
-        case .verticalOscillation:
-            return verticalOscillationSeries
-        case .groundContactTime:
-            return groundContactTimeSeries
         }
     }
 
@@ -313,16 +225,6 @@ struct PerformanceChartData {
             return cadenceRange
         case .altitude:
             return altitudeRange
-        case .power:
-            return powerRange
-        case .speed:
-            return speedRange
-        case .strideLength:
-            return strideLengthRange
-        case .verticalOscillation:
-            return verticalOscillationRange
-        case .groundContactTime:
-            return groundContactTimeRange
         }
     }
 
@@ -344,6 +246,25 @@ struct PerformanceChartData {
         let maxValue = values.max() ?? minValue + minimumPadding
         let padding = max((maxValue - minValue) * 0.12, minimumPadding)
         return (minValue - padding)...(maxValue + padding)
+    }
+
+    private static func downsample(_ points: [SimpleMetricChartPoint], maxCount: Int) -> [SimpleMetricChartPoint] {
+        guard points.count > maxCount, maxCount > 2 else { return points }
+        let stride = Double(points.count - 1) / Double(maxCount - 1)
+        var result: [SimpleMetricChartPoint] = []
+        var lastIndex = -1
+
+        for sampleIndex in 0..<maxCount {
+            let sourceIndex = min(Int((Double(sampleIndex) * stride).rounded()), points.count - 1)
+            guard sourceIndex != lastIndex else { continue }
+            result.append(points[sourceIndex])
+            lastIndex = sourceIndex
+        }
+
+        if result.last?.id != points.last?.id {
+            result.append(points[points.count - 1])
+        }
+        return result
     }
 
     private static func stablePaceRange(for values: [Double], averagePace: Double?) -> ClosedRange<Double> {
@@ -483,12 +404,19 @@ struct PerformanceChartSection: View {
                 .onChange(of: chartInputKey) {
                     rebuildChartData()
                 }
+                .onChange(of: routeInputKey) {
+                    rebuildChartData()
+                }
             }
         }
     }
 
     private var chartInputKey: PerformanceChartInputKey {
         PerformanceChartInputKey(run: run, detail: detail)
+    }
+
+    private var routeInputKey: PerformanceChartRouteKey {
+        PerformanceChartRouteKey(run: run, detail: detail)
     }
 
     private var averageHeartRateText: String {
@@ -554,9 +482,6 @@ struct PerformanceChartSection: View {
             return averageCadenceValue
         case .altitude:
             return nil
-        case .power, .speed, .strideLength, .verticalOscillation, .groundContactTime:
-            guard !activeSeries.isEmpty else { return nil }
-            return activeSeries.map(\.value).reduce(0, +) / Double(activeSeries.count)
         }
     }
 
@@ -584,8 +509,6 @@ struct PerformanceChartSection: View {
                 return selectedMetrics.cadenceText ?? "-"
             case .altitude:
                 return selectedMetrics.altitudeText ?? "-"
-            case .power, .speed, .strideLength, .verticalOscillation, .groundContactTime:
-                break
             }
         }
 
@@ -598,8 +521,6 @@ struct PerformanceChartSection: View {
             return averageCadenceText ?? "-"
         case .altitude:
             return detail.elevationGainText ?? "-"
-        case .power, .speed, .strideLength, .verticalOscillation, .groundContactTime:
-            return selectedMetric.averageText(from: activeSeries)
         }
     }
 
@@ -636,11 +557,6 @@ enum PerformanceChartMetric: String, CaseIterable, Identifiable {
     case heartRate
     case cadence
     case altitude
-    case power
-    case speed
-    case strideLength
-    case verticalOscillation
-    case groundContactTime
 
     var id: String { rawValue }
 
@@ -654,16 +570,6 @@ enum PerformanceChartMetric: String, CaseIterable, Identifiable {
             return "케이던스"
         case .altitude:
             return "고도"
-        case .power:
-            return "파워"
-        case .speed:
-            return "속도"
-        case .strideLength:
-            return "보폭"
-        case .verticalOscillation:
-            return "수직진폭"
-        case .groundContactTime:
-            return "지면접촉"
         }
     }
 
@@ -677,16 +583,6 @@ enum PerformanceChartMetric: String, CaseIterable, Identifiable {
             return "metronome"
         case .altitude:
             return "mountain.2.fill"
-        case .power:
-            return "bolt.fill"
-        case .speed:
-            return "figure.run"
-        case .strideLength:
-            return "arrow.left.and.right"
-        case .verticalOscillation:
-            return "arrow.up.and.down"
-        case .groundContactTime:
-            return "timer"
         }
     }
 
@@ -700,16 +596,6 @@ enum PerformanceChartMetric: String, CaseIterable, Identifiable {
             return Color(red: 0.42, green: 0.76, blue: 1.0)
         case .altitude:
             return Color(red: 0.68, green: 0.60, blue: 0.96)
-        case .power:
-            return Color(red: 1.0, green: 0.76, blue: 0.32)
-        case .speed:
-            return Color(red: 0.36, green: 0.88, blue: 0.92)
-        case .strideLength:
-            return Color(red: 0.75, green: 0.92, blue: 0.44)
-        case .verticalOscillation:
-            return Color(red: 0.92, green: 0.58, blue: 0.90)
-        case .groundContactTime:
-            return Color(red: 0.98, green: 0.55, blue: 0.45)
         }
     }
 
@@ -723,16 +609,6 @@ enum PerformanceChartMetric: String, CaseIterable, Identifiable {
             return RunDisplayFormatter.cadence(value) ?? "-"
         case .altitude:
             return RunDisplayFormatter.elevation(value) ?? "-"
-        case .power:
-            return "\(Int(value.rounded())) W"
-        case .speed:
-            return String(format: "%.2f m/s", value)
-        case .strideLength:
-            return String(format: "%.2f m", value)
-        case .verticalOscillation:
-            return String(format: "%.1f cm", value)
-        case .groundContactTime:
-            return "\(Int(value.rounded())) ms"
         }
     }
 
@@ -896,7 +772,7 @@ struct RunMetricChartPlot: View {
         switch metric {
         case .pace:
             return 0
-        case .heartRate, .cadence, .altitude, .power, .speed, .strideLength, .verticalOscillation, .groundContactTime:
+        case .heartRate, .cadence, .altitude:
             return valueRange.lowerBound
         }
     }
@@ -905,7 +781,7 @@ struct RunMetricChartPlot: View {
         switch metric {
         case .pace:
             return 0...max(valueRange.upperBound - valueRange.lowerBound, 0.1)
-        case .heartRate, .cadence, .altitude, .power, .speed, .strideLength, .verticalOscillation, .groundContactTime:
+        case .heartRate, .cadence, .altitude:
             return valueRange.lowerBound...valueRange.upperBound
         }
     }
@@ -914,7 +790,7 @@ struct RunMetricChartPlot: View {
         switch metric {
         case .pace:
             return valueRange.upperBound - clamped(rawValue, to: valueRange)
-        case .heartRate, .cadence, .altitude, .power, .speed, .strideLength, .verticalOscillation, .groundContactTime:
+        case .heartRate, .cadence, .altitude:
             return clamped(rawValue, to: valueRange)
         }
     }
@@ -1135,7 +1011,7 @@ private struct RunDetailChartPreviewScenario: Identifiable, Hashable {
         RunDetailChartPreviewScenario(
             id: "complete",
             title: "정상 메트릭",
-            note: "페이스, 심박, 케이던스, 고도, 파워까지 모두 있는 기본 5K",
+            note: "페이스, 심박, 케이던스, 고도가 있는 기본 5K",
             run: .demoSample,
             detail: .mockCompleteMetrics
         ),
@@ -1147,11 +1023,11 @@ private struct RunDetailChartPreviewScenario: Identifiable, Hashable {
             detail: .mockPausedWorkout
         ),
         RunDetailChartPreviewScenario(
-            id: "missingAdvanced",
-            title: "고급 메트릭 없음",
-            note: "페이스/심박/고도만 있는 일반 기록",
+            id: "missingCadence",
+            title: "케이던스 없음",
+            note: "페이스/심박/고도만 있는 간단한 기록",
             run: Self.previewRun(distanceMeters: 2_980, duration: 840, offset: 2),
-            detail: .mockMissingAdvancedMetrics
+            detail: .mockMissingCadence
         ),
         RunDetailChartPreviewScenario(
             id: "noRoute",
@@ -1241,16 +1117,6 @@ private enum RunDetailChartPreviewRangeMode: String, CaseIterable, Identifiable 
             return 3
         case .altitude:
             return 2
-        case .power:
-            return 8
-        case .speed:
-            return 0.08
-        case .strideLength:
-            return 0.02
-        case .verticalOscillation:
-            return 0.15
-        case .groundContactTime:
-            return 4
         }
     }
 }
@@ -1593,7 +1459,7 @@ private extension RunDetail {
             route: route,
             distanceTimeline: timeline,
             heartRates: heartRates,
-            runningMetrics: RunningMetrics(cadence: cadence, power: [], speed: [], strideLength: [], verticalOscillation: [], groundContactTime: []),
+            runningMetrics: RunningMetrics(cadence: cadence),
             paceSamples: paceSamples,
             splits: [
                 RunSplit(index: 1, distanceMeters: 1_000, duration: 285, averageHeartRate: 145, averageCadence: 179),

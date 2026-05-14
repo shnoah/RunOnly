@@ -75,7 +75,7 @@
 "계산 방식" = "How it's calculated";
 "계산 중 %d%%" = "Calculating %d%%";
 "계정 생성, 광고 추적, 외부 분석 SDK 없이 동작하며, 현재는 서버로 데이터를 업로드하지 않습니다." = "Works without account creation, ad tracking, or external analytics SDKs, and currently does not upload data to a server.";
-"고급 메트릭 없음" = "No advanced metrics";
+"케이던스 없음" = "No cadence";
 "고도" = "Elevation";
 "고지" = "Notice";
 "공식: 예측시간 = 기록시간 × (목표거리 / 기록거리)^1.06" = "Formula: predicted time = recorded time × (target distance / recorded distance)^1.06";
@@ -140,7 +140,6 @@
 "러닝 빈도" = "Run Frequency";
 "러닝 수" = "Runs";
 "러닝 전체" = "Whole run";
-"러닝 파워 / 속도 / 보폭 / 수직진폭 / 지면접촉시간" = "Running power / speed / stride length / vertical oscillation / ground contact time";
 "러닝한 날" = "Run days";
 "러닝화를 등록하면 신발별 누적 거리와 남은 수명을 볼 수 있습니다." = "Add shoes to track total mileage and remaining lifespan for each pair.";
 "로컬 보조 데이터 함께 제거" = "Local helper data removed too";
@@ -346,7 +345,6 @@
 "주간 훈련량" = "Weekly Training";
 "주간" = "Week";
 "준비중" = "Getting ready";
-"지금은 거리 기반의 간단한 추세 지표라 강도, 심박, 파워는 반영하지 않습니다." = "This is currently a simple distance-based trend indicator, so intensity, heart rate, and power are not included.";
 "지원 메일 보내기" = "Send support email";
 "지원 메일" = "Support email";
 "지원 및 문의" = "Support";
@@ -526,6 +524,11 @@
 "백업 파일에는 신발 이름, 브랜드/모델, 시작 거리, 목표 수명, 생성일과 러닝 UUID 연결만 들어갑니다. 심박, 경로, 페이스 같은 Apple 건강 원본 데이터는 포함되지 않습니다. 러닝 연결은 같은 workout UUID가 있는 기기에서 가장 잘 복원됩니다." = "Backup files include only shoe name, brand/model, starting mileage, target lifespan, creation date, and run UUID links. Original Apple Health data such as heart rate, route, and pace is not included. Run links restore best on devices that contain the same workout UUIDs.";
 "등록한 신발 정보와 러닝 연결 정보가 모두 삭제됩니다. Apple 건강 원본 러닝 데이터는 삭제되지 않습니다." = "All registered shoe information and run links will be deleted. Original Apple Health run data will not be deleted.";
 "상세 화면을 빠르게 보여주기 위해 저장한 파생 요약값만 삭제합니다. Apple 건강 원본 러닝 데이터와 신발 데이터는 그대로 유지됩니다." = "Only derived summary values stored to speed up the detail screen will be removed. Original Apple Health run data and shoe data will remain.";
+"상세 화면을 빠르게 보여주기 위해 저장한 파생 요약값과 차트 캐시만 삭제합니다. Apple 건강 원본 러닝 데이터와 신발 데이터는 그대로 유지됩니다." = "Only derived summary values and chart cache stored to speed up the detail screen will be removed. Original Apple Health run data and shoe data will remain.";
+"상세 화면을 빠르게 보여주기 위해 저장한 파생 요약값, 차트 캐시, 심박존 기준 캐시만 삭제합니다. Apple 건강 원본 러닝 데이터와 신발 데이터는 그대로 유지됩니다." = "Only derived summary values, chart cache, and heart rate zone profile cache stored to speed up the detail screen will be removed. Original Apple Health run data and shoe data will remain.";
+"상세 화면을 빠르게 보여주기 위해 기기에 저장한 파생 요약값, 차트 데이터, 심박존 기준 캐시만 삭제합니다. Apple 건강 원본 러닝 데이터, 경로 좌표, 신발 데이터는 그대로 유지됩니다." = "Only derived summary values, chart data, and heart rate zone profile cache stored on this device to speed up the detail screen will be removed. Original Apple Health run data, route coordinates, and shoe data will remain.";
+"평균 심박, 케이던스, 상승 고도, 상세 차트 캐시를 삭제했습니다." = "Average heart rate, cadence, elevation gain, and detail chart cache have been deleted.";
+"평균 심박, 케이던스, 상승 고도, 상세 차트, 심박존 기준 캐시를 삭제했습니다." = "Average heart rate, cadence, elevation gain, detail chart, and heart rate zone profile cache have been deleted.";
 "이 기기에서는 Apple 건강 데이터를 사용할 수 없습니다." = "Apple Health data is not available on this device.";
 "현재 예측 기록은 최근 120일 안에서 목표 거리와 충분히 가까운 러닝만 골라 계산합니다." = "Predicted times currently use only runs from the last 120 days that are close enough to the target distance.";
 "평소 대비 %.0f%%" = "%.0f%% of usual";
@@ -553,6 +556,8 @@
 "• 샘플 러닝은 기록 탭에서 바로 확인할 수 있습니다." = "• You can preview the sample run anytime from the Records tab.";
 "더 보기" = "More";
 "접기" = "Less";
+"간단히 보기" = "Show less";
+"%d개 구간 더보기" = "Show %d more splits";
 "고급" = "Advanced";
 "운동 지표" = "Workout Metrics";
 "강조 색상" = "Accent Color";

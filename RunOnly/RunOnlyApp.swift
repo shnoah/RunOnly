@@ -104,7 +104,7 @@ enum AppStorage {
     ) throws {
         let fileURL = try fileURL(filename: filename)
         let data = try encoder.encode(value)
-        try data.write(to: fileURL, options: .atomic)
+        try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
         try excludeFromBackup(fileURL)
     }
 

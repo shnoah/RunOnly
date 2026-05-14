@@ -55,10 +55,10 @@ struct RunDetailView: View {
                     }
 
                 case .loaded(let detail):
-                    RunRouteSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
-                    HeartRateZoneSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
                     PerformanceChartSection(run: run, detail: detail)
                     RunSplitSection(detail: detail)
+                    HeartRateZoneSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
+                    RunRouteSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
                     RunGearSection(run: run)
                     RunDataSourceSection(run: run)
                 }

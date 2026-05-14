@@ -453,3 +453,197 @@ final class RunSummaryCacheStore {
         try? AppStorage.save(snapshot, to: storageFilename, encoder: encoder)
     }
 }
+
+private struct RunDetailCacheFileSnapshot: Codable {
+    let version: Int
+    let entries: [RunDetailCacheSnapshot]
+}
+
+struct RunDetailCacheSnapshot: Codable {
+    let runID: UUID
+    let startDate: Date
+    let duration: TimeInterval
+    let distanceInMeters: Double
+    let distanceTimeline: [DistanceTimelinePoint]
+    let heartRates: [HeartRateSample]
+    let cadence: [RunningMetricSample]
+    let paceSamples: [PaceSample]
+    let splits: [RunSplit]
+    let activeDuration: TimeInterval
+
+    func matches(_ run: RunningWorkout) -> Bool {
+        runID == run.id &&
+        abs(startDate.timeIntervalSince(run.startDate)) < 1 &&
+        abs(duration - run.duration) < 0.5 &&
+        abs(distanceInMeters - run.distanceInMeters) < 0.5
+    }
+
+    func makeDetail(heartRateZoneProfile: HeartRateZoneProfile?) -> RunDetail {
+        let fallbackProfile = heartRateZoneProfile ?? heartRates.map(\.bpm).max().map {
+            HeartRateZoneProfile(
+                method: .observedWorkoutMaximum,
+                restingHeartRateBPM: nil,
+                maximumHeartRateBPM: $0
+            )
+        }
+
+        return RunDetail(
+            route: [],
+            distanceTimeline: distanceTimeline,
+            heartRates: heartRates,
+            runningMetrics: RunningMetrics(cadence: cadence),
+            paceSamples: paceSamples,
+            splits: splits,
+            activeDuration: activeDuration,
+            heartRateZoneProfile: fallbackProfile
+        )
+    }
+}
+
+// 상세 화면의 차트/구간 파생 데이터를 저장해 같은 러닝 재진입을 빠르게 만든다.
+@MainActor
+final class RunDetailCacheStore {
+    static let shared = RunDetailCacheStore()
+
+    private let storageFilename = "run-detail-cache.json"
+    private let version = 1
+    private let maximumEntryCount = 100
+    private var snapshotsByRunID: [UUID: RunDetailCacheSnapshot] = [:]
+    private var cachedAtByRunID: [UUID: Date] = [:]
+
+    private init() {
+        load()
+    }
+
+    func detail(for run: RunningWorkout, heartRateZoneProfile: HeartRateZoneProfile?) -> RunDetail? {
+        guard let snapshot = snapshotsByRunID[run.id], snapshot.matches(run) else {
+            return nil
+        }
+        return snapshot.makeDetail(heartRateZoneProfile: heartRateZoneProfile)
+    }
+
+    func save(_ detail: RunDetail, for run: RunningWorkout) {
+        snapshotsByRunID[run.id] = detail.detailCacheSnapshot(for: run)
+        cachedAtByRunID[run.id] = .now
+        trimIfNeeded()
+        persist()
+    }
+
+    func clearAllData() {
+        snapshotsByRunID = [:]
+        cachedAtByRunID = [:]
+        persist()
+    }
+
+    private func load() {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        guard
+            let snapshot = try? AppStorage.load(RunDetailCacheFileSnapshot.self, from: storageFilename, decoder: decoder),
+            snapshot.version == version
+        else {
+            snapshotsByRunID = [:]
+            cachedAtByRunID = [:]
+            return
+        }
+
+        snapshotsByRunID = Dictionary(uniqueKeysWithValues: snapshot.entries.map { ($0.runID, $0) })
+        cachedAtByRunID = Dictionary(uniqueKeysWithValues: snapshot.entries.map { ($0.runID, .distantPast) })
+    }
+
+    private func persist() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let entries = snapshotsByRunID.values.sorted {
+            $0.startDate > $1.startDate
+        }
+        let snapshot = RunDetailCacheFileSnapshot(version: version, entries: entries)
+        try? AppStorage.save(snapshot, to: storageFilename, encoder: encoder)
+    }
+
+    private func trimIfNeeded() {
+        guard snapshotsByRunID.count > maximumEntryCount else { return }
+        let sortedIDs = snapshotsByRunID.keys.sorted {
+            (cachedAtByRunID[$0] ?? .distantPast) > (cachedAtByRunID[$1] ?? .distantPast)
+        }
+        let keepIDs = Set(sortedIDs.prefix(maximumEntryCount))
+        snapshotsByRunID = snapshotsByRunID.filter { keepIDs.contains($0.key) }
+        cachedAtByRunID = cachedAtByRunID.filter { keepIDs.contains($0.key) }
+    }
+}
+
+private struct HeartRateZoneProfileCacheSnapshot: Codable {
+    let version: Int
+    let profile: HeartRateZoneProfile?
+    let cachedAt: Date?
+}
+
+// 심박존 기준 프로필은 러닝별 결과가 아니라 사용자 기준값으로 짧게 캐시한다.
+@MainActor
+final class HeartRateZoneProfileCacheStore {
+    static let shared = HeartRateZoneProfileCacheStore()
+
+    private let storageFilename = "heart-rate-zone-profile-cache.json"
+    private let version = 1
+    private let freshnessInterval: TimeInterval = 24 * 60 * 60
+    private var cachedProfile: HeartRateZoneProfile?
+    private var cachedAt: Date?
+
+    private init() {
+        load()
+    }
+
+    var freshProfile: HeartRateZoneProfile? {
+        guard let cachedProfile, let cachedAt else { return nil }
+        guard cachedProfile.method != .observedWorkoutMaximum else { return nil }
+        guard Date().timeIntervalSince(cachedAt) <= freshnessInterval else { return nil }
+        return cachedProfile
+    }
+
+    func save(_ profile: HeartRateZoneProfile?) {
+        guard let profile else { return }
+        guard profile.method != .observedWorkoutMaximum else { return }
+        cachedProfile = profile
+        cachedAt = .now
+        persist()
+    }
+
+    func clearAllData() {
+        cachedProfile = nil
+        cachedAt = nil
+        persist()
+    }
+
+    private func load() {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        guard
+            let snapshot = try? AppStorage.load(HeartRateZoneProfileCacheSnapshot.self, from: storageFilename, decoder: decoder),
+            snapshot.version == version
+        else {
+            cachedProfile = nil
+            cachedAt = nil
+            return
+        }
+
+        cachedProfile = snapshot.profile
+        cachedAt = snapshot.cachedAt
+        if cachedProfile?.method == .observedWorkoutMaximum {
+            cachedProfile = nil
+            cachedAt = nil
+        }
+    }
+
+    private func persist() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let snapshot = HeartRateZoneProfileCacheSnapshot(
+            version: version,
+            profile: cachedProfile,
+            cachedAt: cachedAt
+        )
+        try? AppStorage.save(snapshot, to: storageFilename, encoder: encoder)
+    }
+}
