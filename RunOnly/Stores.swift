@@ -17,11 +17,17 @@ final class ShoeStore: ObservableObject {
     @Published private(set) var assignments: [ShoeAssignmentRecord] = []
 
     private let storageFilename = "shoe-store.json"
+    private let persistsChanges: Bool
     private var shoesByID: [UUID: RunningShoe] = [:]
     private var shoeByRunID: [UUID: RunningShoe] = [:]
 
-    init() {
-        load()
+    init(loadFromDisk: Bool = true, persistsChanges: Bool = true) {
+        self.persistsChanges = persistsChanges
+        if loadFromDisk {
+            load()
+        } else {
+            rebuildLookups()
+        }
     }
 
     // 새 신발은 최근 생성 순으로 보이게 앞쪽에 넣는다.
@@ -199,6 +205,7 @@ final class ShoeStore: ObservableObject {
 
     // 화면은 Published 배열을 보고, 조회는 dictionary 캐시를 보는 구조라 둘을 같이 저장한다.
     private func save() {
+        guard persistsChanges else { return }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let snapshot = ShoeStoreSnapshot(shoes: shoes, assignments: assignments)

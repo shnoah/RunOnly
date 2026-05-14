@@ -27,7 +27,7 @@ enum AppStoreScreenshotMode: String, CaseIterable {
 struct AppStoreScreenshotDemoRootView: View {
     let mode: AppStoreScreenshotMode
     @StateObject private var viewModel = RunningWorkoutsViewModel()
-    @StateObject private var shoeStore = ShoeStore()
+    @StateObject private var shoeStore = ShoeStore(loadFromDisk: false, persistsChanges: false)
     @StateObject private var appSettings = AppSettingsStore()
     @StateObject private var mileageGoalStore = MileageGoalStore()
 
@@ -59,6 +59,16 @@ struct AppStoreScreenshotDemoRootView: View {
         .onAppear {
             appSettings.completeHealthKitIntro()
             viewModel.loadAppStoreScreenshotData()
+            loadSampleShoesIfNeeded()
+        }
+    }
+
+    private func loadSampleShoesIfNeeded() {
+        guard shoeStore.shoes.isEmpty else { return }
+        let trainer = AppStoreScreenshotFixtures.sampleShoe
+        shoeStore.addShoe(trainer)
+        if let latestRun = AppStoreScreenshotFixtures.runs.first {
+            shoeStore.assign(trainer.id, to: latestRun.id)
         }
     }
 }
@@ -114,6 +124,15 @@ enum AppStoreScreenshotFixtures {
     ) ?? RunningWorkout.demoSampleStartDate
 
     static let heroRun = RunningWorkout.demoSample
+    static let sampleShoe = RunningShoe(
+        id: UUID(uuidString: "8D5E6A25-8898-4C27-A393-F5D63AA1E564") ?? UUID(),
+        nickname: "트레이너 01",
+        brand: "브랜드 A",
+        model: "데일리",
+        startMileageKilometers: 42,
+        retirementKilometers: 600,
+        createdAt: referenceDate.addingTimeInterval(-86400 * 45)
+    )
 
     static var runs: [RunningWorkout] {
         [

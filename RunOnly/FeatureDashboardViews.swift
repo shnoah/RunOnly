@@ -18,16 +18,7 @@ struct DashboardHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("PNR")
-                .font(.system(.title, design: .rounded).weight(.black))
-                .foregroundStyle(.white)
-
-            DashboardQuickOverviewPanel(
-                viewModel: viewModel,
-                summary: summary,
-                runs: runs,
-                vo2MaxSamples: vo2MaxSamples
-            )
+            DashboardBrandHeader()
 
             Button {
                 showingGoalEditor = true
@@ -38,6 +29,28 @@ struct DashboardHeader: View {
                 )
             }
             .buttonStyle(.plain)
+
+            DashboardQuickOverviewPanel(
+                viewModel: viewModel,
+                summary: summary,
+                runs: runs,
+                vo2MaxSamples: vo2MaxSamples
+            )
+
+            RecentRunsPreviewSection(
+                previewRuns: Array(runs.prefix(3)),
+                allRuns: runs,
+                shoeStore: shoeStore
+            )
+
+            if let shoeUsage = latestShoeUsage {
+                NavigationLink {
+                    ShoeDetailView(shoe: shoeUsage.shoe, runs: runs)
+                } label: {
+                    RecentShoeUsageCard(usage: shoeUsage)
+                }
+                .buttonStyle(.plain)
+            }
 
             NavigationLink {
                 PredictionTrendView(runs: runs)
@@ -50,12 +63,6 @@ struct DashboardHeader: View {
                 )
             }
             .buttonStyle(.plain)
-
-            RecentRunsPreviewSection(
-                previewRuns: Array(runs.prefix(3)),
-                allRuns: runs,
-                shoeStore: shoeStore
-            )
         }
         .sheet(isPresented: $showingGoalEditor) {
             MileageGoalEditorView(currentDistanceKilometers: summary.monthDistanceKilometers)
@@ -82,6 +89,35 @@ struct DashboardHeader: View {
                 )
         )
         .padding(.horizontal, 16)
+    }
+
+    private var latestShoeUsage: RecentShoeUsage? {
+        for run in runs {
+            guard let shoe = shoeStore.shoe(for: run.id) else { continue }
+            let trackedDistance = shoeStore.distance(for: shoe.id, runs: runs)
+            return RecentShoeUsage(shoe: shoe, trackedDistanceKilometers: trackedDistance)
+        }
+
+        return nil
+    }
+}
+
+struct DashboardBrandHeader: View {
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("PNR")
+                .font(.system(size: 42, weight: .black))
+                .foregroundStyle(.white)
+
+            Text("Pace Notes & Records")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.58))
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .padding(.bottom, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -123,9 +159,10 @@ struct DashboardQuickOverviewPanel: View {
                 DashboardCompactSummaryLink(
                     systemImage: "figure.run.circle.fill",
                     title: "준비도",
-                    value: summary.recoveryReadiness.dashboardValueText,
+                    value: summary.recoveryReadiness.status,
                     detail: nil,
-                    tint: Color(red: 0.45, green: 0.95, blue: 0.76)
+                    tint: Color(red: 0.45, green: 0.95, blue: 0.76),
+                    monospacedValue: false
                 )
             }
             .buttonStyle(.plain)
@@ -152,56 +189,84 @@ struct DashboardCompactSummaryLink: View {
     let value: String
     let detail: String?
     let tint: Color
+    var monospacedValue = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .center, spacing: 9) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(tint)
+                    .frame(width: 22, height: 22)
+                    .background(
+                        Circle()
+                            .fill(tint.opacity(0.16))
+                    )
                 Text(LocalizedStringKey(title))
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.62))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.68))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            Text(value)
-                .font(.system(.subheadline, design: .rounded).weight(.bold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .fixedSize(horizontal: false, vertical: true)
+
+            valueText
+                .frame(height: 31, alignment: .center)
+
             if let detail, !detail.isEmpty {
                 Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.56))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(tint.opacity(0.92))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(tint.opacity(0.13))
+                    )
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 70, alignment: .topLeading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: 76, alignment: .center)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.06),
-                            tint.opacity(0.12)
+                            tint.opacity(0.13),
+                            Color.white.opacity(0.045)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.075), lineWidth: 1)
                 )
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(LocalizedStringKey(title)))
         .accessibilityValue(Text(value))
         .accessibilityHint(Text(detail ?? ""))
+    }
+
+    @ViewBuilder
+    private var valueText: some View {
+        let text = Text(value)
+            .font(.system(size: 22, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .fixedSize(horizontal: false, vertical: true)
+
+        if monospacedValue {
+            text.monospacedDigit()
+        } else {
+            text
+        }
     }
 }
 
@@ -282,40 +347,70 @@ struct RecentRunCompactRow: View {
     let run: RunningWorkout
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Text(compactDateText)
-                .font(.footnote.weight(.semibold))
+                .font(.caption.weight(.bold))
                 .foregroundStyle(.white.opacity(0.9))
-
-            Spacer(minLength: 8)
-
-            Text(run.distanceText)
-                .font(.system(.subheadline, design: .rounded).weight(.bold))
-                .foregroundStyle(.white)
                 .monospacedDigit()
+                .frame(width: 48, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.white.opacity(0.065))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        )
+                )
 
-            Text(run.paceText)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.62))
-                .monospacedDigit()
+            HStack(spacing: 0) {
+                metricColumn(title: "거리", value: run.distanceText)
+
+                Rectangle()
+                    .fill(Color.white.opacity(0.07))
+                    .frame(width: 1, height: 30)
+                    .padding(.horizontal, 10)
+
+                metricColumn(title: "페이스", value: run.paceText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.black.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.white.opacity(0.045), lineWidth: 1)
+                    )
+            )
 
             Image(systemName: "chevron.right")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.white.opacity(0.34))
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white.opacity(0.36))
+                .frame(width: 16, height: 40)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 11)
+        .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.black.opacity(0.16))
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.055),
+                            Color.black.opacity(0.15)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 17, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
                 )
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(compactDateText))
-        .accessibilityValue(Text(run.distanceText))
+        .accessibilityValue(Text("\(L10n.tr("거리")) \(run.distanceText), \(L10n.tr("페이스")) \(run.paceText)"))
     }
 
     private var compactDateText: String {
@@ -324,6 +419,122 @@ struct RecentRunCompactRow: View {
         formatter.timeZone = .current
         formatter.dateFormat = "M/d"
         return formatter.string(from: run.startDate)
+    }
+
+    private func metricColumn(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.45))
+                .lineLimit(1)
+
+            Text(value)
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundStyle(.white.opacity(0.94))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct RecentShoeUsage: Identifiable {
+    let shoe: RunningShoe
+    let trackedDistanceKilometers: Double
+
+    var id: UUID { shoe.id }
+
+    var totalKilometers: Double {
+        shoe.startMileageKilometers + trackedDistanceKilometers
+    }
+
+    var progress: Double {
+        min(totalKilometers / max(shoe.retirementKilometers, 1), 1)
+    }
+
+    var usagePercentText: String {
+        "\(Int((progress * 100).rounded()))%"
+    }
+
+    var usageColor: Color {
+        progress >= 0.85 ? Color(red: 0.95, green: 0.59, blue: 0.32) : Color(red: 0.29, green: 0.88, blue: 0.63)
+    }
+
+    var distanceText: String {
+        L10n.format(
+            "누적 %@ / 총 %@",
+            formatKilometers(totalKilometers),
+            formatKilometers(shoe.retirementKilometers)
+        )
+    }
+}
+
+struct RecentShoeUsageCard: View {
+    let usage: RecentShoeUsage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(usage.usageColor.opacity(0.16))
+                    Image(systemName: "shoeprints.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(usage.usageColor)
+                }
+                .frame(width: 36, height: 36)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("최근 착용 신발")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.58))
+                    Text(usage.shoe.displayName)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                }
+
+                Spacer(minLength: 8)
+
+                Text(usage.usagePercentText)
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .foregroundStyle(usage.usageColor)
+                    .monospacedDigit()
+            }
+
+            Text(usage.distanceText)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            ProgressView(value: usage.progress)
+                .tint(usage.usageColor)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.045),
+                            usage.usageColor.opacity(0.09)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("최근 착용 신발"))
+        .accessibilityValue(Text("\(usage.shoe.displayName), \(usage.distanceText), \(usage.usagePercentText)"))
     }
 }
 
@@ -699,7 +910,7 @@ struct PredictionSummaryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("예상 기록", systemImage: "chart.line.uptrend.xyaxis")
+                Label("예상 완주 기록", systemImage: "chart.line.uptrend.xyaxis")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color(red: 1.0, green: 0.86, blue: 0.76))
                 Spacer()
