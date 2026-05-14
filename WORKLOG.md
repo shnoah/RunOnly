@@ -6,7 +6,9 @@
 - `RunDetailChartViews`에 차트 전용 `RunDetailChartViews_Previews` 샌드박스를 추가해 상세 화면 전체 없이 mock 차트를 바로 비교할 수 있게 했다.
 - 정상 메트릭, pause 포함, 고급 메트릭 없음, 경로 없음, 심박 없음, 인터벌 변동 시나리오를 전환하고 같은 화면에서 앱 기본 축, 타이트 축, 와이드 축, Catmull/Linear/Monotone 보간을 비교하도록 구성했다.
 - 실제 앱 기본 차트 렌더링은 유지하되 프리뷰 비교용으로 `RunMetricChartPlot`의 보간 방식을 주입할 수 있게 열어뒀다.
-- 빌드는 Swift 컴파일 단계까지 진행됐지만 현재 샌드박스 환경에서 CoreSimulatorService 접근이 막혀 asset catalog 단계에서 중단됐다.
+- Xcode 26 캔버스가 `#Preview` 매크로 항목을 바로 잡도록 `Chart Sandbox` / `Chart Sandbox SE` 프리뷰를 추가했고, SE 비교는 고정 프레임으로 처리했다.
+- 프로젝트 Debug 빌드 설정에 `SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG`를 추가해 `#if DEBUG` 프리뷰 샌드박스가 실제 캔버스 빌드에 포함되게 했다.
+- Xcode에서 `iPhone 17 Pro` 시뮬레이터 대상으로 `Chart Sandbox` 프리뷰가 렌더링되는 것을 확인했다.
 
 ### App Store 스크린샷 데모 흐름
 - launch argument / environment 기반 `AppStoreScreenshotMode`를 추가해 HealthKit 권한 없이 홈 요약, 기록 목록, 상세 차트, 경로/스플릿, 공유 편집 화면을 샘플 데이터로 바로 열 수 있게 했다.

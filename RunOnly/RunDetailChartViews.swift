@@ -1620,4 +1620,13 @@ struct RunDetailChartViews_Previews: PreviewProvider {
         }
     }
 }
+
+#Preview("Chart Sandbox") {
+    RunDetailChartSandboxPreview()
+}
+
+#Preview("Chart Sandbox SE") {
+    RunDetailChartSandboxPreview()
+        .frame(width: 375, height: 667)
+}
 #endif
