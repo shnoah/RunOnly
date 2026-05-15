@@ -32,7 +32,7 @@ If the review device does not have running data:
 
 ## Permissions
 
-- Apple Health read permission is requested to read running workouts and related metrics
+- Apple Health read permission is requested to read running workouts, routes, heart rate, VO2 Max, workout effort when available, and related running metrics
 - Photo Library add-only permission is requested only when the user saves a generated share image to Photos
 
 ## Network / Accounts

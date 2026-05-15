@@ -457,8 +457,18 @@
 "참고 문헌" = "References";
 "한계" = "Limitations";
 "준비도 근거" = "Readiness Evidence";
+"Apple 노력 점수" = "Apple Effort";
+"Apple 추정 노력" = "Apple Estimated Effort";
+"마지막 러닝 강도는 %@ %@ 기준이에요" = "The last run's intensity uses %@ %@.";
+"Apple 노력 점수가 없어 시간과 페이스로 강도를 추정했어요" = "Apple Effort wasn't available, so intensity was estimated from time and pace.";
+"PNR 추정" = "PNR estimate";
+"Apple 노력 %d회" = "%d Apple Effort runs";
+"Apple 노력 + 안정시 심박 기준" = "Apple Effort + resting heart rate";
+"Apple 노력 기준" = "Apple Effort";
+"PNR 추정 + 안정시 심박 기준" = "PNR estimate + resting heart rate";
+"PNR 추정 기준" = "PNR estimate";
 "러닝 준비도는 몸 상태를 진단하는 의료 점수가 아니라, 최근 러닝 부하와 회복 간격을 바탕으로 오늘 러닝 강도를 가볍게 가이드하는 점수예요." = "Running readiness isn't a medical score. It lightly guides today's run intensity based on recent running load and recovery spacing.";
-"현재 버전은 최근 28일 러닝 기록, 마지막 러닝 이후 시간, 그리고 있으면 안정시 심박을 함께 참고합니다." = "The current version considers your last 28 days of runs, time since the last run, and resting heart rate when available.";
+"현재 버전은 최근 28일 러닝 기록, Apple 노력 점수, 마지막 러닝 이후 시간, 그리고 있으면 안정시 심박을 함께 참고합니다." = "The current version considers your last 28 days of runs, Apple Effort when available, time since the last run, and resting heart rate when available.";
 "논문에서 널리 쓰는 훈련 부하와 회복 모니터링 개념을 참고했지만, 점수화 방식은 PNR에 맞게 단순화한 가이드예요." = "It references commonly used training-load and recovery-monitoring ideas from the literature, but the scoring is simplified for PNR.";
 "수면, HRV, 스트레스 같은 데이터는 아직 반영하지 않아 실제 회복 상태를 완전히 대변하지는 못합니다." = "It doesn't yet include data like sleep, HRV, or stress, so it can't fully represent true recovery.";
 "데이터가 부족하면 억지로 점수를 만들지 않고 `데이터 필요` 상태로 남겨둡니다." = "When data is insufficient, it stays in a 'Need Data' state instead of forcing a score.";
@@ -582,3 +592,6 @@
 "표시, 데이터, 지원" = "Display, data, support";
 "서버 업로드 없음 · 참고용 지표" = "No server upload · Reference metrics";
 "차트, 지도, 공유 이미지 미리보기" = "Preview charts, maps, and share images";
+"강도가 높아 짧아도 피로로 잡았어요" = "High effort counted as fatigue even though it was short";
+"마지막 러닝은 평소 1회보다 긴 부하였어요" = "The last run was a longer load than your usual session";
+"마지막 러닝은 평소 1회 부하 범위예요" = "The last run was within your usual single-run load";

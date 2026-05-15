@@ -32,6 +32,14 @@ extension HealthKitService {
         if let stepCountType {
             readTypes.insert(stepCountType)
         }
+        if #available(iOS 18.0, *) {
+            if let workoutEffortType = HKObjectType.quantityType(forIdentifier: .workoutEffortScore) {
+                readTypes.insert(workoutEffortType)
+            }
+            if let estimatedWorkoutEffortType = HKObjectType.quantityType(forIdentifier: .estimatedWorkoutEffortScore) {
+                readTypes.insert(estimatedWorkoutEffortType)
+            }
+        }
 
         try await healthStore.requestAuthorization(toShare: [], read: readTypes)
     }
@@ -51,7 +59,7 @@ extension HealthKitService {
         let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [runningPredicate, datePredicate])
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
 
-        return try await withCheckedThrowingContinuation { continuation in
+        let workouts: [HKWorkout] = try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(
                 sampleType: .workoutType(),
                 predicate: predicate,
@@ -64,12 +72,13 @@ extension HealthKitService {
                 }
 
                 let workouts = (samples as? [HKWorkout]) ?? []
-                let runs = workouts.map(RunningWorkout.init(workout:))
-                continuation.resume(returning: runs)
+                continuation.resume(returning: workouts)
             }
 
             healthStore.execute(query)
         }
+
+        return await runningWorkouts(from: workouts)
     }
 
     func fetchRunningWorkout(with id: UUID) async throws -> RunningWorkout? {
@@ -81,7 +90,7 @@ extension HealthKitService {
         let objectPredicate = HKQuery.predicateForObject(with: id)
         let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [runningPredicate, objectPredicate])
 
-        return try await withCheckedThrowingContinuation { continuation in
+        let workout: HKWorkout? = try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(
                 sampleType: .workoutType(),
                 predicate: predicate,
@@ -94,11 +103,14 @@ extension HealthKitService {
                 }
 
                 let workout = (samples as? [HKWorkout])?.first
-                continuation.resume(returning: workout.map(RunningWorkout.init(workout:)))
+                continuation.resume(returning: workout)
             }
 
             healthStore.execute(query)
         }
+
+        guard let workout else { return nil }
+        return await runningWorkout(from: workout)
     }
 
     // 가장 오래된 러닝 날짜는 과거 기록 로딩과 PR 재계산의 시작점이 된다.
@@ -353,4 +365,90 @@ extension HealthKitService {
     }
 
     // 심박 존 계산은 안정시 심박과 최근 최대 심박이 있으면 그 값을 우선 활용한다.
+}
+
+private extension HealthKitService {
+    func runningWorkouts(from workouts: [HKWorkout]) async -> [RunningWorkout] {
+        await withTaskGroup(of: RunningWorkout.self) { group in
+            for workout in workouts {
+                group.addTask {
+                    await self.runningWorkout(from: workout)
+                }
+            }
+
+            var runs: [RunningWorkout] = []
+            for await run in group {
+                runs.append(run)
+            }
+
+            return runs.sorted { $0.startDate > $1.startDate }
+        }
+    }
+
+    func runningWorkout(from workout: HKWorkout) async -> RunningWorkout {
+        let effort = await fetchAppleWorkoutEffort(for: workout)
+        return RunningWorkout(workout: workout, appleEffort: effort)
+    }
+
+    func fetchAppleWorkoutEffort(for workout: HKWorkout) async -> WorkoutEffort? {
+        guard #available(iOS 18.0, *) else { return nil }
+
+        if let effort = await fetchAppleWorkoutEffort(
+            for: workout,
+            identifier: .workoutEffortScore,
+            source: .appleWorkout
+        ) {
+            return effort
+        }
+
+        return await fetchAppleWorkoutEffort(
+            for: workout,
+            identifier: .estimatedWorkoutEffortScore,
+            source: .appleEstimated
+        )
+    }
+
+    @available(iOS 18.0, *)
+    func fetchAppleWorkoutEffort(
+        for workout: HKWorkout,
+        identifier: HKQuantityTypeIdentifier,
+        source: WorkoutEffortSource
+    ) async -> WorkoutEffort? {
+        guard let effortType = HKObjectType.quantityType(forIdentifier: identifier) else {
+            return nil
+        }
+
+        let predicate = HKQuery.predicateForWorkoutEffortSamplesRelated(workout: workout, activity: nil)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+
+        return try? await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: effortType,
+                predicate: predicate,
+                limit: 1,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                guard let sample = (samples as? [HKQuantitySample])?.first else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                let score = sample.quantity.doubleValue(for: .appleEffortScore())
+                continuation.resume(
+                    returning: WorkoutEffort(
+                        score: score,
+                        source: source,
+                        measuredAt: sample.endDate
+                    )
+                )
+            }
+
+            healthStore.execute(query)
+        }
+    }
 }

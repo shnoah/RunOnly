@@ -32,6 +32,7 @@ PNR Run reads these Apple Health metrics when available:
 - Distance walking/running
 - Step count
 - VO2 Max
+- Workout effort when available on supported iOS/watchOS versions
 
 ## Extra in-app tools
 

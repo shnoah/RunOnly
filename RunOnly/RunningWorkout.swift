@@ -10,9 +10,10 @@ struct RunningWorkout: Identifiable {
     let distanceInMeters: Double
     let sourceName: String
     let sourceBundleIdentifier: String
+    let appleEffort: WorkoutEffort?
     private let indoorWorkoutOverride: Bool?
 
-    init(workout: HKWorkout) {
+    init(workout: HKWorkout, appleEffort: WorkoutEffort? = nil) {
         id = workout.uuid
         self.workout = workout
         startDate = workout.startDate
@@ -20,6 +21,7 @@ struct RunningWorkout: Identifiable {
         distanceInMeters = workout.totalDistance?.doubleValue(for: .meter()) ?? 0
         sourceName = workout.sourceRevision.source.name
         sourceBundleIdentifier = workout.sourceRevision.source.bundleIdentifier
+        self.appleEffort = appleEffort
         indoorWorkoutOverride = nil
     }
 
@@ -30,7 +32,8 @@ struct RunningWorkout: Identifiable {
         distanceInMeters: Double,
         sourceName: String,
         sourceBundleIdentifier: String,
-        isIndoorWorkout: Bool?
+        isIndoorWorkout: Bool?,
+        appleEffort: WorkoutEffort? = nil
     ) {
         self.id = id
         self.workout = nil
@@ -39,6 +42,7 @@ struct RunningWorkout: Identifiable {
         self.distanceInMeters = distanceInMeters
         self.sourceName = sourceName
         self.sourceBundleIdentifier = sourceBundleIdentifier
+        self.appleEffort = appleEffort
         self.indoorWorkoutOverride = isIndoorWorkout
     }
 
@@ -147,6 +151,34 @@ struct RunningWorkout: Identifiable {
         sourceBundleIdentifier: "com.shnoah.RunOnly.demo",
         isIndoorWorkout: false
     )
+}
+
+enum WorkoutEffortSource: String, Codable {
+    case appleWorkout
+    case appleEstimated
+}
+
+struct WorkoutEffort: Codable, Equatable {
+    let score: Double
+    let source: WorkoutEffortSource
+    let measuredAt: Date
+
+    var clampedScore: Double {
+        min(max(score, 1), 10)
+    }
+
+    var displayText: String {
+        L10n.format("%.0f/10", clampedScore.rounded())
+    }
+
+    var sourceText: String {
+        switch source {
+        case .appleWorkout:
+            return L10n.tr("Apple 노력 점수")
+        case .appleEstimated:
+            return L10n.tr("Apple 추정 노력")
+        }
+    }
 }
 
 // 최근 러닝 몇 개를 바탕으로 대표 거리 기록을 보수적으로 추정하는 계산 규칙이다.
@@ -275,6 +307,7 @@ struct RecoveryReadiness {
     let lastRunText: String
     let restingHeartRateText: String?
     let loadRatioText: String?
+    let effortBasisText: String?
     let weeklyLoadChart: [RecoveryLoadPoint]
     let isDataSufficient: Bool
     let dataRequirementText: String?
@@ -316,6 +349,7 @@ struct RecoveryReadiness {
             lastRunText: "-",
             restingHeartRateText: nil,
             loadRatioText: nil,
+            effortBasisText: nil,
             weeklyLoadChart: [],
             isDataSufficient: false,
             dataRequirementText: L10n.tr("최근 28일 안에 최소 3회의 러닝이 필요합니다.")

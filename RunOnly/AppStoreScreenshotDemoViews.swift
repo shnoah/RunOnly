@@ -6,6 +6,7 @@ enum AppStoreScreenshotMode: String, CaseIterable {
     case charts
     case routeSplits = "route-splits"
     case share
+    case readinessTest = "readiness-test"
 
     static var current: AppStoreScreenshotMode? {
         let processInfo = ProcessInfo.processInfo
@@ -48,6 +49,8 @@ struct AppStoreScreenshotDemoRootView: View {
                     detail: .mockCompleteMetrics,
                     summary: RunDetail.mockCompleteMetrics.summaryMetrics
                 )
+            case .readinessTest:
+                ReadinessFormulaTestDemoView()
             }
         }
         .environmentObject(viewModel)
@@ -115,6 +118,246 @@ private struct AppStoreRouteSplitsDemoView: View {
             .navigationTitle("경로와 스플릿")
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+}
+
+private struct ReadinessFormulaTestDemoView: View {
+    private let referenceDate = AppStoreScreenshotFixtures.referenceDate
+
+    private var cases: [ReadinessFormulaCase] {
+        [
+            ReadinessFormulaCase(title: "살살 6km", subtitle: "40분 · 노력 4", tint: Color(red: 0.42, green: 0.76, blue: 1.0), runs: [
+                readinessRun(id: "9C361B5F-A799-4F1D-A3D1-B43F65F9E006", dayOffset: -1, duration: 2_400, distance: 6_000, effort: 4)
+            ]),
+            ReadinessFormulaCase(title: "인터벌 3km + 조깅 2km", subtitle: "30분 · 노력 8", tint: Color(red: 0.95, green: 0.59, blue: 0.32), runs: [
+                readinessRun(id: "A9138452-569F-42D3-8896-A4B50F62A2D1", dayOffset: -1, duration: 1_800, distance: 5_000, effort: 8)
+            ]),
+            ReadinessFormulaCase(title: "짧은 고강도 4km", subtitle: "22분 40초 · 노력 9", tint: Color(red: 0.94, green: 0.41, blue: 0.45), runs: [
+                readinessRun(id: "8B372734-BBFE-4532-B6D6-BC2368F3B115", dayOffset: -1, duration: 1_360, distance: 4_000, effort: 9)
+            ]),
+            ReadinessFormulaCase(title: "긴 이지런 10km", subtitle: "65분 · 노력 4", tint: Color(red: 0.50, green: 0.82, blue: 0.67), runs: [
+                readinessRun(id: "0359F4BF-24F6-4832-9CC3-BF8992C07D74", dayOffset: -1, duration: 3_900, distance: 10_000, effort: 4)
+            ]),
+            ReadinessFormulaCase(title: "롱런 16km", subtitle: "96분 · 노력 6", tint: Color(red: 0.73, green: 0.62, blue: 0.97), runs: [
+                readinessRun(id: "C411B25F-D973-4556-A056-1145B7708BAE", dayOffset: -1, duration: 5_760, distance: 16_000, effort: 6)
+            ]),
+            ReadinessFormulaCase(title: "백투백 8km + 5km", subtitle: "어제+오늘 · 노력 6/5", tint: Color(red: 0.98, green: 0.78, blue: 0.34), runs: [
+                readinessRun(id: "D428B172-B029-431B-A09A-20113477B477", dayOffset: -2, duration: 3_000, distance: 8_000, effort: 6),
+                readinessRun(id: "095484A7-C92B-4B1D-B660-636735C2ECF1", dayOffset: -1, duration: 1_800, distance: 5_000, effort: 5)
+            ])
+        ]
+    }
+
+    private var readinessBaseRuns: [RunningWorkout] {
+        [
+            readinessRun(id: "4E64F6D2-3F92-4583-B271-55C7636AC017", dayOffset: -16, duration: 1_800, distance: 5_000, effort: 5),
+            readinessRun(id: "3E8F3017-FA4D-45FC-B916-1567105B1B61", dayOffset: -12, duration: 1_820, distance: 5_000, effort: 5),
+            readinessRun(id: "7B5EE136-6C0C-48D6-80E5-B23EFD7804AF", dayOffset: -8, duration: 1_780, distance: 5_000, effort: 5)
+        ]
+    }
+
+    private var didPass: Bool {
+        guard let easyScore = readiness(for: cases[0]).score,
+              let intervalScore = readiness(for: cases[1]).score else {
+            return false
+        }
+        return intervalScore < easyScore
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        FeatureToneBadge(
+                            text: didPass ? "테스트 통과" : "확인 필요",
+                            tint: didPass ? Color(red: 0.29, green: 0.88, blue: 0.63) : Color(red: 0.94, green: 0.41, blue: 0.45),
+                            foreground: .white
+                        )
+
+                        Text("준비도 계산 비교")
+                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+
+                        Text("실제 러닝 패턴별 Apple 노력 반영 결과")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.72))
+                    }
+                    .padding(.top, 4)
+
+                    LazyVStack(spacing: 10) {
+                        ForEach(cases) { testCase in
+                            ReadinessFormulaResultRow(
+                                testCase: testCase,
+                                readiness: readiness(for: testCase)
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .background(AppBackground())
+            .navigationTitle("준비도 테스트")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func readiness(for testCase: ReadinessFormulaCase) -> RecoveryReadiness {
+        RecoveryReadinessCalculator.build(
+            from: readinessBaseRuns + testCase.runs,
+            restingHeartRateSnapshot: AppStoreScreenshotFixtures.restingHeartRateSnapshot,
+            now: referenceDate
+        )
+    }
+
+    private func readinessRun(
+        id: String,
+        dayOffset: Int,
+        duration: TimeInterval,
+        distance: Double,
+        effort: Double
+    ) -> RunningWorkout {
+        let startDate = AppStoreScreenshotFixtures.date(dayOffset: dayOffset, hour: 7, minute: 0)
+        return RunningWorkout(
+            id: UUID(uuidString: id) ?? UUID(),
+            startDate: startDate,
+            duration: duration,
+            distanceInMeters: distance,
+            sourceName: "Apple Watch",
+            sourceBundleIdentifier: "com.apple.health",
+            isIndoorWorkout: false,
+            appleEffort: WorkoutEffort(
+                score: effort,
+                source: .appleWorkout,
+                measuredAt: startDate.addingTimeInterval(duration)
+            )
+        )
+    }
+}
+
+private struct ReadinessFormulaCase: Identifiable {
+    let id = UUID()
+    let title: String
+    let subtitle: String
+    let tint: Color
+    let runs: [RunningWorkout]
+}
+
+private struct ReadinessFormulaResultRow: View {
+    let testCase: ReadinessFormulaCase
+    let readiness: RecoveryReadiness
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(testCase.title)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                HStack(spacing: 6) {
+                    Text(testCase.subtitle)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(testCase.tint.opacity(0.95))
+                    Text(readiness.effortBasisText ?? readiness.confidenceText)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(1)
+                }
+
+                Text(readiness.factors.dropFirst(2).first ?? readiness.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 6) {
+                Text(readiness.scoreText)
+                    .font(.system(size: 25, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                Text(readiness.status)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(testCase.tint.opacity(0.34))
+                    )
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(minHeight: 78)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.055))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(testCase.tint.opacity(0.24), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct ReadinessFormulaResultCard: View {
+    let title: String
+    let subtitle: String
+    let readiness: RecoveryReadiness
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                    Text(subtitle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(tint.opacity(0.95))
+                }
+
+                Spacer()
+
+                FeatureToneBadge(text: readiness.status, tint: tint, foreground: .white)
+            }
+
+            HStack(alignment: .lastTextBaseline, spacing: 12) {
+                Text(readiness.scoreText)
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+
+                Text(readiness.confidenceText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(readiness.factors.prefix(3).enumerated()), id: \.offset) { _, factor in
+                    RecoveryReasonRow(text: factor, tint: tint)
+                }
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.055))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(tint.opacity(0.28), lineWidth: 1)
+                )
+        )
     }
 }
 

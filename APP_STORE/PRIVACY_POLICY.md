@@ -21,8 +21,9 @@ When you allow Apple Health access, PNR Run may read:
 - VO2 Max
 - Distance walking/running
 - Step count
+- Workout effort when available on supported iOS/watchOS versions
 
-PNR Run reads these items only to render summaries, detailed charts, personal record tracking, shoe assignment views, and sharing layouts inside the app.
+PNR Run reads these items only to render summaries, running readiness, detailed charts, personal record tracking, shoe assignment views, and sharing layouts inside the app.
 
 ## Data Stored On Device
 
