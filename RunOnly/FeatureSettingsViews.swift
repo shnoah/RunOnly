@@ -16,7 +16,7 @@ struct SettingsTabView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     SettingsOverviewHeaderCard()
 
-                    DetailSection(title: "표시", systemImage: "paintbrush.pointed.fill", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
+                    PNRSection(title: "표시") {
                         VStack(spacing: 10) {
                             NavigationLink {
                                 AppLanguageSettingsView()
@@ -44,17 +44,26 @@ struct SettingsTabView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Apple 운동 앱 기록 기본 표시")
                                         .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(PNR2026.ink)
                                     Text("홈/기록 기본 필터")
                                         .font(.caption)
-                                        .foregroundStyle(.white.opacity(0.58))
+                                        .foregroundStyle(PNR2026.muted)
                                 }
                             }
-                            .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+                            .tint(PNR2026.track)
+                            .padding(12)
+                            .background(
+                                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                    .fill(PNR2026.surface)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                            .stroke(PNR2026.line, lineWidth: 1)
+                                    )
+                            )
                         }
                     }
 
-                    DetailSection(title: "데이터", systemImage: "externaldrive.fill", tint: Color(red: 0.29, green: 0.88, blue: 0.63)) {
+                    PNRSection(title: "데이터") {
                         VStack(spacing: 10) {
                             NavigationLink {
                                 DataPermissionsView()
@@ -91,7 +100,7 @@ struct SettingsTabView: View {
                         }
                     }
 
-                    DetailSection(title: "지원", systemImage: "lifepreserver.fill", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
+                    PNRSection(title: "지원") {
                         VStack(spacing: 10) {
                             NavigationLink {
                                 PrivacyPolicyView()
@@ -119,7 +128,7 @@ struct SettingsTabView: View {
 
                     Text(AppMetadata.versionText)
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.42))
+                        .foregroundStyle(PNR2026.muted)
                         .frame(maxWidth: .infinity)
                 }
                 .padding(16)
@@ -137,34 +146,34 @@ struct SettingsOverviewHeaderCard: View {
         VStack(alignment: .leading, spacing: 8) {
             FeatureToneBadge(
                 text: "설정",
-                tint: Color(red: 0.42, green: 0.76, blue: 1.0),
+                tint: PNR2026.water,
                 foreground: Color(red: 0.82, green: 0.94, blue: 1.0)
             )
 
             Text("설정")
                 .font(.system(.title2, design: .rounded).weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(PNR2026.ink)
 
             Text("표시, 데이터, 지원")
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.74))
+                .foregroundStyle(PNR2026.muted)
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
                             Color.white.opacity(0.07),
-                            Color(red: 0.26, green: 0.48, blue: 0.84).opacity(0.18)
+                            PNR2026.water.opacity(0.18)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
                 )
         )
     }
@@ -601,25 +610,34 @@ struct SettingLinkRow: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.16))
+                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                    .fill(PNR2026.track.opacity(0.16))
                 Image(systemName: systemImage)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                    .foregroundStyle(PNR2026.track)
             }
             .frame(width: 32, height: 32)
             VStack(alignment: .leading, spacing: 4) {
                 Text(LocalizedStringKey(title))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(PNR2026.ink)
                 Text(LocalizedStringKey(detail))
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.58))
+                    .foregroundStyle(PNR2026.muted)
             }
             Spacer()
             Image(systemName: "chevron.right")
-                .foregroundStyle(.white.opacity(0.38))
+                .foregroundStyle(PNR2026.muted)
         }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(PNR2026.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
+                )
+        )
         .accessibilityElement(children: .combine)
     }
 }
@@ -633,14 +651,14 @@ struct SettingSelectionRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
                 Text(LocalizedStringKey(title))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(PNR2026.ink)
 
                 Spacer(minLength: 12)
 
                 Text(LocalizedStringKey(value))
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(PNR2026.ink)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(
@@ -650,14 +668,22 @@ struct SettingSelectionRow: View {
 
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.38))
+                    .foregroundStyle(PNR2026.muted)
             }
 
             Text(LocalizedStringKey(detail))
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.58))
+                .foregroundStyle(PNR2026.muted)
         }
-        .padding(.vertical, 2)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(PNR2026.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
+                )
+        )
         .accessibilityElement(children: .combine)
     }
 }
@@ -672,21 +698,21 @@ struct SettingInfoRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(LocalizedStringKey(title))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(PNR2026.muted)
                 Spacer()
                 Text(LocalizedStringKey(value))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(PNR2026.ink)
                     .multilineTextAlignment(.trailing)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(LocalizedStringKey(title))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(PNR2026.muted)
                 Text(LocalizedStringKey(value))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(PNR2026.ink)
                     .multilineTextAlignment(.leading)
             }
         }
@@ -704,19 +730,27 @@ struct SettingOptionRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(LocalizedStringKey(title))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(PNR2026.ink)
                 Text(LocalizedStringKey(detail))
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.58))
+                    .foregroundStyle(PNR2026.muted)
             }
 
             Spacer()
 
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .font(.headline)
-                .foregroundStyle(isSelected ? Color(red: 0.29, green: 0.88, blue: 0.63) : .white.opacity(0.22))
+                .foregroundStyle(isSelected ? PNR2026.track : PNR2026.muted.opacity(0.45))
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(PNR2026.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
+                )
+        )
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])

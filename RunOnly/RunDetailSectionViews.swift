@@ -8,10 +8,10 @@ struct RunPersonalRecordBanner: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "sparkles")
-                .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
+                .foregroundStyle(PNR2026.heat)
             Text(message)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(PNR2026.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
             Spacer(minLength: 0)
@@ -19,11 +19,11 @@ struct RunPersonalRecordBanner: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.16))
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(PNR2026.heat.opacity(0.14))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.35), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.heat.opacity(0.24), lineWidth: 1)
                 )
         )
     }
@@ -36,17 +36,20 @@ struct RunPersonalRecordBanner: View {
 
 struct RunRouteSection: View {
     let detail: RunDetail
-    let isLoadingSupplementary: Bool
+    let loadState: RunDetailSupplementaryLoadState
 
     var body: some View {
         DetailSection(title: "경로", systemImage: "map", tint: Color(red: 0.35, green: 0.72, blue: 1.0)) {
-            if detail.route.isEmpty, isLoadingSupplementary {
+            if detail.route.isEmpty, loadState == .loading || loadState == .idle {
                 HStack(spacing: 10) {
                     ProgressView()
                         .tint(.white)
                     Text("경로 데이터를 불러오는 중")
                         .foregroundStyle(.white.opacity(0.72))
                 }
+            } else if detail.route.isEmpty, loadState == .failed {
+                Text(L10n.tr("경로 데이터를 불러오지 못했습니다."))
+                    .foregroundStyle(.white.opacity(0.72))
             } else if detail.route.isEmpty {
                 Text("이 러닝에는 경로 데이터가 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
@@ -118,53 +121,78 @@ struct RunOverviewMetricsSection: View {
     let summary: RunSummaryMetrics?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                RunHeroMoodBadge(text: moodBadgeText)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        RunHeroMoodBadge(text: moodBadgeText)
+                        RunEnvironmentBadge(text: run.environmentBadgeText)
+                    }
 
-                Text(run.detailDateText)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.66))
+                    Text(run.detailDateText)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(PNR2026.muted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                }
+
+                Spacer()
+
+                Text("RUN REPORT")
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(PNR2026.track.opacity(0.70))
+            }
+
+            HStack(alignment: .lastTextBaseline, spacing: 10) {
+                Text(run.distanceText)
+                    .font(.system(size: 54, weight: .black, design: .rounded))
+                    .foregroundStyle(PNR2026.ink)
+                    .monospacedDigit()
                     .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                    .minimumScaleFactor(0.62)
 
                 Spacer(minLength: 8)
 
-                RunEnvironmentBadge(text: run.environmentBadgeText)
-            }
-
-            HStack(spacing: 8) {
-                RunHeroPrimaryMetric(title: "거리", value: run.distanceText)
-                RunHeroPrimaryMetric(title: "시간", value: run.durationText)
-                RunHeroPrimaryMetric(title: "페이스", value: run.paceText)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(run.paceText)
+                        .font(.system(.title2, design: .rounded).weight(.black))
+                        .foregroundStyle(PNR2026.ink)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                    Text(run.durationText)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(PNR2026.muted)
+                        .monospacedDigit()
+                }
             }
 
             if !secondaryMetrics.isEmpty {
-                LazyVGrid(columns: secondaryColumns, spacing: 8) {
+                HStack(spacing: 8) {
                     ForEach(secondaryMetrics) { metric in
                         RunHeroSecondaryMetric(metric: metric)
                     }
                 }
             }
         }
-        .padding(18)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.07),
-                            Color(red: 0.22, green: 0.54, blue: 0.84).opacity(0.22)
+                            Color.white.opacity(0.08),
+                            heroTint.opacity(0.16),
+                            PNR2026.water.opacity(0.08)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.18), radius: 18, y: 10)
         )
     }
 
@@ -188,6 +216,10 @@ struct RunOverviewMetricsSection: View {
         default:
             return L10n.tr("롱 런")
         }
+    }
+
+    private var heroTint: Color {
+        run.isIndoorWorkout == true ? PNR2026.heat : PNR2026.track
     }
 
     private var secondaryMetrics: [RunOverviewSecondaryMetric] {
@@ -224,30 +256,7 @@ struct RunHeroPrimaryMetric: View {
     let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(LocalizedStringKey(title))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.5))
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-            Text(value)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-        }
-        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(0.16))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
-                )
-        )
+        PNRMetricBlock(title: title, value: value, tint: PNR2026.track)
     }
 }
 
@@ -262,27 +271,22 @@ struct RunHeroSecondaryMetric: View {
     let metric: RunOverviewSecondaryMetric
 
     var body: some View {
-        HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(LocalizedStringKey(metric.title))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.5))
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(PNR2026.muted)
             Text(metric.value)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.86))
+                .font(.caption.weight(.black))
+                .foregroundStyle(PNR2026.ink)
                 .monospacedDigit()
                 .lineLimit(1)
-                .minimumScaleFactor(0.82)
+                .minimumScaleFactor(0.62)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(10)
         .background(
-            Capsule()
-                .fill(Color.white.opacity(0.06))
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
-                )
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(Color.black.opacity(0.16))
         )
     }
 }
@@ -292,25 +296,25 @@ struct RunHeroMoodBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(Color(red: 1.0, green: 0.86, blue: 0.76))
+            .font(.caption2.weight(.black))
+            .foregroundStyle(PNR2026.track)
             .padding(.horizontal, 9)
-            .padding(.vertical, 5)
+            .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(Color(red: 0.96, green: 0.56, blue: 0.34).opacity(0.18))
+                    .fill(PNR2026.track.opacity(0.14))
             )
     }
 }
 
 struct HeartRateZoneSection: View {
     let detail: RunDetail
-    let isLoadingSupplementary: Bool
+    let loadState: RunDetailSupplementaryLoadState
     private let zoneRows: [HeartRateZoneRowModel]
 
-    init(detail: RunDetail, isLoadingSupplementary: Bool) {
+    init(detail: RunDetail, loadState: RunDetailSupplementaryLoadState) {
         self.detail = detail
-        self.isLoadingSupplementary = isLoadingSupplementary
+        self.loadState = loadState
         self.zoneRows = HeartRateZoneRowModel.build(
             distribution: detail.heartRateZoneDistribution,
             heartRates: detail.heartRates,
@@ -321,13 +325,16 @@ struct HeartRateZoneSection: View {
 
     var body: some View {
         DetailSection(title: "심박", systemImage: "heart.fill", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
-            if zoneRows.isEmpty, isLoadingSupplementary {
+            if zoneRows.isEmpty, loadState == .loading || loadState == .idle {
                 HStack(spacing: 10) {
                     ProgressView()
                         .tint(.white)
                     Text("심박 존 데이터를 계산하는 중")
                         .foregroundStyle(.white.opacity(0.72))
                 }
+            } else if zoneRows.isEmpty, loadState == .failed {
+                Text(L10n.tr("심박 존 데이터를 불러오지 못했습니다."))
+                    .foregroundStyle(.white.opacity(0.72))
             } else if zoneRows.isEmpty {
                 Text("심박 데이터가 부족해 존 분포를 계산할 수 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
@@ -335,6 +342,17 @@ struct HeartRateZoneSection: View {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(zoneRows) { zone in
                         HeartRateZoneRow(zone: zone)
+                    }
+
+                    if loadState == .provisional {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .tint(.white)
+                            Text(L10n.tr("개인 기준으로 갱신하는 중"))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.56))
+                        }
+                        .padding(.top, 2)
                     }
                 }
             }

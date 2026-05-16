@@ -1,10 +1,18 @@
 import SwiftUI
 
 enum AppStoreScreenshotMode: String, CaseIterable {
+    case onboarding
     case home
     case records
+    case calendar
+    case personalRecords = "personal-records"
     case charts
     case routeSplits = "route-splits"
+    case shoes
+    case shoeDetail = "shoe-detail"
+    case settings
+    case privacy
+    case dataPermissions = "data-permissions"
     case share
     case readinessTest = "readiness-test"
 
@@ -35,14 +43,51 @@ struct AppStoreScreenshotDemoRootView: View {
     var body: some View {
         Group {
             switch mode {
+            case .onboarding:
+                NavigationStack {
+                    HealthKitOnboardingView(showsDismissButton: false) {}
+                }
             case .home:
                 HomeTabView(viewModel: viewModel)
             case .records:
                 RecordTabView(viewModel: viewModel)
+            case .calendar:
+                RecordCalendarSheet(viewModel: viewModel)
+            case .personalRecords:
+                NavigationStack {
+                    PersonalRecordsManagementView(
+                        currentRecords: viewModel.personalRecords,
+                        pendingCandidates: viewModel.pendingPersonalRecordCandidates,
+                        isRefreshingRecords: viewModel.isRefreshingPersonalRecords,
+                        personalRecordProgress: viewModel.personalRecordProgress,
+                        onApproveCandidate: viewModel.approvePersonalRecordCandidate,
+                        onDismissCandidate: viewModel.dismissPersonalRecordCandidate,
+                        onResetAndReloadRecords: viewModel.resetAndReloadPersonalRecords
+                    )
+                }
             case .charts:
                 AppStoreDetailChartsDemoView()
             case .routeSplits:
                 AppStoreRouteSplitsDemoView()
+            case .shoes:
+                ShoesTabView(runs: viewModel.allRuns)
+            case .shoeDetail:
+                NavigationStack {
+                    ShoeDetailView(
+                        shoe: AppStoreScreenshotFixtures.sampleShoe,
+                        runs: AppStoreScreenshotFixtures.runs
+                    )
+                }
+            case .settings:
+                SettingsTabView()
+            case .privacy:
+                NavigationStack {
+                    PrivacyPolicyView()
+                }
+            case .dataPermissions:
+                NavigationStack {
+                    DataPermissionsView()
+                }
             case .share:
                 RunShareComposerView(
                     run: AppStoreScreenshotFixtures.heroRun,
@@ -89,7 +134,7 @@ private struct AppStoreDetailChartsDemoView: View {
                         run: AppStoreScreenshotFixtures.heroRun,
                         detail: .mockCompleteMetrics
                     )
-                    HeartRateZoneSection(detail: .mockCompleteMetrics, isLoadingSupplementary: false)
+                    HeartRateZoneSection(detail: .mockCompleteMetrics, loadState: .loaded)
                 }
                 .padding(16)
             }
@@ -109,7 +154,7 @@ private struct AppStoreRouteSplitsDemoView: View {
                         run: AppStoreScreenshotFixtures.heroRun,
                         summary: RunDetail.mockCompleteMetrics.summaryMetrics
                     )
-                    RunRouteSection(detail: .mockCompleteMetrics, isLoadingSupplementary: false)
+                    RunRouteSection(detail: .mockCompleteMetrics, loadState: .loaded)
                     RunSplitSection(detail: .mockCompleteMetrics)
                 }
                 .padding(16)

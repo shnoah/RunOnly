@@ -29,6 +29,15 @@ final class RunDetailPerformanceTrace {
     }
 }
 
+enum RunDetailSupplementaryLoadState {
+    case idle
+    case loading
+    case provisional
+    case loaded
+    case unavailable
+    case failed
+}
+
 // 상세 화면은 한 번 선택한 러닝의 HealthKit 데이터를 비동기로 읽어 상태를 관리한다.
 @MainActor
 final class RunDetailViewModel: ObservableObject {
@@ -41,7 +50,8 @@ final class RunDetailViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
-    @Published private(set) var isLoadingSupplementary = false
+    @Published private(set) var routeLoadState: RunDetailSupplementaryLoadState = .idle
+    @Published private(set) var heartRateZoneLoadState: RunDetailSupplementaryLoadState = .idle
     @Published private(set) var cachedSummary: RunSummaryMetrics?
 
     private let healthKitService = HealthKitService()
@@ -87,7 +97,7 @@ final class RunDetailViewModel: ObservableObject {
 
         loadGeneration += 1
         let currentGeneration = loadGeneration
-        isLoadingSupplementary = false
+        resetSupplementaryLoadStates()
 
         let trace = RunDetailPerformanceTrace(runID: run.id)
         let cachedProfile = heartRateZoneProfileCacheStore.freshProfile
@@ -132,7 +142,7 @@ final class RunDetailViewModel: ObservableObject {
             if cachedDetail == nil {
                 state = .failed(error.localizedDescription)
             }
-            isLoadingSupplementary = false
+            resetSupplementaryLoadStates()
         }
     }
 
@@ -149,7 +159,7 @@ final class RunDetailViewModel: ObservableObject {
     // 개발 중에는 실데이터 없이도 다양한 상세 화면 레이아웃을 점검할 수 있다.
     func applyDebugScenario(_ scenario: DebugScenario) async {
         loadGeneration += 1
-        isLoadingSupplementary = false
+        resetSupplementaryLoadStates()
 
         switch scenario {
         case .live:
@@ -157,21 +167,27 @@ final class RunDetailViewModel: ObservableObject {
         case .completeMetrics:
             state = .loaded(.mockCompleteMetrics)
             cachedSummary = RunDetail.mockCompleteMetrics.summaryMetrics
+            markSupplementaryLoaded(for: .mockCompleteMetrics)
         case .pausedWorkout:
             state = .loaded(.mockPausedWorkout)
             cachedSummary = RunDetail.mockPausedWorkout.summaryMetrics
+            markSupplementaryLoaded(for: .mockPausedWorkout)
         case .missingRoute:
             state = .loaded(.mockMissingRoute)
             cachedSummary = RunDetail.mockMissingRoute.summaryMetrics
+            markSupplementaryLoaded(for: .mockMissingRoute)
         case .missingHeartRate:
             state = .loaded(.mockMissingHeartRate)
             cachedSummary = RunDetail.mockMissingHeartRate.summaryMetrics
+            markSupplementaryLoaded(for: .mockMissingHeartRate)
         case .missingCadence:
             state = .loaded(.mockMissingCadence)
             cachedSummary = RunDetail.mockMissingCadence.summaryMetrics
+            markSupplementaryLoaded(for: .mockMissingCadence)
         case .empty:
             state = .loaded(.empty)
             cachedSummary = nil
+            markSupplementaryLoaded(for: .empty)
         }
     }
 
@@ -180,63 +196,127 @@ final class RunDetailViewModel: ObservableObject {
         generation: Int,
         trace: RunDetailPerformanceTrace? = nil
     ) async {
-        isLoadingSupplementary = true
         trace?.mark("supplementary.start")
-        defer {
-            if generation == loadGeneration {
-                isLoadingSupplementary = false
-                trace?.mark("supplementary.loading_flag_cleared")
-            }
+        async let routeLoad: Void = loadRouteSupplementary(
+            for: detail,
+            generation: generation,
+            trace: trace
+        )
+        async let zoneLoad: Void = loadHeartRateZoneSupplementary(
+            for: detail,
+            generation: generation,
+            trace: trace
+        )
+        _ = await (routeLoad, zoneLoad)
+        trace?.mark("supplementary.all_done")
+    }
+
+    private func loadRouteSupplementary(
+        for detail: RunDetail,
+        generation: Int,
+        trace: RunDetailPerformanceTrace? = nil
+    ) async {
+        guard generation == loadGeneration else { return }
+        if !detail.route.isEmpty {
+            routeLoadState = .loaded
+            trace?.mark("route.reused", detail: "points=\(detail.route.count)")
+            return
         }
 
-        let cachedProfile = heartRateZoneProfileCacheStore.freshProfile
-        let heartRateZoneProfileTask: Task<HeartRateZoneProfile?, Never>? = cachedProfile == nil
-            ? Task {
-                await healthKitService.fetchRunHeartRateZoneProfile(
-                    for: run,
-                    observedMaximumHeartRate: detail.heartRates.map(\.bpm).max()
-                )
-            }
-            : nil
+        routeLoadState = .loading
+        trace?.mark("route.loading_start")
+        do {
+            let route = try await healthKitService.fetchRunRoute(for: run)
+            guard generation == loadGeneration else { return }
+            trace?.mark("route.query_done", detail: "points=\(route.count)")
 
-        let route: [RunRoutePoint]
-        if detail.route.isEmpty {
-            trace?.mark("supplementary.route_query_start")
-            route = (try? await healthKitService.fetchRunRoute(for: run)) ?? []
-            trace?.mark("supplementary.route_query_done", detail: "points=\(route.count)")
+            if route.isEmpty {
+                routeLoadState = .unavailable
+                trace?.mark("route.unavailable")
+                return
+            }
+
             applySupplementaryUpdate(
                 route: route,
                 heartRateZoneProfile: nil,
-                generation: generation
+                generation: generation,
+                shouldSaveDetail: true
             )
-            trace?.mark("supplementary.route_state_set", detail: "route=\(route.count)")
-        } else {
-            route = detail.route
-            trace?.mark("supplementary.route_reused", detail: "points=\(route.count)")
+            routeLoadState = .loaded
+            trace?.mark("route.state_set", detail: "route=\(route.count)")
+        } catch {
+            guard generation == loadGeneration else { return }
+            routeLoadState = .failed
+            trace?.mark("route.failed", detail: error.localizedDescription)
+        }
+    }
+
+    private func loadHeartRateZoneSupplementary(
+        for detail: RunDetail,
+        generation: Int,
+        trace: RunDetailPerformanceTrace? = nil
+    ) async {
+        guard generation == loadGeneration else { return }
+
+        if detail.heartRates.count < 2 {
+            heartRateZoneLoadState = .unavailable
+            trace?.mark("zone.unavailable", detail: "heartRates=\(detail.heartRates.count)")
+            return
         }
 
-        let heartRateZoneProfile: HeartRateZoneProfile?
-        if let cachedProfile {
-            heartRateZoneProfile = cachedProfile
-            trace?.mark("supplementary.zone_profile_cache_hit")
-        } else {
-            heartRateZoneProfile = await heartRateZoneProfileTask?.value
-            heartRateZoneProfileCacheStore.save(heartRateZoneProfile)
-            trace?.mark("supplementary.zone_profile_done")
+        if let cachedProfile = heartRateZoneProfileCacheStore.freshProfile {
+            heartRateZoneLoadState = .loaded
+            applySupplementaryUpdate(
+                route: [],
+                heartRateZoneProfile: cachedProfile,
+                generation: generation,
+                shouldSaveDetail: true
+            )
+            trace?.mark("zone.profile_cache_hit")
+            return
         }
+
+        heartRateZoneLoadState = detail.heartRateZoneDistribution == nil ? .loading : .provisional
+        trace?.mark("zone.profile_loading_start")
+        let heartRateZoneProfile = await healthKitService.fetchRunHeartRateZoneProfile(
+            for: run,
+            observedMaximumHeartRate: detail.heartRates.map(\.bpm).max()
+        )
+        heartRateZoneProfileCacheStore.save(heartRateZoneProfile)
+        trace?.mark("zone.profile_query_done")
 
         guard generation == loadGeneration else { return }
-        guard case .loaded(let currentDetail) = state else { return }
+        if let heartRateZoneProfile {
+            applySupplementaryUpdate(
+                route: [],
+                heartRateZoneProfile: heartRateZoneProfile,
+                generation: generation,
+                shouldSaveDetail: true
+            )
+        }
 
+        guard case .loaded(let currentDetail) = state else { return }
+        heartRateZoneLoadState = currentDetail.heartRateZoneDistribution == nil ? .unavailable : .loaded
+        trace?.mark("zone.profile_state_set")
+    }
+
+    private func applySupplementaryUpdate(
+        route: [RunRoutePoint],
+        heartRateZoneProfile: HeartRateZoneProfile?,
+        generation: Int,
+        shouldSaveDetail: Bool
+    ) {
+        guard generation == loadGeneration else { return }
+        guard case .loaded(let currentDetail) = state else { return }
         let updatedDetail = currentDetail.updatingSupplementary(
-            route: route.isEmpty ? currentDetail.route : route,
+            route: route,
             heartRateZoneProfile: heartRateZoneProfile
         )
         updateCachedSummary(from: updatedDetail)
-        detailCacheStore.save(updatedDetail, for: run)
-        trace?.mark("cache_save")
+        if shouldSaveDetail {
+            detailCacheStore.save(updatedDetail, for: run)
+        }
         state = .loaded(updatedDetail)
-        trace?.mark("supplementary.state_set", detail: "route=\(route.count)")
     }
 
     private func applySupplementaryUpdate(
@@ -244,15 +324,22 @@ final class RunDetailViewModel: ObservableObject {
         heartRateZoneProfile: HeartRateZoneProfile?,
         generation: Int
     ) {
-        guard generation == loadGeneration else { return }
-        guard case .loaded(let currentDetail) = state else { return }
-
-        let updatedDetail = currentDetail.updatingSupplementary(
-            route: route.isEmpty ? currentDetail.route : route,
-            heartRateZoneProfile: heartRateZoneProfile
+        applySupplementaryUpdate(
+            route: route,
+            heartRateZoneProfile: heartRateZoneProfile,
+            generation: generation,
+            shouldSaveDetail: false
         )
-        updateCachedSummary(from: updatedDetail)
-        state = .loaded(updatedDetail)
+    }
+
+    private func resetSupplementaryLoadStates() {
+        routeLoadState = .idle
+        heartRateZoneLoadState = .idle
+    }
+
+    private func markSupplementaryLoaded(for detail: RunDetail) {
+        routeLoadState = detail.route.isEmpty ? .unavailable : .loaded
+        heartRateZoneLoadState = detail.heartRateZoneDistribution == nil ? .unavailable : .loaded
     }
 
     private var loadedDetail: RunDetail? {
