@@ -200,8 +200,8 @@ struct RunShareComposerView: View {
                         shareActionLabel(
                             title: "저장",
                             systemImage: "square.and.arrow.down",
-                            foregroundColor: .white,
-                            backgroundColor: Color.white.opacity(0.08)
+                            foregroundColor: PNR2026.ink,
+                            backgroundColor: PNR2026.surface
                         )
                     }
                     .buttonStyle(.plain)
@@ -212,8 +212,8 @@ struct RunShareComposerView: View {
                         shareActionLabel(
                             title: "복사",
                             systemImage: "doc.on.doc",
-                            foregroundColor: .white,
-                            backgroundColor: Color.white.opacity(0.08)
+                            foregroundColor: PNR2026.ink,
+                            backgroundColor: PNR2026.surface
                         )
                     }
                     .buttonStyle(.plain)
@@ -233,7 +233,7 @@ struct RunShareComposerView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .padding(.bottom, 14)
-                .background(.ultraThinMaterial)
+                .background(PNR2026.canvas.opacity(0.98))
             }
             .sheet(isPresented: $showingShareSheet) {
                 ShareSheet(activityItems: shareItems)
@@ -853,11 +853,11 @@ struct RunShareComposerView: View {
     }
 
     private func editorPanelBackground(cornerRadius: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(Color.white.opacity(0.05))
+        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+            .fill(PNR2026.surface)
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                    .stroke(PNR2026.line, lineWidth: 1)
             )
     }
 
@@ -874,8 +874,12 @@ struct RunShareComposerView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
                     .fill(backgroundColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                            .stroke(PNR2026.line, lineWidth: 1)
+                    )
             )
     }
 

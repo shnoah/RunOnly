@@ -145,8 +145,8 @@ struct DashboardQuickOverviewPanel: View {
             } label: {
                 DashboardCompactSummaryLink(
                     systemImage: "figure.run",
-                    title: "거리",
-                    value: summary.monthDistanceText,
+                    title: "올해",
+                    value: summary.yearDistanceText,
                     detail: nil,
                     tint: Color(red: 0.42, green: 0.76, blue: 1.0)
                 )
@@ -347,65 +347,58 @@ struct RecentRunCompactRow: View {
     let run: RunningWorkout
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .center, spacing: 12) {
             Text(compactDateText)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white.opacity(0.9))
+                .font(.system(.caption, design: .rounded).weight(.black))
+                .foregroundStyle(.white.opacity(0.92))
                 .monospacedDigit()
-                .frame(width: 48, height: 40)
+                .frame(width: 44, height: 34)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.white.opacity(0.065))
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(Color.white.opacity(0.07))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
                                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
                         )
                 )
 
-            HStack(spacing: 0) {
-                metricColumn(title: "거리", value: run.distanceText)
+            Text(run.distanceText)
+                .font(.system(.headline, design: .rounded).weight(.black))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
 
-                Rectangle()
-                    .fill(Color.white.opacity(0.07))
-                    .frame(width: 1, height: 30)
-                    .padding(.horizontal, 10)
+            Spacer(minLength: 8)
 
-                metricColumn(title: "페이스", value: run.paceText)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.black.opacity(0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.white.opacity(0.045), lineWidth: 1)
-                    )
-            )
+            Text(run.paceText)
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundStyle(.white.opacity(0.74))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
 
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.white.opacity(0.36))
-                .frame(width: 16, height: 40)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 17, style: .continuous)
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.055),
-                            Color.black.opacity(0.15)
+                            Color.white.opacity(0.05),
+                            Color.black.opacity(0.12)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 17, style: .continuous)
-                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .stroke(Color.white.opacity(0.055), lineWidth: 1)
                 )
         )
         .accessibilityElement(children: .ignore)
@@ -417,25 +410,8 @@ struct RecentRunCompactRow: View {
         let formatter = DateFormatter()
         formatter.locale = RunDisplayFormatter.currentAppLocale
         formatter.timeZone = .current
-        formatter.dateFormat = "M/d"
+        formatter.dateFormat = "MM/dd"
         return formatter.string(from: run.startDate)
-    }
-
-    private func metricColumn(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(LocalizedStringKey(title))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.45))
-                .lineLimit(1)
-
-            Text(value)
-                .font(.system(.subheadline, design: .rounded).weight(.bold))
-                .foregroundStyle(.white.opacity(0.94))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

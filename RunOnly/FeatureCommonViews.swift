@@ -17,7 +17,7 @@ struct FeatureToneBadge: View {
             .font(.caption2.weight(.semibold))
             .foregroundStyle(foreground)
             .padding(.horizontal, 9)
-            .padding(.vertical, 5)
+            .padding(.vertical, 6)
             .background(
                 Capsule()
                     .fill(tint.opacity(0.18))
@@ -39,44 +39,7 @@ struct FeatureMiniStatCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(LocalizedStringKey(title))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.56))
-
-            Text(value)
-                .font(.system(.headline, design: .rounded).weight(.bold))
-                .foregroundStyle(.white)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.74)
-
-            if let detail, !detail.isEmpty {
-                Text(LocalizedStringKey(detail))
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.52))
-                    .lineLimit(2)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.black.opacity(0.18),
-                            tint.opacity(0.16)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
-                )
-        )
+        PNRMetricBlock(title: title, value: value, detail: detail, tint: tint)
     }
 }
 
@@ -139,21 +102,11 @@ struct FeatureChartPlotBackground: View {
     let tint: Color
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.03),
-                        tint.opacity(0.1),
-                        Color.black.opacity(0.08)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+            .fill(PNR2026.surfaceHigh)
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                    .stroke(PNR2026.line, lineWidth: 1)
             )
     }
 }

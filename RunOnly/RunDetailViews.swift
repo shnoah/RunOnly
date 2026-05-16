@@ -34,11 +34,20 @@ struct RunDetailView: View {
 
                 switch viewModel.state {
                 case .idle, .loading:
-                    DetailSection(title: "경로", systemImage: "map", tint: Color(red: 0.35, green: 0.72, blue: 1.0)) {
-                        ProgressView("상세 데이터를 불러오는 중")
-                            .tint(.white)
-                            .foregroundStyle(.white)
-                    }
+                    RunDetailLoadingSection(
+                        title: L10n.tr("흐름"),
+                        systemImage: "chart.line.uptrend.xyaxis",
+                        tint: Color(red: 0.95, green: 0.59, blue: 0.32),
+                        message: L10n.tr("차트 데이터를 불러오는 중")
+                    )
+                    RunDetailLoadingSection(
+                        title: L10n.tr("구간"),
+                        systemImage: "flag.pattern.checkered",
+                        tint: Color(red: 0.29, green: 0.88, blue: 0.63),
+                        message: L10n.tr("구간 데이터를 계산하는 중")
+                    )
+                    HeartRateZoneSection(detail: .empty, loadState: .loading)
+                    RunRouteSection(detail: .empty, loadState: .loading)
 
                 case .failed(let message):
                     DetailSection(title: "상세 데이터를 불러오지 못했습니다", tint: Color(red: 0.92, green: 0.46, blue: 0.44)) {
@@ -57,8 +66,8 @@ struct RunDetailView: View {
                 case .loaded(let detail):
                     PerformanceChartSection(run: run, detail: detail)
                     RunSplitSection(detail: detail)
-                    HeartRateZoneSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
-                    RunRouteSection(detail: detail, isLoadingSupplementary: viewModel.isLoadingSupplementary)
+                    HeartRateZoneSection(detail: detail, loadState: viewModel.heartRateZoneLoadState)
+                    RunRouteSection(detail: detail, loadState: viewModel.routeLoadState)
                     RunGearSection(run: run)
                     RunDataSourceSection(run: run)
                 }
@@ -150,6 +159,24 @@ struct RunDetailView: View {
 
         let matchedDistances = Set(historyMatches + currentRecordMatches)
         return PersonalRecordDistance.allCases.filter { matchedDistances.contains($0) }
+    }
+}
+
+private struct RunDetailLoadingSection: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+    let message: String
+
+    var body: some View {
+        DetailSection(title: title, systemImage: systemImage, tint: tint) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(.white)
+                Text(message)
+                    .foregroundStyle(.white.opacity(0.72))
+            }
+        }
     }
 }
 

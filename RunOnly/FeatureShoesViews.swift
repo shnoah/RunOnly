@@ -26,9 +26,12 @@ struct ShoesTabView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    ShoesOverviewHeaderCard(
-                        shoeCount: shoeStore.shoes.count,
-                        totalTrackedDistance: totalTrackedDistance
+                    PNRPageHeader(
+                        eyebrow: "Gear",
+                        title: shoesTitle,
+                        subtitle: shoesSubtitle,
+                        actionTitle: "신발 추가",
+                        actionSystemImage: "plus"
                     ) {
                         showingAddShoe = true
                     }
@@ -81,6 +84,16 @@ struct ShoesTabView: View {
                     .environmentObject(shoeStore)
             }
         }
+    }
+
+    private var shoesTitle: String {
+        shoeStore.shoes.isEmpty ? "러닝화를 연결하세요" : "\(shoeStore.shoes.count)켤레의 러닝화"
+    }
+
+    private var shoesSubtitle: String {
+        shoeStore.shoes.isEmpty
+            ? "신발별 거리와 교체 타이밍을 기록과 함께 봅니다."
+            : L10n.format("현재 추적 거리 %@", formatKilometers(totalTrackedDistance))
     }
 }
 
@@ -268,35 +281,17 @@ struct ShoeSummaryCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    usageColor.opacity(0.28),
-                                    Color.white.opacity(0.08)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    Image(systemName: "shoeprints.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.white.opacity(0.9))
-                }
-                .frame(width: 34, height: 34)
-
                 VStack(alignment: .leading, spacing: 4) {
                     Text(shoe.displayName)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white)
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(PNR2026.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
                     Text(distanceSummaryText)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.78))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PNR2026.muted)
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
@@ -317,7 +312,7 @@ struct ShoeSummaryCard: View {
 
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.38))
+                    .foregroundStyle(PNR2026.muted)
             }
 
             ProgressView(value: usageRatio)
@@ -327,22 +322,12 @@ struct ShoeSummaryCard: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.08),
-                            usageColor.opacity(0.12)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(PNR2026.surface)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.14), radius: 12, y: 6)
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(shoe.displayName))
@@ -399,6 +384,12 @@ struct ShoeDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                PNRPageHeader(
+                    eyebrow: "Gear Detail",
+                    title: currentShoe.displayName,
+                    subtitle: usageStateText
+                )
+
                 ShoeDetailHeroCard(
                     shoeName: currentShoe.displayName,
                     brandModelText: currentShoe.brandModelText,
@@ -460,72 +451,50 @@ struct ShoeDetailHeroCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                FeatureToneBadge(
-                    text: "러닝화",
-                    tint: Color(red: 0.91, green: 0.69, blue: 0.38),
-                    foreground: Color(red: 1.0, green: 0.9, blue: 0.72)
-                )
+            Text(usagePercentText)
+                .font(.system(size: 54, weight: .black, design: .rounded))
+                .foregroundStyle(PNR2026.ink)
+                .monospacedDigit()
 
-                Spacer()
-
-                FeatureToneBadge(
-                    text: usagePercentText,
-                    tint: tint,
-                    foreground: .white
-                )
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(shoeName)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-
-                Text(brandModelText.isEmpty ? "러닝 흐름과 사용량을 한눈에 볼 수 있어요." : brandModelText)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.74))
-
-                Text(usageStateText)
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.58))
-            }
+            Text(brandModelText.isEmpty ? "러닝 흐름과 사용량을 한눈에 볼 수 있어요." : brandModelText)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(PNR2026.muted)
 
             ProgressView(value: progress)
                 .tint(tint)
 
             ViewThatFits(in: .vertical) {
                 HStack(spacing: 10) {
-                    FeatureMiniStatCard(title: "누적 거리", value: totalDistanceText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
-                    FeatureMiniStatCard(title: "남은 거리", value: remainingDistanceText, tint: tint)
-                    FeatureMiniStatCard(title: "착용 러닝", value: runsText, tint: Color(red: 0.91, green: 0.69, blue: 0.38))
+                    PNRMetricBlock(title: "누적", value: totalDistanceText, tint: tint)
+                    PNRMetricBlock(title: "남은 거리", value: remainingDistanceText, tint: tint)
+                    PNRMetricBlock(title: "착용", value: runsText, tint: tint)
                 }
 
                 VStack(spacing: 10) {
-                    FeatureMiniStatCard(title: "누적 거리", value: totalDistanceText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
-                    FeatureMiniStatCard(title: "남은 거리", value: remainingDistanceText, tint: tint)
-                    FeatureMiniStatCard(title: "착용 러닝", value: runsText, tint: Color(red: 0.91, green: 0.69, blue: 0.38))
+                    PNRMetricBlock(title: "누적", value: totalDistanceText, tint: tint)
+                    PNRMetricBlock(title: "남은 거리", value: remainingDistanceText, tint: tint)
+                    PNRMetricBlock(title: "착용", value: runsText, tint: tint)
                 }
             }
         }
-        .padding(20)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.13, green: 0.16, blue: 0.22),
+                            Color.white.opacity(0.08),
                             tint.opacity(0.18),
-                            Color(red: 0.91, green: 0.69, blue: 0.38).opacity(0.16)
+                            PNR2026.heat.opacity(0.10)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
         )
     }
 }

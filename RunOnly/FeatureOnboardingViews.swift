@@ -20,25 +20,47 @@ struct HealthKitOnboardingView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(AppMetadata.displayName)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white.opacity(0.72))
-                        .tracking(0.2)
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("PNR")
+                        .font(.system(size: 58, weight: .black, design: .rounded))
+                        .foregroundStyle(PNR2026.ink)
+                        .lineLimit(1)
 
-                    Text(L10n.tr("러닝 기록을 한눈에"))
-                        .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                        .foregroundStyle(.white)
+                    Text(L10n.tr("Apple Watch 러닝을 읽기 쉬운 로그로 바꿉니다."))
+                        .font(.system(size: 29, weight: .black, design: .rounded))
+                        .foregroundStyle(PNR2026.ink)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    Text(L10n.tr("Apple 건강의 러닝, 경로, 심박을 한곳에."))
-                        .font(.body)
-                        .foregroundStyle(.white.opacity(0.72))
+                    VStack(spacing: 8) {
+                        OnboardingSignalRow(systemImage: "figure.run", title: "러닝 기록", detail: "거리, 시간, 페이스를 먼저 정리")
+                        OnboardingSignalRow(systemImage: "heart.fill", title: "몸 상태", detail: "심박, 노력, 준비도는 참고 지표로 표시")
+                        OnboardingSignalRow(systemImage: "shoeprints.fill", title: "로컬 관리", detail: "신발과 보조 데이터는 iPhone 안에 저장")
+                    }
                 }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.08),
+                                    PNR2026.track.opacity(0.14),
+                                    PNR2026.water.opacity(0.10)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                .stroke(PNR2026.line, lineWidth: 1)
+                        )
+                )
                 .padding(.horizontal, 16)
-                .padding(.top, 20)
+                .padding(.top, 18)
 
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     Button {
                         showingSampleRun = true
                     } label: {
@@ -67,13 +89,13 @@ struct HealthKitOnboardingView: View {
                                 ? L10n.tr("권한 요청 중")
                                 : L10n.tr("Apple 건강 권한 허용하고 시작")
                         )
-                            .font(.headline.weight(.semibold))
+                            .font(.headline.weight(.black))
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color(red: 0.29, green: 0.88, blue: 0.63))
+                                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                    .fill(PNR2026.track)
                             )
                     }
                     .buttonStyle(.plain)
@@ -81,13 +103,13 @@ struct HealthKitOnboardingView: View {
 
                     Text("서버 업로드 없음 · 참고용 지표")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(PNR2026.muted)
                         .frame(maxWidth: .infinity)
 
                     if let permissionErrorMessage {
                         Text(permissionErrorMessage)
                             .font(.caption)
-                            .foregroundStyle(Color(red: 1.0, green: 0.73, blue: 0.73))
+                            .foregroundStyle(PNR2026.rose)
                             .multilineTextAlignment(.center)
                     }
                 }
@@ -113,6 +135,34 @@ struct HealthKitOnboardingView: View {
                 RunDetailView(run: .demoSample)
                 .environmentObject(workoutsViewModel)
                 .environmentObject(shoeStore)
+            }
+        }
+    }
+}
+
+private struct OnboardingSignalRow: View {
+    let systemImage: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.black))
+                .foregroundStyle(PNR2026.track)
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .fill(PNR2026.track.opacity(0.14))
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(LocalizedStringKey(title))
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(PNR2026.ink)
+                Text(LocalizedStringKey(detail))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(PNR2026.muted)
             }
         }
     }
@@ -164,11 +214,11 @@ struct HomeEmptyStateView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text(AppMetadata.displayName)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .tracking(0.2)
-                    .padding(.horizontal, 4)
+                PNRPageHeader(
+                    eyebrow: "PNR",
+                    title: "러닝 기록이 없습니다",
+                    subtitle: "권한을 다시 확인하거나 샘플 러닝으로 화면 흐름을 먼저 볼 수 있습니다."
+                )
 
                 RunReviewStatusCard(
                     title: "러닝 기록이 없습니다",
@@ -206,12 +256,12 @@ struct RunReviewStatusCard: View {
         VStack(spacing: 12) {
             Text(LocalizedStringKey(title))
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(PNR2026.ink)
 
             if let message {
                 Text(LocalizedStringKey(message))
                     .font(.body)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(PNR2026.muted)
                     .multilineTextAlignment(.center)
             }
 
@@ -221,8 +271,12 @@ struct RunReviewStatusCard: View {
         .padding(24)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(0.05))
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(PNR2026.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
+                )
         )
     }
 }
@@ -240,30 +294,30 @@ struct DemoRunAccessCard: View {
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("샘플 러닝 열기")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(PNR2026.ink)
                     Text(L10n.format("기본 샘플 %@ · %@", sampleDistanceText, RunningWorkout.demoSample.durationText))
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.65))
+                        .foregroundStyle(PNR2026.muted)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(PNR2026.muted)
             }
 
             Text("차트, 지도, 공유 이미지 미리보기")
                 .font(.footnote)
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(PNR2026.muted)
                 .lineLimit(2)
         }
-        .padding(18)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(PNR2026.surface)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
                 )
         )
     }

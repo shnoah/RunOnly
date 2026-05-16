@@ -22,75 +22,85 @@ struct RecordMonthHeader: View {
     let onClearDate: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                navigationArrowButton(
+                    systemImage: "chevron.left",
+                    isEnabled: !isLoading,
+                    action: onPreviousMonth,
+                    size: 38
+                )
+
+                Button(action: onOpenCalendar) {
                     HStack(spacing: 8) {
-                        FeatureToneBadge(
-                            text: "기록",
-                            tint: Color(red: 0.42, green: 0.76, blue: 1.0),
-                            foreground: Color(red: 0.82, green: 0.94, blue: 1.0)
-                        )
-
-                        if isLoading {
-                            Text("불러오는 중")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.58))
-                        }
+                        Image(systemName: "calendar")
+                        Text(selectedDateText ?? monthText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
                     }
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(PNR2026.ink)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                            .fill(PNR2026.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                    .stroke(PNR2026.line, lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
 
-                    Text(monthText)
-                        .font(.system(.title3, design: .rounded).weight(.bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                        .accessibilityLabel(Text(L10n.format("현재 선택 월: %@", monthText)))
+                navigationArrowButton(
+                    systemImage: "chevron.right",
+                    isEnabled: canMoveNext && !isLoading,
+                    action: onNextMonth,
+                    size: 38
+                )
+            }
+
+            HStack(spacing: 8) {
+                if !isViewingCurrentMonth {
+                    capsuleButton(
+                        title: L10n.tr("이번 달"),
+                        systemImage: "dot.scope",
+                        font: .caption.weight(.bold),
+                        verticalPadding: 9,
+                        horizontalPadding: 10,
+                        foreground: PNR2026.ink,
+                        action: onJumpToCurrentMonth
+                    )
+                    .accessibilityHint(Text(L10n.tr("이번 달로 이동")))
                 }
 
-                Spacer(minLength: 12)
+                personalRecordsButton(
+                    font: .caption.weight(.bold),
+                    verticalPadding: 9,
+                    horizontalPadding: 10
+                )
 
                 if selectedDateText != nil {
-                    Button("전체 보기", action: onClearDate)
+                    capsuleButton(
+                        title: L10n.tr("전체 보기"),
+                        systemImage: "xmark",
+                        font: .caption.weight(.bold),
+                        verticalPadding: 9,
+                        horizontalPadding: 10,
+                        foreground: PNR2026.ink,
+                        action: onClearDate
+                    )
+                }
+
+                if isLoading {
+                    Text("불러오는 중")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color(red: 0.29, green: 0.88, blue: 0.63))
-                        .buttonStyle(.plain)
+                        .foregroundStyle(PNR2026.muted)
                 }
             }
-
-            ViewThatFits(in: .horizontal) {
-                controlsRow(
-                    buttonFont: .subheadline.weight(.semibold),
-                    verticalPadding: 10,
-                    horizontalPadding: 12,
-                    arrowSize: 38
-                )
-                controlsRow(
-                    buttonFont: .caption.weight(.semibold),
-                    verticalPadding: 8,
-                    horizontalPadding: 9,
-                    arrowSize: 34
-                )
-            }
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.07),
-                            Color(red: 0.24, green: 0.45, blue: 0.82).opacity(0.2)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
-        )
+        .accessibilityLabel(Text(L10n.format("현재 선택 월: %@", monthText)))
     }
 
     private var headerSubtitleText: String {
@@ -180,11 +190,11 @@ struct RecordMonthHeader: View {
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
             .background(
-                Capsule()
-                    .fill(Color.black.opacity(0.18))
+                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                    .fill(PNR2026.surface)
                     .overlay(
-                        Capsule()
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                            .stroke(PNR2026.line, lineWidth: 1)
                     )
             )
         }
@@ -204,15 +214,15 @@ struct RecordMonthHeader: View {
                     .lineLimit(1)
             }
             .font(font)
-            .foregroundStyle(pendingRecordCount > 0 ? Color(red: 0.29, green: 0.88, blue: 0.63) : .white)
+            .foregroundStyle(pendingRecordCount > 0 ? PNR2026.track : PNR2026.ink)
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
             .background(
-                Capsule()
-                    .fill(Color.black.opacity(0.18))
+                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                    .fill(PNR2026.surface)
                     .overlay(
-                        Capsule()
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                            .stroke(PNR2026.line, lineWidth: 1)
                     )
             )
             .overlay(alignment: .topTrailing) {
@@ -247,14 +257,14 @@ struct RecordMonthHeader: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.headline.weight(.bold))
-                .foregroundStyle(isEnabled ? .white : .white.opacity(0.3))
+                .foregroundStyle(isEnabled ? PNR2026.ink : PNR2026.muted.opacity(0.45))
                 .frame(width: size, height: size)
                 .background(
-                    Circle()
-                        .fill(Color.black.opacity(0.18))
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .fill(PNR2026.surface)
                         .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                .stroke(PNR2026.line, lineWidth: 1)
                         )
                 )
         }
@@ -268,44 +278,22 @@ struct RecordMonthSummaryCard: View {
     let summary: RecordMonthSummary
 
     var body: some View {
-        DetailSection(title: "이달 요약", systemImage: "calendar.badge.clock", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
-            ViewThatFits(in: .vertical) {
-                HStack(spacing: 10) {
-                    RecordSummaryMetricTile(
-                        title: "거리",
-                        value: formatKilometers(summary.totalDistanceKilometers),
-                        detail: L10n.format("%d회 러닝", summary.runCount)
-                    )
-                    RecordSummaryMetricTile(
-                        title: "빈도",
-                        value: L10n.format("%d일", summary.runningDays),
-                        detail: L10n.format("주 평균 %.1f회", summary.weeklyRunFrequency)
-                    )
-                    RecordSummaryMetricTile(
-                        title: "시간",
-                        value: formatDuration(summary.totalDuration),
-                        detail: "월 누적"
-                    )
-                }
-
-                VStack(spacing: 10) {
-                    RecordSummaryMetricTile(
-                        title: "거리",
-                        value: formatKilometers(summary.totalDistanceKilometers),
-                        detail: L10n.format("%d회 러닝", summary.runCount)
-                    )
-                    RecordSummaryMetricTile(
-                        title: "빈도",
-                        value: L10n.format("%d일", summary.runningDays),
-                        detail: L10n.format("주 평균 %.1f회", summary.weeklyRunFrequency)
-                    )
-                    RecordSummaryMetricTile(
-                        title: "시간",
-                        value: formatDuration(summary.totalDuration),
-                        detail: "월 누적"
-                    )
-                }
-            }
+        HStack(spacing: 8) {
+            RecordSummaryMetricTile(
+                title: "거리",
+                value: formatKilometers(summary.totalDistanceKilometers),
+                detail: L10n.format("%d회", summary.runCount)
+            )
+            RecordSummaryMetricTile(
+                title: "빈도",
+                value: L10n.format("%d일", summary.runningDays),
+                detail: L10n.format("주 %.1f회", summary.weeklyRunFrequency)
+            )
+            RecordSummaryMetricTile(
+                title: "시간",
+                value: formatDuration(summary.totalDuration),
+                detail: "누적"
+            )
         }
     }
 }
@@ -316,31 +304,7 @@ struct RecordSummaryMetricTile: View {
     let detail: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(LocalizedStringKey(title))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.5))
-            Text(value)
-                .font(.system(.headline, design: .rounded).weight(.bold))
-                .foregroundStyle(.white)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(LocalizedStringKey(detail))
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.54))
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.black.opacity(0.18))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                )
-        )
+        PNRMetricBlock(title: title, value: value, detail: detail, tint: PNR2026.water)
     }
 }
 

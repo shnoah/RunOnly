@@ -595,3 +595,9 @@
 "강도가 높아 짧아도 피로로 잡았어요" = "High effort counted as fatigue even though it was short";
 "마지막 러닝은 평소 1회보다 긴 부하였어요" = "The last run was a longer load than your usual session";
 "마지막 러닝은 평소 1회 부하 범위예요" = "The last run was within your usual single-run load";
+"흐름" = "Flow";
+"차트 데이터를 불러오는 중" = "Loading chart data";
+"구간 데이터를 계산하는 중" = "Calculating splits";
+"경로 데이터를 불러오지 못했습니다." = "Couldn't load route data.";
+"심박 존 데이터를 불러오지 못했습니다." = "Couldn't load heart rate zones.";
+"개인 기준으로 갱신하는 중" = "Updating with your personal baseline";
