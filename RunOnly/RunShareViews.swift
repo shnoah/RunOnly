@@ -1,6 +1,4 @@
-import ImageIO
 import Photos
-import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
@@ -9,23 +7,32 @@ struct RunShareComposerView: View {
     let run: RunningWorkout
     let detail: RunDetail
     let summary: RunSummaryMetrics?
+    let showsTemplateSelector: Bool
 
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedTemplate: RunShareTemplate = .sticker
-    @State private var enabledFields: Set<RunShareField> = [.logo, .route, .distance, .duration, .pace]
+    @State private var selectedTemplate: RunShareTemplate
+    @State private var enabledFields: Set<RunShareField>
     @State private var templateStyles: [RunShareTemplate: RunShareAdvancedStyle] = RunShareAdvancedStyle.defaultsByTemplate
-    @State private var selectedBackgroundPhotoItem: PhotosPickerItem?
-    @State private var backgroundPhotoImage: UIImage?
-    @State private var backgroundPreviewPhotoImage: UIImage?
-    @State private var backgroundPhotoErrorMessage: String?
-    @State private var isLoadingBackgroundPhoto = false
-    @State private var previewStickerImage: UIImage?
-    @State private var stickerPlacements: [RunShareTemplate: RunShareStickerPlacement] = RunShareTemplate.defaultPlacements
     @State private var shareItems: [Any] = []
     @State private var showingShareSheet = false
     @State private var exportStatusMessage: String?
     @State private var exportErrorMessage: String?
     private let hiddenFields: Set<RunShareField> = [.environment, .shoe]
+
+    init(
+        run: RunningWorkout,
+        detail: RunDetail,
+        summary: RunSummaryMetrics?,
+        initialTemplate: RunShareTemplate = .sticker,
+        showsTemplateSelector: Bool = true
+    ) {
+        self.run = run
+        self.detail = detail
+        self.summary = summary
+        self.showsTemplateSelector = showsTemplateSelector
+        _selectedTemplate = State(initialValue: initialTemplate)
+        _enabledFields = State(initialValue: initialTemplate.defaultEnabledFields)
+    }
 
     private var selectedTemplatePolicy: RunShareTemplatePolicy {
         selectedTemplate.policy
@@ -40,7 +47,14 @@ struct RunShareComposerView: View {
     }
 
     private var availableBasicInfoFields: [RunShareField] {
-        let source = selectedTemplate == .style1 ? [RunShareField.route] : runShareBasicInfoFields
+        let source: [RunShareField]
+        if selectedTemplate == .style1 {
+            source = [RunShareField.route]
+        } else if selectedTemplatePolicy.routeRequired {
+            source = runShareBasicInfoFields
+        } else {
+            source = [.logo, .date]
+        }
         return source.filter { availableFields.contains($0) }
     }
 
@@ -68,17 +82,6 @@ struct RunShareComposerView: View {
         "\(selectedMetricFields.count)/\(selectedTemplatePolicy.metricMax)"
     }
 
-    private var selectedStickerPlacement: RunShareStickerPlacement {
-        stickerPlacements[selectedTemplate] ?? selectedTemplateLayout.defaultPlacement
-    }
-
-    private var selectedStickerPlacementBinding: Binding<RunShareStickerPlacement> {
-        Binding(
-            get: { stickerPlacements[selectedTemplate] ?? selectedTemplateLayout.defaultPlacement },
-            set: { stickerPlacements[selectedTemplate] = $0 }
-        )
-    }
-
     private var shareActionForegroundColor: Color {
         let accent = selectedAdvancedStyle.accentColorSource.accent
         let luminance = (accent.red * 0.299) + (accent.green * 0.587) + (accent.blue * 0.114)
@@ -98,43 +101,11 @@ struct RunShareComposerView: View {
 
     private func previewCanvasSize(for availableWidth: CGFloat) -> CGSize {
         let maxPreviewWidth = previewWidth(for: availableWidth)
-
-        guard selectedTemplate.isTransparentStickerTemplate, let previewImage = backgroundPreviewPhotoImage ?? backgroundPhotoImage else {
-            return CGSize(width: maxPreviewWidth, height: previewHeight(for: availableWidth))
-        }
-
-        return fittedSize(
-            for: previewImage.size,
-            maxWidth: maxPreviewWidth,
-            maxHeight: previewHeight(for: availableWidth)
-        )
+        return CGSize(width: maxPreviewWidth, height: previewHeight(for: availableWidth))
     }
 
     private var renderCanvasSize: CGSize {
-        guard selectedTemplate.isTransparentStickerTemplate, let backgroundPhotoImage else {
-            return selectedTemplate.canvasSize
-        }
-
-        return fittedSize(
-            for: backgroundPhotoImage.size,
-            maxWidth: 2048,
-            maxHeight: 2048
-        )
-    }
-
-    private var previewStickerRenderKey: String {
-        let fieldKey = effectiveFields.map(\.rawValue).sorted().joined(separator: ",")
-        let photoKey = backgroundPhotoImage == nil ? "no-photo" : "photo"
-        return [
-            selectedTemplate.rawValue,
-            fieldKey,
-            selectedAdvancedStyle.key,
-            photoKey
-        ].joined(separator: "|")
-    }
-
-    private var backgroundPhotoButtonTitle: String {
-        backgroundPhotoImage == nil ? L10n.tr("사진 불러오기") : L10n.tr("사진 다시 고르기")
+        selectedTemplate.canvasSize
     }
 
     var body: some View {
@@ -145,14 +116,7 @@ struct RunShareComposerView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         compactEditorDashboard(availableWidth: availableWidth)
-
-                        if selectedTemplate.isTransparentStickerTemplate {
-                            stickerPhotoPanel
-                        }
-
-                        shareActionGuidePanel
-
-                        footerPanel
+                        exportFeedbackPanel
                     }
                     .padding(16)
                     .padding(.bottom, 20)
@@ -161,26 +125,19 @@ struct RunShareComposerView: View {
             .background(AppBackground())
             .navigationTitle("공유 이미지")
             .navigationBarTitleDisplayMode(.inline)
-            .task(id: previewStickerRenderKey) {
-                await refreshPreviewStickerImageIfNeeded()
-            }
             .task {
                 RunShareTemplate.allCases.forEach { template in
                     ensureTemplateStyleExists(for: template)
-                    ensureTemplatePlacementExists(for: template)
                     sanitizeTemplateStyle(for: template)
                 }
                 sanitizeEnabledFields()
             }
-            .onChange(of: selectedBackgroundPhotoItem) { _, newItem in
-                Task {
-                    await loadBackgroundPhoto(from: newItem)
-                }
-            }
             .onChange(of: selectedTemplate) { _, newTemplate in
                 ensureTemplateStyleExists(for: newTemplate)
-                ensureTemplatePlacementExists(for: newTemplate)
                 sanitizeTemplateStyle(for: newTemplate)
+                if !newTemplate.policy.supportsFieldSelection {
+                    enabledFields = newTemplate.defaultEnabledFields
+                }
                 sanitizeEnabledFields()
             }
             .toolbar {
@@ -247,12 +204,6 @@ struct RunShareComposerView: View {
         }
     }
 
-    private func ensureTemplatePlacementExists(for template: RunShareTemplate) {
-        if stickerPlacements[template] == nil {
-            stickerPlacements[template] = template.layoutSpec.defaultPlacement
-        }
-    }
-
     private func sanitizeTemplateStyle(for template: RunShareTemplate) {
         guard var style = templateStyles[template] else { return }
         let range = template.layoutSpec.fontScaleRange
@@ -261,10 +212,6 @@ struct RunShareComposerView: View {
             style.fontScale = clamped
             templateStyles[template] = style
         }
-    }
-
-    private func resetPlacement(for template: RunShareTemplate) {
-        stickerPlacements[template] = template.layoutSpec.defaultPlacement
     }
 
     private func updateCurrentTemplateStyle(_ transform: (inout RunShareAdvancedStyle) -> Void) {
@@ -285,6 +232,10 @@ struct RunShareComposerView: View {
         if template == .style1 {
             updated.remove(.logo)
             updated.remove(.date)
+        }
+
+        if !policy.routeRequired {
+            updated.remove(.route)
         }
 
         for metric in runShareMetricPriority where !candidateMetricSet.contains(metric) {
@@ -379,10 +330,16 @@ struct RunShareComposerView: View {
     @ViewBuilder
     private func compactEditorDashboard(availableWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            templateSelectorPanel
+            if showsTemplateSelector {
+                templateSelectorPanel
+            }
             previewPanel(availableWidth: availableWidth)
-            includedDataPanel(availableWidth: availableWidth)
-            advancedSettingsPanel
+            if selectedTemplatePolicy.supportsFieldSelection {
+                includedDataPanel(availableWidth: availableWidth)
+            }
+            if selectedTemplatePolicy.supportsFontDebug || selectedTemplatePolicy.supportsColorDebug {
+                advancedSettingsPanel
+            }
         }
         .padding(14)
         .background(editorPanelBackground(cornerRadius: 24))
@@ -426,19 +383,28 @@ struct RunShareComposerView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
 
-            HStack(spacing: 8) {
-                ForEach(RunShareTemplate.allCases) { template in
-                    Button {
-                        selectedTemplate = template
-                    } label: {
-                        Text(template.label)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(RunShareTemplate.allCases) { template in
+                        Button {
+                            selectedTemplate = template
+                        } label: {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(template.label)
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+
+                                Text(template.descriptionText)
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(.white.opacity(0.56))
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(width: 118, alignment: .leading)
+                            .padding(10)
                             .background(
-                                Capsule()
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
                                     .fill(
                                         selectedTemplate == template
                                             ? artworkStyle.accentColor.opacity(0.24)
@@ -446,7 +412,7 @@ struct RunShareComposerView: View {
                                     )
                             )
                             .overlay(
-                                Capsule()
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
                                     .stroke(
                                         selectedTemplate == template
                                             ? artworkStyle.accentColor.opacity(0.42)
@@ -454,8 +420,9 @@ struct RunShareComposerView: View {
                                         lineWidth: 1
                                     )
                             )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
@@ -715,119 +682,9 @@ struct RunShareComposerView: View {
         .background(editorPanelBackground(cornerRadius: 20))
     }
 
-    private var stickerPhotoPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("사진 위에 붙이기")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                Spacer()
-                if backgroundPhotoImage != nil {
-                    Button("제거") {
-                        clearBackgroundPhoto()
-                    }
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(runOnlyShareAccent)
-                }
-            }
-
-            PhotosPicker(selection: $selectedBackgroundPhotoItem, matching: .images, photoLibrary: .shared()) {
-                Label(LocalizedStringKey(backgroundPhotoButtonTitle), systemImage: "photo.on.rectangle.angled")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white.opacity(0.06))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-
-            if backgroundPhotoImage != nil {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("스티커 크기")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                        Spacer()
-                        Text("\(Int(selectedStickerPlacement.scale * 100))%")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-
-                    Slider(
-                        value: Binding(
-                            get: { selectedStickerPlacementBinding.wrappedValue.scale },
-                            set: { newScale in
-                                var updated = selectedStickerPlacementBinding.wrappedValue
-                                updated.scale = newScale
-                                selectedStickerPlacementBinding.wrappedValue = updated
-                            }
-                        ),
-                        in: 0.55...1.7
-                    )
-                    .tint(artworkStyle.accentColor)
-
-                    Button("위치/크기 초기화") {
-                        resetPlacement(for: selectedTemplate)
-                    }
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(runOnlyShareAccent)
-                }
-
-                Text("미리보기에서 스티커를 직접 드래그해서 위치를 맞출 수 있습니다.")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.62))
-            } else {
-                Text("배경 사진은 선택 사항입니다. 고르면 그 위에 스티커를 올려 보고 저장하거나 공유할 수 있습니다.")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.62))
-            }
-
-            if isLoadingBackgroundPhoto {
-                Text("사진을 불러오는 중입니다.")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.58))
-            } else if let backgroundPhotoErrorMessage {
-                Text(backgroundPhotoErrorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-        }
-        .padding(16)
-        .background(editorPanelBackground(cornerRadius: 24))
-    }
-
-    private var shareActionGuidePanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("내보내기 방법")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
-
-            Text("• 저장: 사진 앱에 PNG를 저장하며, 이때만 사진 권한을 요청합니다.")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.7))
-
-            Text("• 복사: PNG를 클립보드에 복사해 메신저나 노트에 바로 붙여넣을 수 있습니다.")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.7))
-
-            Text("• 공유: 시스템 공유 시트로 다른 앱에 보냅니다.")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.7))
-        }
-        .padding(16)
-        .background(editorPanelBackground(cornerRadius: 24))
-    }
-
     @ViewBuilder
-    private var footerPanel: some View {
-        if exportStatusMessage != nil || exportErrorMessage != nil || selectedTemplate.isTransparentStickerTemplate {
+    private var exportFeedbackPanel: some View {
+        if exportStatusMessage != nil || exportErrorMessage != nil {
             VStack(alignment: .leading, spacing: 8) {
                 if let exportStatusMessage {
                     Text(exportStatusMessage)
@@ -840,15 +697,9 @@ struct RunShareComposerView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
-
-                if selectedTemplate.isTransparentStickerTemplate {
-                    Text("투명 스티커는 앱마다 alpha 처리 방식이 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다.")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.58))
-                }
             }
-            .padding(16)
-            .background(editorPanelBackground(cornerRadius: 24))
+            .padding(14)
+            .background(editorPanelBackground(cornerRadius: 18))
         }
     }
 
@@ -985,168 +836,30 @@ struct RunShareComposerView: View {
 
     @ViewBuilder
     private func shareCanvasView(canvasSize: CGSize, interactive: Bool) -> some View {
-        if selectedTemplate.isTransparentStickerTemplate, let backgroundPhotoImage {
-            RunSharePhotoCompositeView(
+        ZStack {
+            if selectedTemplate.isTransparentStickerTemplate, interactive {
+                TransparentPreviewBackground()
+            }
+
+            RunShareArtworkView(
                 run: run,
                 detail: detail,
                 template: selectedTemplate,
                 enabledFields: effectiveFields,
                 summary: summary,
-                style: artworkStyle,
-                layoutSpec: selectedTemplateLayout,
-                backgroundImage: interactive ? (backgroundPreviewPhotoImage ?? backgroundPhotoImage) : backgroundPhotoImage,
-                stickerPreviewImage: interactive ? previewStickerImage : nil,
-                stickerPlacement: selectedStickerPlacementBinding,
-                interactive: interactive
+                style: artworkStyle
             )
-            .frame(width: canvasSize.width, height: canvasSize.height)
-        } else {
-            ZStack {
-                if selectedTemplate.isTransparentStickerTemplate, interactive {
-                    TransparentPreviewBackground()
-                }
-
-                RunShareArtworkView(
-                    run: run,
-                    detail: detail,
-                    template: selectedTemplate,
-                    enabledFields: effectiveFields,
-                    summary: summary,
-                    style: artworkStyle
-                )
-                .frame(
-                    width: selectedTemplate.canvasSize.width,
-                    height: selectedTemplate.canvasSize.height
-                )
-                .scaleEffect(canvasSize.width / selectedTemplate.canvasSize.width, anchor: .topLeading)
-                .frame(
-                    width: canvasSize.width,
-                    height: canvasSize.height,
-                    alignment: .topLeading
-                )
-            }
-            .frame(width: canvasSize.width, height: canvasSize.height)
+            .frame(
+                width: selectedTemplate.canvasSize.width,
+                height: selectedTemplate.canvasSize.height
+            )
+            .scaleEffect(canvasSize.width / selectedTemplate.canvasSize.width, anchor: .topLeading)
+            .frame(
+                width: canvasSize.width,
+                height: canvasSize.height,
+                alignment: .topLeading
+            )
         }
-    }
-
-    @MainActor
-    private func loadBackgroundPhoto(from item: PhotosPickerItem?) async {
-        guard let item else { return }
-
-        isLoadingBackgroundPhoto = true
-        backgroundPhotoErrorMessage = nil
-
-        do {
-            guard let data = try await item.loadTransferable(type: Data.self) else {
-                throw RunShareExportError.renderFailed
-            }
-
-            let assets = try await loadBackgroundPhotoAssets(from: data)
-            backgroundPhotoImage = assets.renderImage
-            backgroundPreviewPhotoImage = assets.previewImage
-            resetPlacement(for: selectedTemplate)
-        } catch {
-            backgroundPhotoErrorMessage = L10n.tr("사진을 불러오지 못했습니다.")
-        }
-
-        selectedBackgroundPhotoItem = nil
-        isLoadingBackgroundPhoto = false
-    }
-
-    private func clearBackgroundPhoto() {
-        backgroundPhotoImage = nil
-        backgroundPreviewPhotoImage = nil
-        backgroundPhotoErrorMessage = nil
-        previewStickerImage = nil
-        selectedBackgroundPhotoItem = nil
-        RunShareTemplate.allCases.forEach { template in
-            resetPlacement(for: template)
-        }
-    }
-
-    private func fittedSize(for original: CGSize, maxWidth: CGFloat, maxHeight: CGFloat) -> CGSize {
-        guard original.width > 0, original.height > 0 else {
-            return CGSize(width: maxWidth, height: maxHeight)
-        }
-
-        let scale = min(maxWidth / original.width, maxHeight / original.height, 1)
-        return CGSize(
-            width: max(original.width * scale, 1),
-            height: max(original.height * scale, 1)
-        )
-    }
-
-    @MainActor
-    private func refreshPreviewStickerImageIfNeeded() async {
-        guard selectedTemplate.isTransparentStickerTemplate, backgroundPhotoImage != nil else {
-            previewStickerImage = nil
-            return
-        }
-
-        do {
-            try await Task.sleep(nanoseconds: 120_000_000)
-        } catch {
-            return
-        }
-
-        guard !Task.isCancelled else { return }
-
-        let content = RunShareArtworkView(
-            run: run,
-            detail: detail,
-            template: selectedTemplate,
-            enabledFields: effectiveFields,
-            summary: summary,
-            style: artworkStyle
-        )
-        .frame(
-            width: selectedTemplate.canvasSize.width,
-            height: selectedTemplate.canvasSize.height
-        )
-
-        let renderer = ImageRenderer(content: content)
-        renderer.scale = 2
-        previewStickerImage = renderer.uiImage
-    }
-
-    private func loadBackgroundPhotoAssets(from data: Data) async throws -> RunShareBackgroundPhotoAssets {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                autoreleasepool {
-                    do {
-                        let assets = try makeBackgroundPhotoAssets(from: data)
-                        continuation.resume(returning: assets)
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-        }
-    }
-
-    private func makeBackgroundPhotoAssets(from data: Data) throws -> RunShareBackgroundPhotoAssets {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-            throw RunShareExportError.renderFailed
-        }
-
-        return RunShareBackgroundPhotoAssets(
-            renderImage: try downsampledImage(from: source, maxPixelSize: 2_048),
-            previewImage: try downsampledImage(from: source, maxPixelSize: 1_400)
-        )
-    }
-
-    private func downsampledImage(from source: CGImageSource, maxPixelSize: CGFloat) throws -> UIImage {
-        let options: CFDictionary = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
-        ] as CFDictionary
-
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else {
-            throw RunShareExportError.renderFailed
-        }
-
-        return UIImage(cgImage: cgImage)
+        .frame(width: canvasSize.width, height: canvasSize.height)
     }
 }

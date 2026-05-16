@@ -1,9 +1,4 @@
-import ImageIO
-import Photos
-import PhotosUI
 import SwiftUI
-import UniformTypeIdentifiers
-import UIKit
 
 struct RunShareArtworkView: View {
     let run: RunningWorkout
@@ -44,6 +39,8 @@ struct RunShareArtworkView: View {
             return 315
         case .style1:
             return 160
+        case .microInline, .minimalStack, .glassPills, .serifCaption, .raceLabel:
+            return 180
         }
     }
 
@@ -57,6 +54,16 @@ struct RunShareArtworkView: View {
             return 24
         case .style1:
             return 20
+        case .microInline:
+            return 12
+        case .minimalStack:
+            return 18
+        case .glassPills:
+            return 12
+        case .serifCaption:
+            return 10
+        case .raceLabel:
+            return 16
         }
     }
 
@@ -66,6 +73,8 @@ struct RunShareArtworkView: View {
             return 18
         case .style1:
             return 16
+        case .microInline, .minimalStack, .glassPills, .serifCaption, .raceLabel:
+            return 14
         }
     }
 
@@ -100,6 +109,12 @@ struct RunShareArtworkView: View {
         return Array(mapped.prefix(2))
     }
 
+    private var enabledMetricsInPriorityOrder: [RunShareMetric] {
+        runShareMetricPriority.compactMap { field in
+            metrics.first { $0.field == field }
+        }
+    }
+
     var body: some View {
         Group {
             switch template {
@@ -107,6 +122,16 @@ struct RunShareArtworkView: View {
                 stickerLayout
             case .style1:
                 styleOneLayout
+            case .microInline:
+                microInlineLayout
+            case .minimalStack:
+                minimalStackLayout
+            case .glassPills:
+                glassPillsLayout
+            case .serifCaption:
+                serifCaptionLayout
+            case .raceLabel:
+                raceLabelLayout
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -213,6 +238,99 @@ struct RunShareArtworkView: View {
         .padding(.vertical, 10)
     }
 
+    private var microInlineLayout: some View {
+        HStack(spacing: 14) {
+            Text(run.distanceText.uppercased())
+            Text("·")
+                .foregroundStyle(.white.opacity(0.36))
+            Text(run.durationText)
+            Text("·")
+                .foregroundStyle(.white.opacity(0.36))
+            Text(run.paceText)
+            Text("PNR")
+                .foregroundStyle(style.accentColor)
+                .padding(.leading, 6)
+        }
+        .font(style.fontChoice.font(size: 44, weight: .black))
+        .foregroundStyle(.white)
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.55)
+        .padding(contentPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private var minimalStackLayout: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            RunShareMiniStackRow(label: "DIST", value: run.distanceText, style: style)
+            RunShareMiniStackRow(label: "TIME", value: run.durationText, style: style)
+            RunShareMiniStackRow(label: "PACE", value: run.paceText, style: style)
+        }
+        .padding(contentPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private var glassPillsLayout: some View {
+        HStack(spacing: 12) {
+            RunShareGlassPill(text: run.distanceText.uppercased(), style: style)
+            RunShareGlassPill(text: run.durationText, style: style)
+            RunShareGlassPill(text: run.paceText, style: style)
+        }
+        .padding(contentPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private var serifCaptionLayout: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("easy miles")
+                .font(.system(size: 58, weight: .semibold, design: .serif))
+                .italic()
+                .foregroundStyle(.white.opacity(0.94))
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+
+            Text("\(run.distanceText.lowercased()) / \(run.durationText)")
+                .font(.system(size: 20, weight: .bold, design: .default))
+                .foregroundStyle(style.accentColor.opacity(0.9))
+                .monospacedDigit()
+                .lineLimit(1)
+        }
+        .padding(contentPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private var raceLabelLayout: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("PNR RUN 004")
+                Circle()
+                    .fill(style.accentColor)
+                    .frame(width: 7, height: 7)
+            }
+            .font(style.fontChoice.font(size: 20, weight: .black))
+            .foregroundStyle(.white.opacity(0.76))
+
+            Text("\(run.distanceText.uppercased())  \(run.durationText)")
+                .font(style.fontChoice.font(size: 42, weight: .black))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(0.82))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+        )
+        .padding(contentPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
     private var metaPills: [String] {
         var items: [String] = []
 
@@ -264,117 +382,6 @@ struct RunShareTemplateBackground: View {
                 .blur(radius: 18)
                 .offset(x: -160, y: 260)
         }
-    }
-}
-
-struct RunSharePhotoCompositeView: View {
-    let run: RunningWorkout
-    let detail: RunDetail
-    let template: RunShareTemplate
-    let enabledFields: Set<RunShareField>
-    let summary: RunSummaryMetrics?
-    let style: RunShareArtworkStyle
-    let layoutSpec: RunShareTemplateLayoutSpec
-    let backgroundImage: UIImage
-    let stickerPreviewImage: UIImage?
-    @Binding var stickerPlacement: RunShareStickerPlacement
-    let interactive: Bool
-
-    @GestureState private var dragTranslation: CGSize = .zero
-
-    var body: some View {
-        GeometryReader { geometry in
-            let stickerSize = stickerCanvasSize(in: geometry.size)
-            let livePlacement = translatedPlacement(
-                from: stickerPlacement,
-                translation: interactive ? dragTranslation : .zero,
-                canvasSize: geometry.size,
-                stickerSize: stickerSize
-            )
-
-            ZStack {
-                Image(uiImage: backgroundImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .clipped()
-
-                stickerLayer(size: stickerSize)
-                    .position(
-                        x: livePlacement.centerX * geometry.size.width,
-                        y: livePlacement.centerY * geometry.size.height
-                    )
-                    .shadow(
-                        color: .black.opacity(template == .style1 ? 0.18 : 0.24),
-                        radius: template == .style1 ? 12 : 24,
-                        y: template == .style1 ? 4 : 12
-                    )
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .updating($dragTranslation) { value, state, _ in
-                                guard interactive else { return }
-                                state = value.translation
-                            }
-                            .onEnded { value in
-                                guard interactive else { return }
-                                stickerPlacement = translatedPlacement(
-                                    from: stickerPlacement,
-                                    translation: value.translation,
-                                    canvasSize: geometry.size,
-                                    stickerSize: stickerSize
-                                )
-                            }
-                    )
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func stickerLayer(size: CGSize) -> some View {
-        if interactive, let stickerPreviewImage {
-            Image(uiImage: stickerPreviewImage)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: size.width, height: size.height)
-        } else {
-            RunShareArtworkView(
-                run: run,
-                detail: detail,
-                template: template,
-                enabledFields: enabledFields,
-                summary: summary,
-                style: style
-            )
-            .frame(width: size.width, height: size.height)
-        }
-    }
-
-    private func stickerCanvasSize(in canvasSize: CGSize) -> CGSize {
-        let aspectRatio = template.canvasSize.height / max(template.canvasSize.width, 1)
-        let baseWidth = min(
-            canvasSize.width * layoutSpec.photoBaseWidthRatio,
-            canvasSize.height * layoutSpec.photoBaseHeightRatio
-        )
-        let width = max(baseWidth * stickerPlacement.scale, 120)
-        return CGSize(width: width, height: width * aspectRatio)
-    }
-
-    private func translatedPlacement(
-        from placement: RunShareStickerPlacement,
-        translation: CGSize,
-        canvasSize: CGSize,
-        stickerSize: CGSize
-    ) -> RunShareStickerPlacement {
-        let halfWidth = min((stickerSize.width / max(canvasSize.width, 1)) / 2, 0.5)
-        let halfHeight = min((stickerSize.height / max(canvasSize.height, 1)) / 2, 0.5)
-
-        var updated = placement
-        updated.centerX += translation.width / max(canvasSize.width, 1)
-        updated.centerY += translation.height / max(canvasSize.height, 1)
-        updated.centerX = min(max(updated.centerX, halfWidth), 1 - halfWidth)
-        updated.centerY = min(max(updated.centerY, halfHeight), 1 - halfHeight)
-        return updated
     }
 }
 
@@ -536,6 +543,108 @@ struct StyleOneRouteCanvas: View {
     }
 }
 
+struct RunShareMiniStackRow: View {
+    let label: String
+    let value: String
+    let style: RunShareArtworkStyle
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 18) {
+            Text(label)
+                .font(style.fontChoice.font(size: 22, weight: .black))
+                .foregroundStyle(style.accentColor.opacity(0.94))
+                .frame(width: 62, alignment: .leading)
+
+            Text(value)
+                .font(style.fontChoice.font(size: 34, weight: .black))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+        }
+    }
+}
+
+struct RunShareGlassPill: View {
+    let text: String
+    let style: RunShareArtworkStyle
+
+    var body: some View {
+        Text(text)
+            .font(style.fontChoice.font(size: 30, weight: .black))
+            .foregroundStyle(.white.opacity(0.96))
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.62)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(0.12))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.26), lineWidth: 1)
+                    )
+                    .shadow(color: style.accentColor.opacity(0.16), radius: 18, y: 8)
+            )
+    }
+}
+
+struct RunShareCompactMetric: View {
+    let metric: RunShareMetric
+    let style: RunShareArtworkStyle
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(metric.title)
+                .font(style.fontChoice.font(size: style.scaled(15), weight: .bold))
+                .foregroundStyle(.white.opacity(0.62))
+                .lineLimit(1)
+
+            Text(metric.value)
+                .font(style.fontChoice.font(size: style.scaled(34), weight: .black))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.56)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(0.24))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct RunShareReceiptRow: View {
+    let metric: RunShareMetric
+    let style: RunShareArtworkStyle
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(metric.title.uppercased())
+                .font(style.fontChoice.font(size: style.scaled(17), weight: .bold))
+                .foregroundStyle(.white.opacity(0.62))
+
+            Spacer(minLength: 20)
+
+            Text(metric.value)
+                .font(style.fontChoice.font(size: style.scaled(30), weight: .heavy))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.56)
+        }
+        .padding(.vertical, 18)
+    }
+}
+
 struct RunShareMetricTile: View {
     let metric: RunShareMetric
     let template: RunShareTemplate
@@ -548,6 +657,8 @@ struct RunShareMetricTile: View {
             return 64
         case .style1:
             return 56
+        case .microInline, .minimalStack, .glassPills, .serifCaption, .raceLabel:
+            return 34
         }
     }
 
@@ -557,6 +668,8 @@ struct RunShareMetricTile: View {
             return 24
         case .style1:
             return 22
+        case .microInline, .minimalStack, .glassPills, .serifCaption, .raceLabel:
+            return 15
         }
     }
 

@@ -47,6 +47,7 @@
 		001000000000000000000027 /* FeatureShoesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012B /* FeatureShoesViews.swift */; };
 		001000000000000000000028 /* FeatureSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012C /* FeatureSettingsViews.swift */; };
 		001000000000000000000029 /* AppStoreScreenshotDemoViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012D /* AppStoreScreenshotDemoViews.swift */; };
+		00100000000000000000002A /* FeatureShareViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00100000000000000000012E /* FeatureShareViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -104,6 +105,7 @@
 		00100000000000000000012B /* FeatureShoesViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureShoesViews.swift; sourceTree = "<group>"; };
 		00100000000000000000012C /* FeatureSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureSettingsViews.swift; sourceTree = "<group>"; };
 		00100000000000000000012D /* AppStoreScreenshotDemoViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshotDemoViews.swift; sourceTree = "<group>"; };
+		00100000000000000000012E /* FeatureShareViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureShareViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -154,6 +156,7 @@
 				00100000000000000000011B /* FeatureHomeRecordViews.swift */,
 				001000000000000000000123 /* FeatureOnboardingViews.swift */,
 				001000000000000000000124 /* FeatureRecordViews.swift */,
+				00100000000000000000012E /* FeatureShareViews.swift */,
 				001000000000000000000125 /* FeatureDashboardViews.swift */,
 				001000000000000000000129 /* FeatureVO2RecoveryViews.swift */,
 				00100000000000000000012A /* FeaturePredictionMileageViews.swift */,
@@ -345,6 +348,7 @@
 				001000000000000000000027 /* FeatureShoesViews.swift in Sources */,
 				001000000000000000000028 /* FeatureSettingsViews.swift in Sources */,
 				001000000000000000000029 /* AppStoreScreenshotDemoViews.swift in Sources */,
+				00100000000000000000002A /* FeatureShareViews.swift in Sources */,
 				00100000000000000000000D /* RunDetailViews.swift in Sources */,
 				00100000000000000000000E /* FeatureViews.swift in Sources */,
 			);

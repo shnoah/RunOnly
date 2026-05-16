@@ -75,6 +75,11 @@ struct ContentView: View {
                     Label("기록", systemImage: "list.bullet.rectangle")
                 }
 
+            ShareTabView(viewModel: viewModel)
+                .tabItem {
+                    Label("공유", systemImage: "square.and.arrow.up")
+                }
+
             ShoesTabView(runs: viewModel.allRuns)
                 .environmentObject(shoeStore)
                 .environmentObject(appSettings)

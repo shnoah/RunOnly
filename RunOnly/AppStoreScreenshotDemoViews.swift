@@ -89,11 +89,7 @@ struct AppStoreScreenshotDemoRootView: View {
                     DataPermissionsView()
                 }
             case .share:
-                RunShareComposerView(
-                    run: AppStoreScreenshotFixtures.heroRun,
-                    detail: .mockCompleteMetrics,
-                    summary: RunDetail.mockCompleteMetrics.summaryMetrics
-                )
+                ShareTabView(viewModel: viewModel)
             case .readinessTest:
                 ReadinessFormulaTestDemoView()
             }
