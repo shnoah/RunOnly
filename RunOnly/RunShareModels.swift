@@ -74,6 +74,21 @@ enum RunShareTemplate: String, CaseIterable, Identifiable {
         }
     }
 
+    var useCaseLabel: String {
+        switch self {
+        case .sticker:
+            return L10n.tr("클립보드")
+        case .style1:
+            return L10n.tr("스토리")
+        case .microInline, .minimalStack, .glassPills:
+            return L10n.tr("미니")
+        case .serifCaption:
+            return L10n.tr("캡션")
+        case .raceLabel:
+            return L10n.tr("레이스")
+        }
+    }
+
     var canvasSize: CGSize {
         switch self {
         case .sticker:
@@ -546,9 +561,9 @@ struct RunShareAdvancedStyle: Equatable {
     static func defaultStyle(for template: RunShareTemplate) -> RunShareAdvancedStyle {
         switch template {
         case .sticker:
-            return RunShareAdvancedStyle(fontChoice: .rounded, fontScale: 1, accentColorSource: .preset(.mint))
+            return RunShareAdvancedStyle(fontChoice: .rounded, fontScale: 1.08, accentColorSource: .preset(.sky))
         case .style1:
-            return RunShareAdvancedStyle(fontChoice: .serif, fontScale: 1.08, accentColorSource: .preset(.rose))
+            return RunShareAdvancedStyle(fontChoice: .serif, fontScale: 1.12, accentColorSource: .preset(.coral))
         case .microInline:
             return RunShareAdvancedStyle(fontChoice: .condensed, fontScale: 1, accentColorSource: .preset(.mint))
         case .minimalStack:

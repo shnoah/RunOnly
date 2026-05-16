@@ -160,10 +160,10 @@ private struct TemplatePickerView: View {
                     PNRPageHeader(
                         eyebrow: "TEMPLATE",
                         title: "템플릿",
-                        subtitle: "\(context.run.distanceText) 러닝에 붙일 스티커를 고르세요."
+                        subtitle: "\(context.run.distanceText) 러닝을 어떤 무드로 남길까요."
                     )
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 164), spacing: 12)], spacing: 12) {
                         ForEach(RunShareTemplate.allCases) { template in
                             Button {
                                 selectedShare = PreparedRunShare(context: context, template: template)
@@ -251,7 +251,7 @@ private struct ShareTemplatePreviewCard: View {
     let context: PreparedRunShareContext
     let template: RunShareTemplate
 
-    private let previewLimit = CGSize(width: 132, height: 116)
+    private let previewLimit = CGSize(width: 154, height: 146)
 
     private var previewSize: CGSize {
         let scale = min(
@@ -269,10 +269,10 @@ private struct ShareTemplatePreviewCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             ZStack {
                 TransparentPreviewBackground()
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous))
 
                 RunShareArtworkView(
                     run: context.run,
@@ -287,24 +287,39 @@ private struct ShareTemplatePreviewCard: View {
                 .frame(width: previewSize.width, height: previewSize.height, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 118)
+            .frame(height: 148)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(template.quickStartTitle)
-                    .font(.subheadline.weight(.black))
-                    .foregroundStyle(PNR2026.ink)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(template.quickStartTitle)
+                        .font(.subheadline.weight(.black))
+                        .foregroundStyle(PNR2026.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    Text(template.descriptionText)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(PNR2026.muted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                }
+
+                Spacer(minLength: 4)
+
+                Text(template.useCaseLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-
-                Text(template.descriptionText)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(PNR2026.muted)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(PNR2026.track)
+                    )
             }
         }
         .padding(12)
-        .frame(minHeight: 178, alignment: .topLeading)
+        .frame(minHeight: 218, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
                 .fill(PNR2026.surface)

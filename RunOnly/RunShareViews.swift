@@ -90,8 +90,8 @@ struct RunShareComposerView: View {
 
     private func previewWidth(for availableWidth: CGFloat) -> CGFloat {
         min(
-            max(selectedTemplateLayout.previewPreferredWidth + 24, 180),
-            max(availableWidth - 32, 180)
+            max(selectedTemplateLayout.previewPreferredWidth + 48, 220),
+            max(availableWidth - 8, 220)
         )
     }
 
@@ -157,8 +157,9 @@ struct RunShareComposerView: View {
                         shareActionLabel(
                             title: "저장",
                             systemImage: "square.and.arrow.down",
-                            foregroundColor: PNR2026.ink,
-                            backgroundColor: PNR2026.surface
+                            foregroundColor: PNR2026.muted,
+                            backgroundColor: PNR2026.surface.opacity(0.74),
+                            isPrimary: false
                         )
                     }
                     .buttonStyle(.plain)
@@ -169,8 +170,9 @@ struct RunShareComposerView: View {
                         shareActionLabel(
                             title: "복사",
                             systemImage: "doc.on.doc",
-                            foregroundColor: PNR2026.ink,
-                            backgroundColor: PNR2026.surface
+                            foregroundColor: PNR2026.muted,
+                            backgroundColor: PNR2026.surface.opacity(0.74),
+                            isPrimary: false
                         )
                     }
                     .buttonStyle(.plain)
@@ -182,7 +184,8 @@ struct RunShareComposerView: View {
                             title: "공유",
                             systemImage: "square.and.arrow.up",
                             foregroundColor: shareActionForegroundColor,
-                            backgroundColor: artworkStyle.accentColor
+                            backgroundColor: artworkStyle.accentColor,
+                            isPrimary: true
                         )
                     }
                     .buttonStyle(.plain)
@@ -330,10 +333,10 @@ struct RunShareComposerView: View {
     @ViewBuilder
     private func compactEditorDashboard(availableWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            previewPanel(availableWidth: availableWidth)
             if showsTemplateSelector {
                 templateSelectorPanel
             }
-            previewPanel(availableWidth: availableWidth)
             if selectedTemplatePolicy.supportsFieldSelection {
                 includedDataPanel(availableWidth: availableWidth)
             }
@@ -341,47 +344,46 @@ struct RunShareComposerView: View {
                 advancedSettingsPanel
             }
         }
-        .padding(14)
-        .background(editorPanelBackground(cornerRadius: 24))
+        .padding(10)
     }
 
     private func previewPanel(availableWidth: CGFloat) -> some View {
         let canvasSize = previewCanvasSize(for: availableWidth)
 
-        return VStack(alignment: .leading, spacing: 10) {
+        return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("미리보기")
-                    .font(.subheadline.weight(.semibold))
+                Text(selectedTemplate.quickStartTitle)
+                    .font(.subheadline.weight(.black))
                     .foregroundStyle(.white)
 
                 Spacer(minLength: 8)
 
-                Text(selectedTemplate.label)
+                Text(selectedTemplate.useCaseLabel)
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(.black)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
                     .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.08))
+                        Capsule(style: .continuous)
+                            .fill(artworkStyle.accentColor)
                     )
             }
 
             shareCanvasView(canvasSize: canvasSize, interactive: true)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous))
                 .frame(width: canvasSize.width, height: canvasSize.height)
                 .frame(maxWidth: .infinity)
                 .frame(height: canvasSize.height)
         }
-        .padding(12)
-        .background(editorPanelBackground(cornerRadius: 20))
+        .padding(14)
+        .background(editorPanelBackground())
     }
 
     private var templateSelectorPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("템플릿")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(PNR2026.ink)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -390,25 +392,32 @@ struct RunShareComposerView: View {
                             selectedTemplate = template
                         } label: {
                             VStack(alignment: .leading, spacing: 5) {
-                                Text(template.label)
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
+                                HStack(spacing: 6) {
+                                    Text(template.label)
+                                        .font(.subheadline.weight(.bold))
+                                        .foregroundStyle(PNR2026.ink)
+                                        .lineLimit(1)
 
-                                Text(template.descriptionText)
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(.white.opacity(0.56))
-                                    .lineLimit(2)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                    Text(template.useCaseLabel)
+                                        .font(.caption2.weight(.black))
+                                        .foregroundStyle(selectedTemplate == template ? .black : PNR2026.muted)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                        .background(
+                                            Capsule(style: .continuous)
+                                                .fill(selectedTemplate == template ? artworkStyle.accentColor : PNR2026.surfaceHigh)
+                                        )
+                                }
                             }
-                            .frame(width: 118, alignment: .leading)
+                            .frame(width: 116, alignment: .leading)
                             .padding(10)
                             .background(
                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                                     .fill(
                                         selectedTemplate == template
-                                            ? artworkStyle.accentColor.opacity(0.24)
-                                            : Color.white.opacity(0.06)
+                                            ? artworkStyle.accentColor.opacity(0.16)
+                                            : PNR2026.surfaceHigh.opacity(0.74)
                                     )
                             )
                             .overlay(
@@ -416,7 +425,7 @@ struct RunShareComposerView: View {
                                     .stroke(
                                         selectedTemplate == template
                                             ? artworkStyle.accentColor.opacity(0.42)
-                                            : Color.white.opacity(0.08),
+                                            : PNR2026.line,
                                         lineWidth: 1
                                     )
                             )
@@ -427,25 +436,25 @@ struct RunShareComposerView: View {
             }
         }
         .padding(12)
-        .background(editorPanelBackground(cornerRadius: 20))
+        .background(editorPanelBackground())
     }
 
     private var advancedSettingsPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("고급")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(PNR2026.ink)
 
             if selectedTemplatePolicy.supportsFontDebug {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Text("폰트 크기")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.88))
+                            .foregroundStyle(PNR2026.ink)
                         Spacer()
                         Text("\(Int(selectedAdvancedStyle.fontScale * 100))%")
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(PNR2026.muted)
                             .monospacedDigit()
                     }
 
@@ -467,7 +476,7 @@ struct RunShareComposerView: View {
                             } label: {
                                 Text(choice.label)
                                     .font(choice.font(size: 13, weight: .heavy))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(PNR2026.ink)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 9)
                                     .background(
@@ -475,7 +484,7 @@ struct RunShareComposerView: View {
                                             .fill(
                                                 selectedAdvancedStyle.fontChoice == choice
                                                     ? artworkStyle.accentColor.opacity(0.22)
-                                                    : Color.white.opacity(0.06)
+                                                    : PNR2026.surfaceHigh.opacity(0.74)
                                             )
                                     )
                                     .overlay(
@@ -483,7 +492,7 @@ struct RunShareComposerView: View {
                                             .stroke(
                                                 selectedAdvancedStyle.fontChoice == choice
                                                     ? artworkStyle.accentColor.opacity(0.34)
-                                                    : Color.white.opacity(0.08),
+                                                    : PNR2026.line,
                                                 lineWidth: 1
                                             )
                                     )
@@ -498,7 +507,7 @@ struct RunShareComposerView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("강조 색상")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.88))
+                        .foregroundStyle(PNR2026.ink)
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 54), spacing: 10)], spacing: 10) {
                         ForEach(RunShareAccentPreset.allCases) { preset in
@@ -555,7 +564,7 @@ struct RunShareComposerView: View {
 
                             Text("직접")
                                 .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.72))
+                                .foregroundStyle(PNR2026.muted)
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -569,7 +578,7 @@ struct RunShareComposerView: View {
             .foregroundStyle(artworkStyle.accentColor)
         }
         .padding(12)
-        .background(editorPanelBackground(cornerRadius: 20))
+        .background(editorPanelBackground())
     }
 
     private func includedDataPanel(availableWidth: CGFloat) -> some View {
@@ -578,12 +587,12 @@ struct RunShareComposerView: View {
         return VStack(alignment: .leading, spacing: 12) {
             Text("포함 데이터")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(PNR2026.ink)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("기본 정보")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(PNR2026.muted)
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumWidth), spacing: 8)], spacing: 8) {
                     ForEach(availableBasicInfoFields) { field in
@@ -598,7 +607,7 @@ struct RunShareComposerView: View {
                                     .lineLimit(1)
                             }
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(PNR2026.ink)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
                             .padding(.horizontal, 8)
@@ -607,7 +616,7 @@ struct RunShareComposerView: View {
                                     .fill(
                                         effectiveFields.contains(field)
                                             ? artworkStyle.accentColor.opacity(0.22)
-                                            : Color.white.opacity(0.06)
+                                            : PNR2026.surfaceHigh.opacity(0.74)
                                     )
                             )
                             .overlay(
@@ -615,7 +624,7 @@ struct RunShareComposerView: View {
                                     .stroke(
                                         effectiveFields.contains(field)
                                             ? artworkStyle.accentColor.opacity(0.34)
-                                            : Color.white.opacity(0.08),
+                                            : PNR2026.line,
                                         lineWidth: 1
                                     )
                             )
@@ -631,11 +640,11 @@ struct RunShareComposerView: View {
                 HStack {
                     Text("운동 지표")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(PNR2026.muted)
                     Spacer()
                     Text(metricSelectionCountLabel)
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(.white.opacity(0.62))
+                        .foregroundStyle(PNR2026.muted)
                         .monospacedDigit()
                 }
 
@@ -651,7 +660,7 @@ struct RunShareComposerView: View {
                                     .lineLimit(1)
                             }
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(PNR2026.ink)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
                             .padding(.horizontal, 8)
@@ -660,7 +669,7 @@ struct RunShareComposerView: View {
                                     .fill(
                                         selectedMetricFields.contains(field)
                                             ? artworkStyle.accentColor.opacity(0.22)
-                                            : Color.white.opacity(0.06)
+                                            : PNR2026.surfaceHigh.opacity(0.74)
                                     )
                             )
                             .overlay(
@@ -668,7 +677,7 @@ struct RunShareComposerView: View {
                                     .stroke(
                                         selectedMetricFields.contains(field)
                                             ? artworkStyle.accentColor.opacity(0.34)
-                                            : Color.white.opacity(0.08),
+                                            : PNR2026.line,
                                         lineWidth: 1
                                     )
                             )
@@ -679,7 +688,7 @@ struct RunShareComposerView: View {
             }
         }
         .padding(12)
-        .background(editorPanelBackground(cornerRadius: 20))
+        .background(editorPanelBackground())
     }
 
     @ViewBuilder
@@ -699,11 +708,11 @@ struct RunShareComposerView: View {
                 }
             }
             .padding(14)
-            .background(editorPanelBackground(cornerRadius: 18))
+            .background(editorPanelBackground())
         }
     }
 
-    private func editorPanelBackground(cornerRadius: CGFloat) -> some View {
+    private func editorPanelBackground() -> some View {
         RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
             .fill(PNR2026.surface)
             .overlay(
@@ -717,10 +726,11 @@ struct RunShareComposerView: View {
         title: String,
         systemImage: String,
         foregroundColor: Color,
-        backgroundColor: Color
+        backgroundColor: Color,
+        isPrimary: Bool
     ) -> some View {
         Label(LocalizedStringKey(title), systemImage: systemImage)
-            .font(.caption.weight(.bold))
+            .font(.caption.weight(isPrimary ? .black : .bold))
             .foregroundStyle(foregroundColor)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
@@ -729,9 +739,10 @@ struct RunShareComposerView: View {
                     .fill(backgroundColor)
                     .overlay(
                         RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
-                            .stroke(PNR2026.line, lineWidth: 1)
+                            .stroke(isPrimary ? backgroundColor.opacity(0.38) : PNR2026.line, lineWidth: 1)
                     )
             )
+            .shadow(color: isPrimary ? backgroundColor.opacity(0.24) : .clear, radius: 10, x: 0, y: 5)
     }
 
     private func shareImage() {

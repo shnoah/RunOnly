@@ -84,6 +84,7 @@
 "공유 템플릿" = "Share template";
 "공유" = "Share";
 "공유용 PNG를 준비했습니다." = "Prepared the PNG for sharing.";
+"글래스" = "Glass";
 "과거 마일리지 데이터를 불러오는 중" = "Loading older mileage data";
 "교체까지 남은 거리" = "Distance left until replacement";
 "교체 기준 도달" = "Reached replacement threshold";
@@ -233,6 +234,7 @@
 "세그먼트" = "Segment";
 "세로 비율이 긴 스토리형 포스터입니다." = "A tall poster layout for stories.";
 "세리프" = "Serif";
+"스택" = "Stack";
 "수정" = "Edit";
 "스토리" = "Story";
 "스티커 디버그" = "Sticker debug";
@@ -388,6 +390,10 @@
 "템플릿" = "Template";
 "투명 배경 PNG로 복사/공유하기 좋습니다." = "Best for copying or sharing as a transparent PNG.";
 "인스타 스토리 상단 오버레이 느낌의 반투명 스티커입니다." = "A translucent top-overlay sticker inspired by Instagram stories.";
+"미니" = "Mini";
+"캡션" = "Caption";
+"클립보드" = "Clipboard";
+"레이스" = "Race";
 "투명 스티커는 앱마다 alpha 처리 방식이 다를 수 있어 실제 업로드 동작은 기기에서 확인하는 것이 가장 정확합니다." = "Transparent stickers may be handled differently by each app, so checking actual upload behavior on the device is the most accurate.";
 "추세" = "Trend";
 "파생 분석 캐시" = "Derived analysis cache";
