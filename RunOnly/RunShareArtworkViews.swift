@@ -391,7 +391,7 @@ struct RunShareRouteCanvas: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let projection = RouteProjection(route: route, size: geometry.size, padding: 18)
+            let projection = RouteProjection(route: route, size: geometry.size, padding: 18, maxPointCount: 600)
 
             ZStack {
                 if let projection {
@@ -438,7 +438,7 @@ struct RouteProjection {
     let startPoint: CGPoint
     let endPoint: CGPoint
 
-    init?(route: [RunRoutePoint], size: CGSize, padding: CGFloat) {
+    init?(route: [RunRoutePoint], size: CGSize, padding: CGFloat, maxPointCount: Int? = nil) {
         guard route.count >= 2 else { return nil }
 
         let latitudes = route.map(\.latitude)
@@ -470,13 +470,103 @@ struct RouteProjection {
             )
         }
 
-        guard let startPoint = projectedPoints.first, let endPoint = projectedPoints.last else {
+        let simplifiedPoints = RunShareRoutePointSimplifier.simplify(
+            projectedPoints,
+            maxCount: maxPointCount ?? projectedPoints.count,
+            tolerance: max(min(size.width, size.height) / 280, 0.65)
+        )
+
+        guard let startPoint = simplifiedPoints.first, let endPoint = simplifiedPoints.last else {
             return nil
         }
 
-        self.points = projectedPoints
+        self.points = simplifiedPoints
         self.startPoint = startPoint
         self.endPoint = endPoint
+    }
+}
+
+private enum RunShareRoutePointSimplifier {
+    static func simplify(_ points: [CGPoint], maxCount: Int, tolerance: CGFloat) -> [CGPoint] {
+        let clampedMaxCount = max(2, maxCount)
+        guard points.count > clampedMaxCount else { return points }
+
+        let simplified = ramerDouglasPeucker(points, tolerance: tolerance)
+        guard simplified.count > clampedMaxCount else { return simplified }
+
+        return cap(simplified, maxCount: clampedMaxCount)
+    }
+
+    private static func ramerDouglasPeucker(_ points: [CGPoint], tolerance: CGFloat) -> [CGPoint] {
+        guard points.count > 2 else { return points }
+
+        var kept = Array(repeating: false, count: points.count)
+        kept[0] = true
+        kept[points.count - 1] = true
+
+        var stack: [(start: Int, end: Int)] = [(0, points.count - 1)]
+
+        while let segment = stack.popLast() {
+            guard segment.end > segment.start + 1 else { continue }
+
+            var furthestIndex = segment.start
+            var furthestDistance: CGFloat = 0
+            let lineStart = points[segment.start]
+            let lineEnd = points[segment.end]
+
+            for index in (segment.start + 1)..<segment.end {
+                let distance = perpendicularDistance(
+                    from: points[index],
+                    lineStart: lineStart,
+                    lineEnd: lineEnd
+                )
+
+                if distance > furthestDistance {
+                    furthestDistance = distance
+                    furthestIndex = index
+                }
+            }
+
+            if furthestDistance > tolerance {
+                kept[furthestIndex] = true
+                stack.append((segment.start, furthestIndex))
+                stack.append((furthestIndex, segment.end))
+            }
+        }
+
+        return points.enumerated().compactMap { index, point in
+            kept[index] ? point : nil
+        }
+    }
+
+    private static func cap(_ points: [CGPoint], maxCount: Int) -> [CGPoint] {
+        guard points.count > maxCount else { return points }
+        guard maxCount > 2 else { return [points[0], points[points.count - 1]] }
+
+        return (0..<maxCount).map { index in
+            if index == 0 {
+                return points[0]
+            }
+            if index == maxCount - 1 {
+                return points[points.count - 1]
+            }
+
+            let rawIndex = Double(index) * Double(points.count - 1) / Double(maxCount - 1)
+            return points[Int(rawIndex.rounded())]
+        }
+    }
+
+    private static func perpendicularDistance(from point: CGPoint, lineStart: CGPoint, lineEnd: CGPoint) -> CGFloat {
+        let dx = lineEnd.x - lineStart.x
+        let dy = lineEnd.y - lineStart.y
+        let denominator = hypot(dx, dy)
+
+        guard denominator > 0.0001 else {
+            return hypot(point.x - lineStart.x, point.y - lineStart.y)
+        }
+
+        let numerator = abs(dy * point.x - dx * point.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x)
+        return numerator / denominator
     }
 }
 
@@ -512,7 +602,7 @@ struct StyleOneRouteCanvas: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let projection = RouteProjection(route: route, size: geometry.size, padding: 12)
+            let projection = RouteProjection(route: route, size: geometry.size, padding: 12, maxPointCount: 400)
 
             ZStack {
                 if let projection {
@@ -532,9 +622,13 @@ struct StyleOneRouteCanvas: View {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(Color.white.opacity(0.06))
                         .overlay(
-                            Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.42))
+                            VStack(spacing: 4) {
+                                Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                                    .font(.system(size: 18, weight: .semibold))
+                                Text("경로 없음")
+                                    .font(.caption2.weight(.semibold))
+                            }
+                            .foregroundStyle(.white.opacity(0.42))
                         )
                 }
             }

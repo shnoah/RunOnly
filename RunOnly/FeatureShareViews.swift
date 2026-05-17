@@ -3,8 +3,8 @@ import SwiftUI
 struct ShareTabView: View {
     @ObservedObject var viewModel: RunningWorkoutsViewModel
     @State private var templateSelection: PreparedRunShareContext?
-    @State private var isPreparingShare = false
-    @State private var preparationErrorMessage: String?
+
+    private let summaryCacheStore = RunSummaryCacheStore.shared
 
     private var recentRuns: [RunningWorkout] {
         guard case .loaded(let runs) = viewModel.state else { return [] }
@@ -50,7 +50,6 @@ struct ShareTabView: View {
                         if let heroRun {
                             ShareHeroRunCard(
                                 run: heroRun,
-                                isPreparing: isPreparingShare,
                                 action: {
                                     prepareTemplates(for: heroRun)
                                 }
@@ -62,13 +61,6 @@ struct ShareTabView: View {
                         }
                     }
 
-                    if isPreparingShare {
-                        SharePreparingPanel()
-                    }
-
-                    if let preparationErrorMessage {
-                        ShareErrorPanel(message: preparationErrorMessage)
-                    }
                 }
                 .padding(16)
                 .padding(.bottom, 20)
@@ -94,43 +86,21 @@ struct ShareTabView: View {
                         ShareRunRow(run: run)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isPreparingShare)
                 }
             }
         }
     }
 
     private func prepareTemplates(for run: RunningWorkout) {
-        guard !isPreparingShare else { return }
-
-        preparationErrorMessage = nil
-        isPreparingShare = true
-
-        Task {
-            let loader = RunDetailViewModel(run: run)
-            await loader.loadIfNeeded()
-
-            switch loader.state {
-            case .loaded(let detail):
-                templateSelection = PreparedRunShareContext(
-                    run: run,
-                    detail: detail,
-                    summary: detail.summaryMetrics.mergingMissingValues(from: loader.cachedSummary)
-                )
-            case .failed(let message):
-                preparationErrorMessage = message
-            case .idle, .loading:
-                preparationErrorMessage = L10n.tr("공유 이미지를 준비하지 못했습니다.")
-            }
-
-            isPreparingShare = false
-        }
+        templateSelection = PreparedRunShareContext(
+            run: run,
+            summary: summaryCacheStore.summary(for: run.id)
+        )
     }
 
     private func openDemoTemplates() {
         templateSelection = PreparedRunShareContext(
             run: .demoSample,
-            detail: .mockCompleteMetrics,
             summary: RunDetail.mockCompleteMetrics.summaryMetrics
         )
     }
@@ -139,8 +109,11 @@ struct ShareTabView: View {
 private struct PreparedRunShareContext: Identifiable {
     let id = UUID()
     let run: RunningWorkout
-    let detail: RunDetail
     let summary: RunSummaryMetrics?
+
+    var initialDetail: RunDetail {
+        run.isDemoWorkout ? .mockCompleteMetrics : .empty
+    }
 }
 
 private struct PreparedRunShare: Identifiable {
@@ -185,7 +158,7 @@ private struct TemplatePickerView: View {
             .sheet(item: $selectedShare) { share in
                 RunShareComposerView(
                     run: share.context.run,
-                    detail: share.context.detail,
+                    detail: share.context.initialDetail,
                     summary: share.context.summary,
                     initialTemplate: share.template,
                     showsTemplateSelector: false
@@ -197,7 +170,6 @@ private struct TemplatePickerView: View {
 
 private struct ShareHeroRunCard: View {
     let run: RunningWorkout
-    let isPreparing: Bool
     let action: () -> Void
 
     var body: some View {
@@ -216,7 +188,7 @@ private struct ShareHeroRunCard: View {
 
                     Spacer()
 
-                    Label(isPreparing ? "준비 중" : "템플릿", systemImage: "square.grid.2x2")
+                    Label("템플릿", systemImage: "square.grid.2x2")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.black)
                         .padding(.horizontal, 12)
@@ -243,7 +215,6 @@ private struct ShareHeroRunCard: View {
             )
         }
         .buttonStyle(.plain)
-        .disabled(isPreparing)
     }
 }
 
@@ -268,6 +239,10 @@ private struct ShareTemplatePreviewCard: View {
         RunShareAdvancedStyle.defaultStyle(for: template).artworkStyle
     }
 
+    private var previewDetail: RunDetail {
+        template.policy.routeRequired ? ShareTemplatePreviewRoute.detail : .empty
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ZStack {
@@ -276,7 +251,7 @@ private struct ShareTemplatePreviewCard: View {
 
                 RunShareArtworkView(
                     run: context.run,
-                    detail: context.detail,
+                    detail: previewDetail,
                     template: template,
                     enabledFields: template.defaultEnabledFields,
                     summary: context.summary,
@@ -327,6 +302,60 @@ private struct ShareTemplatePreviewCard: View {
                     RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
                         .stroke(PNR2026.line, lineWidth: 1)
                 )
+        )
+    }
+}
+
+private enum ShareTemplatePreviewRoute {
+    static var detail: RunDetail {
+        .empty.updatingSupplementary(route: points, heartRateZoneProfile: nil)
+    }
+
+    private static let startDate = Date(timeIntervalSinceReferenceDate: 0)
+
+    private static let points: [RunRoutePoint] = makeTrackLap()
+
+    private static func makeTrackLap() -> [RunRoutePoint] {
+        let centerLatitude = 37.52910
+        let centerLongitude = 126.93440
+        let latitudeRadius = 0.00104
+        let longitudeRadius = 0.00328
+        let samples = 96
+
+        return (0...samples).map { index in
+            let progress = Double(index) / Double(samples)
+            let angle = progress * Double.pi * 2
+            let latitudeOffset = trackCoordinate(sin(angle), radius: latitudeRadius)
+            let longitudeOffset = trackCoordinate(cos(angle), radius: longitudeRadius)
+
+            return point(
+                latitude: centerLatitude + latitudeOffset,
+                longitude: centerLongitude + longitudeOffset,
+                elapsed: progress * 92,
+                distance: progress * 400,
+                altitude: 28
+            )
+        }
+    }
+
+    private static func trackCoordinate(_ value: Double, radius: Double) -> Double {
+        let sign = value < 0 ? -1.0 : 1.0
+        return sign * pow(abs(value), 0.58) * radius
+    }
+
+    private static func point(
+        latitude: Double,
+        longitude: Double,
+        elapsed: TimeInterval,
+        distance: Double,
+        altitude: Double
+    ) -> RunRoutePoint {
+        RunRoutePoint(
+            latitude: latitude,
+            longitude: longitude,
+            timestamp: startDate.addingTimeInterval(elapsed),
+            distanceMeters: distance,
+            altitudeMeters: altitude
         )
     }
 }
@@ -388,44 +417,6 @@ private struct ShareLoadingPanel: View {
             RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
                 .fill(PNR2026.surface)
         )
-    }
-}
-
-private struct SharePreparingPanel: View {
-    var body: some View {
-        HStack(spacing: 10) {
-            ProgressView()
-                .tint(PNR2026.track)
-            Text("템플릿 준비 중")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(PNR2026.muted)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
-                .fill(PNR2026.surface)
-        )
-    }
-}
-
-private struct ShareErrorPanel: View {
-    let message: String
-
-    var body: some View {
-        Text(message)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.orange)
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
-                    .fill(PNR2026.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
-                            .stroke(PNR2026.line, lineWidth: 1)
-                    )
-            )
     }
 }
 

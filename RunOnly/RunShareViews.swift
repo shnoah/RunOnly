@@ -3,13 +3,22 @@ import SwiftUI
 import UniformTypeIdentifiers
 import UIKit
 
+private enum RunShareRouteLoadState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case unavailable
+    case failed
+}
+
 struct RunShareComposerView: View {
     let run: RunningWorkout
-    let detail: RunDetail
-    let summary: RunSummaryMetrics?
     let showsTemplateSelector: Bool
 
     @Environment(\.dismiss) private var dismiss
+    @State private var renderDetail: RunDetail
+    @State private var renderSummary: RunSummaryMetrics?
+    @State private var routeLoadState: RunShareRouteLoadState
     @State private var selectedTemplate: RunShareTemplate
     @State private var enabledFields: Set<RunShareField>
     @State private var templateStyles: [RunShareTemplate: RunShareAdvancedStyle] = RunShareAdvancedStyle.defaultsByTemplate
@@ -17,6 +26,7 @@ struct RunShareComposerView: View {
     @State private var showingShareSheet = false
     @State private var exportStatusMessage: String?
     @State private var exportErrorMessage: String?
+    private let healthKitService = HealthKitService()
     private let hiddenFields: Set<RunShareField> = [.environment, .shoe]
 
     init(
@@ -27,9 +37,10 @@ struct RunShareComposerView: View {
         showsTemplateSelector: Bool = true
     ) {
         self.run = run
-        self.detail = detail
-        self.summary = summary
         self.showsTemplateSelector = showsTemplateSelector
+        _renderDetail = State(initialValue: detail)
+        _renderSummary = State(initialValue: detail.summaryMetrics.mergingMissingValues(from: summary))
+        _routeLoadState = State(initialValue: detail.route.isEmpty ? .idle : .loaded)
         _selectedTemplate = State(initialValue: initialTemplate)
         _enabledFields = State(initialValue: initialTemplate.defaultEnabledFields)
     }
@@ -108,6 +119,16 @@ struct RunShareComposerView: View {
         selectedTemplate.canvasSize
     }
 
+    private var isRoutePendingForSelectedTemplate: Bool {
+        selectedTemplatePolicy.routeRequired &&
+            renderDetail.route.isEmpty &&
+            (routeLoadState == .idle || routeLoadState == .loading)
+    }
+
+    private var canExportCurrentTemplate: Bool {
+        !isRoutePendingForSelectedTemplate
+    }
+
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
@@ -131,6 +152,7 @@ struct RunShareComposerView: View {
                     sanitizeTemplateStyle(for: template)
                 }
                 sanitizeEnabledFields()
+                await loadRouteForCurrentTemplateIfNeeded()
             }
             .onChange(of: selectedTemplate) { _, newTemplate in
                 ensureTemplateStyleExists(for: newTemplate)
@@ -139,6 +161,9 @@ struct RunShareComposerView: View {
                     enabledFields = newTemplate.defaultEnabledFields
                 }
                 sanitizeEnabledFields()
+                Task {
+                    await loadRouteForCurrentTemplateIfNeeded()
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -163,6 +188,7 @@ struct RunShareComposerView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .disabled(!canExportCurrentTemplate)
 
                     Button {
                         copyPNGToPasteboard()
@@ -176,6 +202,7 @@ struct RunShareComposerView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .disabled(!canExportCurrentTemplate)
 
                     Button {
                         shareImage()
@@ -189,7 +216,9 @@ struct RunShareComposerView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .disabled(!canExportCurrentTemplate)
                 }
+                .opacity(canExportCurrentTemplate ? 1 : 0.48)
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .padding(.bottom, 14)
@@ -198,6 +227,45 @@ struct RunShareComposerView: View {
             .sheet(isPresented: $showingShareSheet) {
                 ShareSheet(activityItems: shareItems)
             }
+        }
+    }
+
+    @MainActor
+    private func loadRouteForCurrentTemplateIfNeeded() async {
+        guard selectedTemplatePolicy.routeRequired else { return }
+        guard renderDetail.route.isEmpty else {
+            routeLoadState = .loaded
+            return
+        }
+        guard routeLoadState != .loading else { return }
+        guard routeLoadState != .unavailable && routeLoadState != .failed else { return }
+
+        if run.isDemoWorkout {
+            renderDetail = .mockCompleteMetrics
+            renderSummary = renderDetail.summaryMetrics.mergingMissingValues(from: renderSummary)
+            routeLoadState = renderDetail.route.isEmpty ? .unavailable : .loaded
+            return
+        }
+
+        routeLoadState = .loading
+        exportStatusMessage = nil
+
+        do {
+            let route = try await healthKitService.fetchRunRoute(for: run)
+            guard !Task.isCancelled else { return }
+
+            if route.isEmpty {
+                routeLoadState = .unavailable
+                return
+            }
+
+            renderDetail = renderDetail.updatingSupplementary(route: route, heartRateZoneProfile: nil)
+            renderSummary = renderDetail.summaryMetrics.mergingMissingValues(from: renderSummary)
+            routeLoadState = .loaded
+        } catch is CancellationError {
+            routeLoadState = .idle
+        } catch {
+            routeLoadState = .failed
         }
     }
 
@@ -745,7 +813,18 @@ struct RunShareComposerView: View {
             .shadow(color: isPrimary ? backgroundColor.opacity(0.24) : .clear, radius: 10, x: 0, y: 5)
     }
 
+    private func ensureExportIsReady() -> Bool {
+        guard canExportCurrentTemplate else {
+            exportStatusMessage = nil
+            exportErrorMessage = L10n.tr("경로를 준비하는 중입니다.")
+            return false
+        }
+        return true
+    }
+
     private func shareImage() {
+        guard ensureExportIsReady() else { return }
+
         do {
             let url = try exportShareImageFile()
             shareItems = [url]
@@ -759,6 +838,8 @@ struct RunShareComposerView: View {
     }
 
     private func copyPNGToPasteboard() {
+        guard ensureExportIsReady() else { return }
+
         do {
             let data = try renderPNGData()
             UIPasteboard.general.setItems([[UTType.png.identifier: data]])
@@ -771,6 +852,8 @@ struct RunShareComposerView: View {
     }
 
     private func saveToPhotoLibrary() async {
+        guard ensureExportIsReady() else { return }
+
         do {
             let data = try renderPNGData()
             let authorizationStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
@@ -834,15 +917,15 @@ struct RunShareComposerView: View {
     }
 
     private var averageHeartRateText: String? {
-        summary?.averageHeartRateText
+        renderSummary?.averageHeartRateText
     }
 
     private var averageCadenceText: String? {
-        summary?.averageCadenceText
+        renderSummary?.averageCadenceText
     }
 
     private var elevationGainText: String? {
-        summary?.elevationGainText
+        renderSummary?.elevationGainText
     }
 
     @ViewBuilder
@@ -854,10 +937,10 @@ struct RunShareComposerView: View {
 
             RunShareArtworkView(
                 run: run,
-                detail: detail,
+                detail: renderDetail,
                 template: selectedTemplate,
                 enabledFields: effectiveFields,
-                summary: summary,
+                summary: renderSummary,
                 style: artworkStyle
             )
             .frame(
@@ -870,6 +953,26 @@ struct RunShareComposerView: View {
                 height: canvasSize.height,
                 alignment: .topLeading
             )
+
+            if interactive, isRoutePendingForSelectedTemplate {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .tint(artworkStyle.accentColor)
+                    Text("경로 준비 중")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.72))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.black.opacity(0.58))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        )
+                )
+            }
         }
         .frame(width: canvasSize.width, height: canvasSize.height)
     }
