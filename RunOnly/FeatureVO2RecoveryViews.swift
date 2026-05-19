@@ -295,18 +295,22 @@ struct RecoveryReadinessView: View {
         }
     }
 
+    private var loadChartPoints: [RecoveryLoadPoint] {
+        readiness.weeklyLoadChart.sorted { $0.date < $1.date }
+    }
+
     private var focusedLoadPoint: RecoveryLoadPoint? {
-        guard let selectedLoadDate else {
-            return readiness.weeklyLoadChart.last(where: { $0.load > 0 }) ?? readiness.weeklyLoadChart.last
+        guard let selectedLoadDate, !loadChartPoints.isEmpty else {
+            return loadChartPoints.last(where: { $0.load > 0 }) ?? loadChartPoints.last
         }
 
-        return readiness.weeklyLoadChart.min {
-            abs($0.date.timeIntervalSince(selectedLoadDate)) < abs($1.date.timeIntervalSince(selectedLoadDate))
-        }
+        return loadChartPoints.first(where: { $0.id == selectedLoadDate })
+            ?? loadChartPoints.last(where: { $0.load > 0 })
+            ?? loadChartPoints.last
     }
 
     private var hasLoadChart: Bool {
-        readiness.weeklyLoadChart.contains(where: { $0.load > 0 })
+        loadChartPoints.contains(where: { $0.load > 0 })
     }
 
     var body: some View {
@@ -374,7 +378,7 @@ struct RecoveryReadinessView: View {
                         tint: primaryTint
                     ) {
                         RecoveryLoadChartCard(
-                            points: readiness.weeklyLoadChart,
+                            points: loadChartPoints,
                             focusedPoint: focusedLoadPoint,
                             tint: primaryTint,
                             secondaryTint: secondaryTint,
@@ -487,70 +491,298 @@ struct RecoveryLoadChartCard: View {
     let secondaryTint: Color
     @Binding var selectedLoadDate: Date?
 
+    private var indexedPoints: [IndexedRecoveryLoadPoint] {
+        points.enumerated().map { IndexedRecoveryLoadPoint(index: $0.offset, point: $0.element) }
+    }
+
+    private var yAxisUpperBound: Double {
+        let maxLoad = points.map(\.load).max() ?? 0
+        return max(300, (maxLoad * 1.25 / 100).rounded(.up) * 100)
+    }
+
+    private var yAxisValues: [Double] {
+        Array(stride(from: 0, through: yAxisUpperBound, by: 100))
+    }
+
+    private var selectedPoint: RecoveryLoadPoint? {
+        focusedPoint ?? points.last(where: { $0.load > 0 }) ?? points.last
+    }
+
     var body: some View {
-        Chart {
-            ForEach(points) { point in
-                BarMark(
-                    x: .value("날짜", point.date, unit: .day),
-                    y: .value("부하", point.load),
-                    width: .fixed(22)
+        VStack(alignment: .leading, spacing: 10) {
+            if let selectedPoint {
+                RecoveryLoadSummaryRow(
+                    point: selectedPoint,
+                    interpretation: RecoveryLoadInterpretation.text(for: selectedPoint, in: points),
+                    tint: tint
                 )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: focusedPoint?.id == point.id
-                            ? [Color.white, tint]
-                            : [tint, secondaryTint.opacity(0.65)],
-                        startPoint: .top,
-                        endPoint: .bottom
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            GeometryReader { geometry in
+                let chartHeight: CGFloat = 142
+                let labelHeight: CGFloat = 24
+                let axisWidth: CGFloat = 34
+                let spacing: CGFloat = 10
+                let availableWidth = max(geometry.size.width - axisWidth, 1)
+                let cellWidth = max((availableWidth - spacing * 4) / 5, 48)
+                let contentWidth = CGFloat(indexedPoints.count) * cellWidth + CGFloat(max(indexedPoints.count - 1, 0)) * spacing
+
+                HStack(alignment: .top, spacing: 0) {
+                    RecoveryLoadYAxis(
+                        values: yAxisValues,
+                        height: chartHeight,
+                        labelHeight: labelHeight
                     )
-                )
-                .opacity(focusedPoint == nil || focusedPoint?.id == point.id ? 1 : 0.42)
-                .cornerRadius(8)
-                .annotation(position: .top, spacing: 8) {
-                    if focusedPoint?.id == point.id {
-                        FeatureChartCallout(
-                            title: point.label,
-                            value: point.loadText,
-                            detail: point.dateText,
-                            tint: tint
-                        )
+                    .frame(width: axisWidth)
+
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            ZStack(alignment: .topLeading) {
+                                RecoveryLoadGrid(
+                                    values: yAxisValues,
+                                    upperBound: yAxisUpperBound,
+                                    width: contentWidth,
+                                    height: chartHeight
+                                )
+
+                                HStack(alignment: .top, spacing: spacing) {
+                                    ForEach(indexedPoints) { item in
+                                        RecoveryLoadDayCell(
+                                            point: item.point,
+                                            upperBound: yAxisUpperBound,
+                                            height: chartHeight,
+                                            labelHeight: labelHeight,
+                                            tint: tint,
+                                            secondaryTint: secondaryTint,
+                                            isSelected: selectedPoint?.id == item.point.id
+                                        ) {
+                                            selectedLoadDate = item.point.id
+                                        }
+                                        .frame(width: cellWidth)
+                                        .id(item.id)
+                                    }
+                                }
+                            }
+                            .frame(width: contentWidth, height: chartHeight + labelHeight)
+                        }
+                        .onAppear {
+                            guard let lastID = indexedPoints.last?.id else { return }
+                            proxy.scrollTo(lastID, anchor: .trailing)
+                        }
                     }
                 }
             }
+            .frame(height: 166)
         }
         .frame(height: 220)
-        .chartXSelection(value: $selectedLoadDate)
-        .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
-                    .foregroundStyle(.white.opacity(0.08))
-                AxisValueLabel {
-                    if let load = value.as(Double.self) {
-                        Text(L10n.format("%d", Int(load.rounded())))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.54))
-                    }
-                }
+    }
+}
+
+struct RecoveryLoadInterpretation {
+    enum Level: Equatable {
+        case noRun
+        case noBaseline
+        case lower
+        case similar
+        case higher
+        case veryHigh
+
+        var text: String {
+            switch self {
+            case .noRun:
+                return L10n.tr("러닝 없음")
+            case .noBaseline:
+                return L10n.tr("부하 기준 계산 중")
+            case .lower:
+                return L10n.tr("평소보다 낮은 부하")
+            case .similar:
+                return L10n.tr("평소와 비슷한 부하")
+            case .higher:
+                return L10n.tr("평소보다 높은 부하")
+            case .veryHigh:
+                return L10n.tr("매우 높은 부하")
             }
         }
-        .chartXAxis {
-            AxisMarks(values: points.map(\.date)) { value in
-                AxisGridLine()
-                    .foregroundStyle(.white.opacity(0.05))
-                AxisValueLabel {
-                    if let date = value.as(Date.self) {
-                        Text(date.formatted(.dateTime.weekday(.narrow)))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.58))
-                    }
+    }
+
+    static func text(for point: RecoveryLoadPoint, in points: [RecoveryLoadPoint]) -> String {
+        level(for: point, in: points).text
+    }
+
+    static func level(for point: RecoveryLoadPoint, in points: [RecoveryLoadPoint]) -> Level {
+        guard point.load > 0 else { return .noRun }
+        guard let medianLoad = medianPositiveLoad(in: points), medianLoad > 0 else {
+            return .noBaseline
+        }
+
+        let ratio = point.load / medianLoad
+        switch ratio {
+        case ..<0.75:
+            return .lower
+        case 0.75..<1.25:
+            return .similar
+        case 1.25..<1.75:
+            return .higher
+        default:
+            return .veryHigh
+        }
+    }
+
+    private static func medianPositiveLoad(in points: [RecoveryLoadPoint]) -> Double? {
+        let loads = points.map(\.load).filter { $0 > 0 }.sorted()
+        guard !loads.isEmpty else { return nil }
+
+        let middle = loads.count / 2
+        if loads.count.isMultiple(of: 2) {
+            return (loads[middle - 1] + loads[middle]) / 2
+        }
+        return loads[middle]
+    }
+}
+
+private struct RecoveryLoadSummaryRow: View {
+    let point: RecoveryLoadPoint
+    let interpretation: String
+    let tint: Color
+
+    var body: some View {
+        (
+            Text(point.label + " ")
+                .foregroundStyle(.white.opacity(0.62))
+            + Text(point.loadText)
+                .foregroundStyle(tint.opacity(0.96))
+            + Text(" · " + interpretation)
+                .foregroundStyle(.white.opacity(0.68))
+        )
+        .font(.caption.weight(.semibold))
+        .lineLimit(1)
+        .minimumScaleFactor(0.78)
+        .monospacedDigit()
+        .accessibilityLabel(L10n.format("%@ %@ %@", point.label, point.loadText, interpretation))
+    }
+}
+
+private struct IndexedRecoveryLoadPoint: Identifiable {
+    let index: Int
+    let point: RecoveryLoadPoint
+
+    var id: Date {
+        point.id
+    }
+}
+
+private struct RecoveryLoadYAxis: View {
+    let values: [Double]
+    let height: CGFloat
+    let labelHeight: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack(alignment: .topTrailing) {
+                ForEach(values, id: \.self) { value in
+                    Text(L10n.format("%d", Int(value.rounded())))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.54))
+                        .position(x: 16, y: yPosition(for: value))
                 }
             }
+            .frame(height: height)
+
+            Color.clear
+                .frame(height: labelHeight)
         }
-        .chartPlotStyle { plotArea in
-            plotArea
-                .background(FeatureChartPlotBackground(tint: tint))
-                .clipShape(RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous))
+    }
+
+    private func yPosition(for value: Double) -> CGFloat {
+        guard let maxValue = values.max(), maxValue > 0 else { return height }
+        let ratio = min(max(value / maxValue, 0), 1)
+        let rawPosition = height - CGFloat(ratio) * height
+        return min(max(rawPosition, 7), height - 7)
+    }
+}
+
+private struct RecoveryLoadGrid: View {
+    let values: [Double]
+    let upperBound: Double
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            FeatureChartPlotBackground(tint: PNR2026.water)
+
+            ForEach(values, id: \.self) { value in
+                Path { path in
+                    let y = yPosition(for: value)
+                    path.move(to: CGPoint(x: 0, y: y))
+                    path.addLine(to: CGPoint(x: width, y: y))
+                }
+                .stroke(.white.opacity(0.08), style: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
+            }
         }
+        .frame(width: width, height: height)
+        .clipShape(RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous))
+    }
+
+    private func yPosition(for value: Double) -> CGFloat {
+        guard upperBound > 0 else { return height }
+        let ratio = min(max(value / upperBound, 0), 1)
+        return height - CGFloat(ratio) * height
+    }
+}
+
+private struct RecoveryLoadDayCell: View {
+    let point: RecoveryLoadPoint
+    let upperBound: Double
+    let height: CGFloat
+    let labelHeight: CGFloat
+    let tint: Color
+    let secondaryTint: Color
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                ZStack(alignment: .bottom) {
+                    Capsule()
+                        .fill(.white.opacity(isSelected ? 0.10 : 0.04))
+                        .frame(width: 22, height: height)
+
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: isSelected
+                                    ? [Color.white, tint]
+                                    : [tint.opacity(0.70), secondaryTint.opacity(0.52)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: 22, height: barHeight)
+                        .opacity(point.load > 0 ? 1 : 0.35)
+                }
+                .frame(height: height)
+
+                Text(point.label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(isSelected ? Color.white.opacity(0.90) : Color.white.opacity(0.58))
+                    .frame(height: labelHeight)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var barHeight: CGFloat {
+        guard upperBound > 0 else { return 3 }
+        let scaledHeight = CGFloat(point.load / upperBound) * height
+        if point.load <= 0 {
+            return 3
+        }
+        return min(max(scaledHeight, 12), height)
     }
 }
 

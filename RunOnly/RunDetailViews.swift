@@ -31,7 +31,8 @@ struct RunDetailView: View {
                 RunOverviewMetricsSection(
                     run: run,
                     summary: displayedSummary,
-                    activeDuration: loadedDetail?.activeDuration
+                    activeDuration: loadedDetail?.activeDuration,
+                    baselinePaceSecondsPerKilometer: TrainingLoadCalculator.baselinePaceSecondsPerKilometer(from: workoutsViewModel.allRuns)
                 )
                 RunNoteSection(run: run) {
                     showingNoteEditor = true

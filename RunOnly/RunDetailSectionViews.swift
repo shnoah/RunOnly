@@ -122,6 +122,7 @@ struct RunOverviewMetricsSection: View {
     let run: RunningWorkout
     let summary: RunSummaryMetrics?
     let activeDuration: TimeInterval?
+    let baselinePaceSecondsPerKilometer: Double?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -253,7 +254,13 @@ struct RunOverviewMetricsSection: View {
                 title: "운동시간",
                 value: activeDuration.map(RunDisplayFormatter.duration) ?? "-"
             ),
-            RunOverviewSecondaryMetric(title: "총경과", value: run.durationText),
+            RunOverviewSecondaryMetric(
+                title: "부하",
+                value: TrainingLoadCalculator.loadText(
+                    for: run,
+                    baselinePaceSecondsPerKilometer: baselinePaceSecondsPerKilometer
+                )
+            ),
             RunOverviewSecondaryMetric(title: "칼로리", value: run.activeEnergyText)
         ]
     }

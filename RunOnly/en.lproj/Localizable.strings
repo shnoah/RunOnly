@@ -644,6 +644,12 @@
 "월별, 연별 누적 거리를 같은 기준으로 확인합니다." = "View monthly and yearly mileage totals on the same basis.";
 "지구력 흐름을 기간별로 확인합니다." = "View endurance trends by time range.";
 "최근 부하와 회복 간격을 같은 기준으로 확인합니다." = "View recent load and recovery spacing on the same basis.";
+"러닝 없음" = "No run";
+"부하 기준 계산 중" = "Building load baseline";
+"평소보다 낮은 부하" = "Lower than usual load";
+"평소와 비슷한 부하" = "Similar to usual load";
+"평소보다 높은 부하" = "Higher than usual load";
+"매우 높은 부하" = "Very high load";
 "준비도 계산에 쓰는 신호와 한계를 확인합니다." = "Review the signals and limits used for readiness.";
 "이번 달 누적 목표와 남은 거리를 같은 기준으로 조정합니다." = "Adjust this month's goal and remaining distance on one basis.";
 "러닝 강도 기준과 수동 bpm 범위를 설정합니다." = "Set running intensity baselines and manual bpm ranges.";

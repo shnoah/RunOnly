@@ -330,7 +330,8 @@ private struct AppStoreDetailChartsDemoView: View {
                     RunOverviewMetricsSection(
                         run: AppStoreScreenshotFixtures.heroRun,
                         summary: RunDetail.mockCompleteMetrics.summaryMetrics,
-                        activeDuration: RunDetail.mockCompleteMetrics.activeDuration
+                        activeDuration: RunDetail.mockCompleteMetrics.activeDuration,
+                        baselinePaceSecondsPerKilometer: TrainingLoadCalculator.baselinePaceSecondsPerKilometer(from: AppStoreScreenshotFixtures.runs)
                     )
                     PerformanceChartSection(
                         run: AppStoreScreenshotFixtures.heroRun,
@@ -360,7 +361,8 @@ private struct AppStoreRouteSplitsDemoView: View {
                     RunOverviewMetricsSection(
                         run: AppStoreScreenshotFixtures.heroRun,
                         summary: RunDetail.mockCompleteMetrics.summaryMetrics,
-                        activeDuration: RunDetail.mockCompleteMetrics.activeDuration
+                        activeDuration: RunDetail.mockCompleteMetrics.activeDuration,
+                        baselinePaceSecondsPerKilometer: TrainingLoadCalculator.baselinePaceSecondsPerKilometer(from: AppStoreScreenshotFixtures.runs)
                     )
                     RunRouteSection(detail: .mockCompleteMetrics, loadState: .loaded)
                     RunSplitSection(detail: .mockCompleteMetrics)
@@ -432,7 +434,8 @@ private struct AppStoreHeartZonesDemoView: View {
                     RunOverviewMetricsSection(
                         run: AppStoreScreenshotFixtures.heroRun,
                         summary: RunDetail.mockCompleteMetrics.summaryMetrics,
-                        activeDuration: RunDetail.mockCompleteMetrics.activeDuration
+                        activeDuration: RunDetail.mockCompleteMetrics.activeDuration,
+                        baselinePaceSecondsPerKilometer: TrainingLoadCalculator.baselinePaceSecondsPerKilometer(from: AppStoreScreenshotFixtures.runs)
                     )
 
                     HeartRateZoneSection(detail: .mockCompleteMetrics, loadState: .loaded, initialSelectedZoneIndex: 2)

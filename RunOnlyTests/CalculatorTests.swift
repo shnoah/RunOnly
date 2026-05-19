@@ -295,6 +295,105 @@ final class CalculatorTests: XCTestCase {
         XCTAssertEqual(readiness.dataRequirementText, L10n.tr("최근 10일 안에 러닝이 한 번 이상 필요합니다."))
     }
 
+    func testTrainingLoadChartBuildsFourteenOrderedDays() {
+        let now = date(day: 20, hour: 12)
+        let chart = TrainingLoadCalculator.loadChart(
+            from: [makeRun(day: 19, duration: 1_800, distanceMeters: 5_000, appleEffortScore: 8)],
+            dayCount: 14,
+            now: now
+        )
+
+        XCTAssertEqual(chart.count, 14)
+        XCTAssertEqual(chart.first?.date, calendar.startOfDay(for: date(day: 7)))
+        XCTAssertEqual(chart.last?.date, calendar.startOfDay(for: date(day: 20)))
+        XCTAssertTrue(zip(chart, chart.dropFirst()).allSatisfy { $0.date < $1.date })
+    }
+
+    func testTrainingLoadUsesSameAppleEffortValueForChartAndRunDetail() throws {
+        let now = date(day: 20, hour: 12)
+        let run = makeRun(day: 19, duration: 1_800, distanceMeters: 5_000, appleEffortScore: 8)
+        let detailLoad = TrainingLoadCalculator.load(for: run)
+        let chartPoint = try XCTUnwrap(
+            TrainingLoadCalculator.loadChart(from: [run], dayCount: 14, now: now)
+                .first { calendar.isDate($0.date, inSameDayAs: run.startDate) }
+        )
+
+        XCTAssertEqual(detailLoad, 51, accuracy: 0.001)
+        XCTAssertEqual(chartPoint.load, detailLoad, accuracy: 0.001)
+        XCTAssertEqual(TrainingLoadCalculator.loadText(for: run), L10n.format("%d점", 51))
+    }
+
+    func testTrainingLoadFallsBackToDurationWithoutAppleEffortOrBaseline() {
+        let run = makeRun(day: 19, duration: 1_800, distanceMeters: 5_000)
+
+        XCTAssertEqual(TrainingLoadCalculator.load(for: run), 30, accuracy: 0.001)
+        XCTAssertEqual(TrainingLoadCalculator.loadText(for: run), L10n.format("%d점", 30))
+    }
+
+    func testRecoveryLoadChartUsesSameGlobalBaselineAsRunDetail() throws {
+        let now = date(day: 20, hour: 12)
+        let olderBaselineRun = makeRun(month: 4, day: 1, duration: 1_800, distanceMeters: 10_000)
+        let recentRuns = [
+            makeRun(day: 7, duration: 3_600, distanceMeters: 6_000),
+            makeRun(day: 10, duration: 3_600, distanceMeters: 6_000),
+            makeRun(day: 19, duration: 1_800, distanceMeters: 5_000)
+        ]
+        let allRuns = [olderBaselineRun] + recentRuns
+        let targetRun = try XCTUnwrap(recentRuns.last)
+        let baselinePace = TrainingLoadCalculator.baselinePaceSecondsPerKilometer(from: allRuns)
+        let detailLoad = TrainingLoadCalculator.load(
+            for: targetRun,
+            baselinePaceSecondsPerKilometer: baselinePace
+        )
+
+        let readiness = RecoveryReadinessCalculator.build(
+            from: allRuns,
+            restingHeartRateSnapshot: nil,
+            now: now
+        )
+        let chartPoint = try XCTUnwrap(
+            readiness.weeklyLoadChart.first { calendar.isDate($0.date, inSameDayAs: targetRun.startDate) }
+        )
+
+        XCTAssertEqual(chartPoint.load, detailLoad, accuracy: 0.001)
+    }
+
+    func testRecoveryLoadInterpretationHandlesNoRunAndMissingBaseline() {
+        let noRun = RecoveryLoadPoint(date: date(day: 19), load: 0)
+        let onlyRun = RecoveryLoadPoint(date: date(day: 20), load: 45)
+
+        XCTAssertEqual(RecoveryLoadInterpretation.level(for: noRun, in: [onlyRun]), .noRun)
+        XCTAssertEqual(RecoveryLoadInterpretation.text(for: noRun, in: [onlyRun]), L10n.tr("러닝 없음"))
+        XCTAssertEqual(RecoveryLoadInterpretation.level(for: onlyRun, in: [noRun]), .noBaseline)
+        XCTAssertEqual(RecoveryLoadInterpretation.text(for: onlyRun, in: [noRun]), L10n.tr("부하 기준 계산 중"))
+    }
+
+    func testRecoveryLoadInterpretationUsesRelativeMedianBands() {
+        let points = [
+            RecoveryLoadPoint(date: date(day: 16), load: 100),
+            RecoveryLoadPoint(date: date(day: 17), load: 100),
+            RecoveryLoadPoint(date: date(day: 18), load: 100),
+            RecoveryLoadPoint(date: date(day: 19), load: 100)
+        ]
+
+        XCTAssertEqual(
+            RecoveryLoadInterpretation.level(for: RecoveryLoadPoint(date: date(day: 20), load: 70), in: points),
+            .lower
+        )
+        XCTAssertEqual(
+            RecoveryLoadInterpretation.level(for: RecoveryLoadPoint(date: date(day: 20), load: 100), in: points),
+            .similar
+        )
+        XCTAssertEqual(
+            RecoveryLoadInterpretation.level(for: RecoveryLoadPoint(date: date(day: 20), load: 150), in: points),
+            .higher
+        )
+        XCTAssertEqual(
+            RecoveryLoadInterpretation.level(for: RecoveryLoadPoint(date: date(day: 20), load: 180), in: points),
+            .veryHigh
+        )
+    }
+
     func testRecoveryReadinessTreatsAppleEffortAsPrimaryLoadSignal() throws {
         let now = date(day: 20, hour: 12)
         let baseRuns = readinessBaseRuns()

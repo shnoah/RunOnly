@@ -61,6 +61,100 @@ enum RunningSummaryBuilder {
     }
 }
 
+enum TrainingLoadCalculator {
+    static func load(
+        for run: RunningWorkout,
+        baselinePaceSecondsPerKilometer: Double? = nil
+    ) -> Double {
+        let minutes = max(run.duration / 60, 0)
+        guard minutes > 0 else { return 0 }
+
+        if let appleEffort = run.appleEffort {
+            return minutes * appleEffortLoadFactor(for: appleEffort.clampedScore)
+        }
+
+        guard let baselinePaceSecondsPerKilometer,
+              let runPace = paceSecondsPerKilometer(for: run),
+              runPace > 0 else {
+            return minutes
+        }
+
+        let intensityFactor = min(max(baselinePaceSecondsPerKilometer / runPace, 0.80), 1.35)
+        return minutes * intensityFactor
+    }
+
+    static func loadText(
+        for run: RunningWorkout,
+        baselinePaceSecondsPerKilometer: Double? = nil
+    ) -> String {
+        let load = load(for: run, baselinePaceSecondsPerKilometer: baselinePaceSecondsPerKilometer)
+        return L10n.format("%d점", Int(load.rounded()))
+    }
+
+    static func loadChart(
+        from runs: [RunningWorkout],
+        dayCount: Int,
+        now: Date = Date()
+    ) -> [RecoveryLoadPoint] {
+        let calendar = Calendar.current
+        let clampedDayCount = max(dayCount, 1)
+        let baselinePace = baselinePaceSecondsPerKilometer(from: runs)
+
+        return (0..<clampedDayCount).compactMap { offset in
+            guard let date = calendar.date(
+                byAdding: .day,
+                value: -(clampedDayCount - 1 - offset),
+                to: calendar.startOfDay(for: now)
+            ) else {
+                return nil
+            }
+
+            let nextDay = calendar.date(byAdding: .day, value: 1, to: date) ?? date
+            let dailyLoad = runs
+                .filter { $0.startDate >= date && $0.startDate < nextDay }
+                .reduce(0) { $0 + load(for: $1, baselinePaceSecondsPerKilometer: baselinePace) }
+
+            return RecoveryLoadPoint(date: date, load: dailyLoad)
+        }
+    }
+
+    static func paceSecondsPerKilometer(for run: RunningWorkout) -> Double? {
+        guard run.distanceInMeters >= 800, run.duration > 0 else {
+            return nil
+        }
+        return run.duration / run.distanceInKilometers
+    }
+
+    static func baselinePaceSecondsPerKilometer(from runs: [RunningWorkout]) -> Double? {
+        median(runs.compactMap { paceSecondsPerKilometer(for: $0) })
+    }
+
+    private static func appleEffortLoadFactor(for score: Double) -> Double {
+        switch score {
+        case ..<3:
+            return 0.70
+        case ..<5:
+            return 0.90
+        case ..<7:
+            return 1.20
+        case ..<8.5:
+            return 1.70
+        default:
+            return 2.50
+        }
+    }
+
+    private static func median(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let sorted = values.sorted()
+        let middle = sorted.count / 2
+        if sorted.count.isMultiple(of: 2) {
+            return (sorted[middle - 1] + sorted[middle]) / 2
+        }
+        return sorted[middle]
+    }
+}
+
 enum RecoveryReadinessCalculator {
     private enum RunnerLoadProfile {
         case beginner
@@ -78,7 +172,7 @@ enum RecoveryReadinessCalculator {
         let recent28Start = calendar.date(byAdding: .day, value: -28, to: now) ?? .distantPast
         let recent10Start = calendar.date(byAdding: .day, value: -10, to: now) ?? .distantPast
         let recent28Runs = runs.filter { $0.startDate >= recent28Start && $0.startDate <= now }
-        let weeklyLoadChart = buildRecoveryLoadChart(from: recent28Runs, now: now)
+        let weeklyLoadChart = TrainingLoadCalculator.loadChart(from: runs, dayCount: 14, now: now)
 
         guard recent28Runs.count >= 3 else {
             return RecoveryReadiness(
@@ -132,26 +226,24 @@ enum RecoveryReadinessCalculator {
             return .empty
         }
 
-        let baselinePace = median(
-            recent28Runs.compactMap { paceSecondsPerKilometer(for: $0) }
-        )
+        let baselinePace = TrainingLoadCalculator.baselinePaceSecondsPerKilometer(from: recent28Runs)
         let last7Start = calendar.date(byAdding: .day, value: -7, to: now) ?? .distantPast
         let acuteLoadWindowHours = 84
         let acuteLoadWindowDays = Double(acuteLoadWindowHours) / 24
         let acuteLoadStart = calendar.date(byAdding: .hour, value: -acuteLoadWindowHours, to: now) ?? .distantPast
-        let recent28Loads = recent28Runs.map { recoveryLoad(for: $0, baselinePaceSecondsPerKilometer: baselinePace) }
+        let recent28Loads = recent28Runs.map { TrainingLoadCalculator.load(for: $0, baselinePaceSecondsPerKilometer: baselinePace) }
         let total28Load = recent28Loads.reduce(0, +)
         let last7Load = recent28Runs
             .filter { $0.startDate >= last7Start }
-            .reduce(0) { $0 + recoveryLoad(for: $1, baselinePaceSecondsPerKilometer: baselinePace) }
+            .reduce(0) { $0 + TrainingLoadCalculator.load(for: $1, baselinePaceSecondsPerKilometer: baselinePace) }
         let acuteLoadRuns = recent28Runs.filter { $0.startDate >= acuteLoadStart }
         let acuteLoad = acuteLoadRuns
-            .reduce(0) { $0 + recoveryLoad(for: $1, baselinePaceSecondsPerKilometer: baselinePace) }
+            .reduce(0) { $0 + TrainingLoadCalculator.load(for: $1, baselinePaceSecondsPerKilometer: baselinePace) }
         let acuteDistance = acuteLoadRuns.reduce(0) { $0 + $1.distanceInKilometers }
 
         let baselineWeeklyLoad = max(total28Load / 4, 1)
         let typicalSessionLoad = max(median(recent28Loads) ?? 0, 1)
-        let lastRunLoad = recoveryLoad(for: lastRun, baselinePaceSecondsPerKilometer: baselinePace)
+        let lastRunLoad = TrainingLoadCalculator.load(for: lastRun, baselinePaceSecondsPerKilometer: baselinePace)
         let baselineAcuteLoad = max(total28Load * acuteLoadWindowDays / 28, typicalSessionLoad, 1)
         let loadRatio = last7Load / baselineWeeklyLoad
         let acuteRatio = acuteLoad / baselineAcuteLoad
@@ -343,59 +435,6 @@ enum RecoveryReadinessCalculator {
             isDataSufficient: true,
             dataRequirementText: nil
         )
-    }
-
-    private static func buildRecoveryLoadChart(from runs: [RunningWorkout], now: Date) -> [RecoveryLoadPoint] {
-        let calendar = Calendar.current
-        let baselinePace = median(runs.compactMap { paceSecondsPerKilometer(for: $0) })
-
-        return (0..<7).compactMap { offset in
-            guard let date = calendar.date(byAdding: .day, value: -(6 - offset), to: calendar.startOfDay(for: now)) else {
-                return nil
-            }
-            let nextDay = calendar.date(byAdding: .day, value: 1, to: date) ?? date
-            let dailyLoad = runs
-                .filter { $0.startDate >= date && $0.startDate < nextDay }
-                .reduce(0) { $0 + recoveryLoad(for: $1, baselinePaceSecondsPerKilometer: baselinePace) }
-
-            return RecoveryLoadPoint(date: date, load: dailyLoad)
-        }
-    }
-
-    private static func recoveryLoad(
-        for run: RunningWorkout,
-        baselinePaceSecondsPerKilometer: Double?
-    ) -> Double {
-        let minutes = max(run.duration / 60, 0)
-        guard minutes > 0 else { return 0 }
-
-        if let appleEffort = run.appleEffort {
-            return minutes * appleEffortLoadFactor(for: appleEffort.clampedScore)
-        }
-
-        guard let baselinePaceSecondsPerKilometer,
-              let runPace = paceSecondsPerKilometer(for: run),
-              runPace > 0 else {
-            return minutes
-        }
-
-        let intensityFactor = min(max(baselinePaceSecondsPerKilometer / runPace, 0.80), 1.35)
-        return minutes * intensityFactor
-    }
-
-    private static func appleEffortLoadFactor(for score: Double) -> Double {
-        switch score {
-        case ..<3:
-            return 0.70
-        case ..<5:
-            return 0.90
-        case ..<7:
-            return 1.20
-        case ..<8.5:
-            return 1.70
-        default:
-            return 2.50
-        }
     }
 
     private static func effortFactorText(for run: RunningWorkout, lastRunLoadRatio: Double) -> String {
@@ -595,13 +634,6 @@ enum RecoveryReadinessCalculator {
         case (false, false):
             return L10n.tr("PNR 추정 기준")
         }
-    }
-
-    private static func paceSecondsPerKilometer(for run: RunningWorkout) -> Double? {
-        guard run.distanceInMeters >= 800, run.duration > 0 else {
-            return nil
-        }
-        return run.duration / run.distanceInKilometers
     }
 
     private static func median(_ values: [Double]) -> Double? {
