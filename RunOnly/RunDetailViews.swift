@@ -6,8 +6,10 @@ struct RunDetailView: View {
     let run: RunningWorkout
     let personalRecordAchievements: [PersonalRecordDistance]
     @EnvironmentObject private var workoutsViewModel: RunningWorkoutsViewModel
+    @EnvironmentObject private var runNoteStore: RunNoteStore
     @StateObject private var viewModel: RunDetailViewModel
     @State private var showingShareComposer = false
+    @State private var showingNoteEditor = false
 
     init(
         run: RunningWorkout,
@@ -26,7 +28,14 @@ struct RunDetailView: View {
                     RunPersonalRecordBanner(achievements: displayedPersonalRecordAchievements)
                 }
 
-                RunOverviewMetricsSection(run: run, summary: displayedSummary)
+                RunOverviewMetricsSection(
+                    run: run,
+                    summary: displayedSummary,
+                    activeDuration: loadedDetail?.activeDuration
+                )
+                RunNoteSection(run: run) {
+                    showingNoteEditor = true
+                }
 
                 if run.isDemoWorkout {
                     DemoScenarioPanel(viewModel: viewModel)
@@ -98,6 +107,10 @@ struct RunDetailView: View {
                     summary: loadedDetail.summaryMetrics.mergingMissingValues(from: viewModel.cachedSummary)
                 )
             }
+        }
+        .sheet(isPresented: $showingNoteEditor) {
+            RunNoteEditorView(run: run)
+                .environmentObject(runNoteStore)
         }
     }
 
@@ -216,6 +229,7 @@ private struct RunDetailPreviewContainer: View {
 
     @StateObject private var workoutsViewModel = RunningWorkoutsViewModel()
     @StateObject private var shoeStore = ShoeStore()
+    @StateObject private var runNoteStore = RunNoteStore(loadFromDisk: false, persistsChanges: false)
 
     var body: some View {
         NavigationStack {
@@ -226,6 +240,7 @@ private struct RunDetailPreviewContainer: View {
         }
         .environmentObject(workoutsViewModel)
         .environmentObject(shoeStore)
+        .environmentObject(runNoteStore)
         .preferredColorScheme(.dark)
     }
 }

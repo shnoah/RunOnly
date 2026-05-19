@@ -6,6 +6,7 @@ struct ContentView: View {
     @StateObject private var shoeStore = ShoeStore()
     @StateObject private var appSettings = AppSettingsStore()
     @StateObject private var mileageGoalStore = MileageGoalStore()
+    @StateObject private var runNoteStore = RunNoteStore()
     private let screenshotMode = AppStoreScreenshotMode.current
 
     var body: some View {
@@ -24,9 +25,11 @@ struct ContentView: View {
                 )
                 .environmentObject(viewModel)
                 .environmentObject(shoeStore)
+                .environmentObject(runNoteStore)
             }
         }
         .environmentObject(appSettings)
+        .environmentObject(runNoteStore)
         .environment(\.locale, appSettings.appLocale)
         .fullScreenCover(isPresented: $appSettings.isPresentingHealthKitIntro) {
             NavigationStack {
@@ -40,6 +43,7 @@ struct ContentView: View {
             }
             .environmentObject(viewModel)
             .environmentObject(shoeStore)
+            .environmentObject(runNoteStore)
         }
         .environmentObject(viewModel)
         .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
@@ -62,6 +66,7 @@ struct ContentView: View {
         TabView {
             HomeTabView(viewModel: viewModel)
                 .environmentObject(shoeStore)
+                .environmentObject(runNoteStore)
                 .environmentObject(mileageGoalStore)
                 .environmentObject(appSettings)
                 .tabItem {
@@ -70,18 +75,21 @@ struct ContentView: View {
 
             RecordTabView(viewModel: viewModel)
                 .environmentObject(shoeStore)
+                .environmentObject(runNoteStore)
                 .environmentObject(appSettings)
                 .tabItem {
                     Label("기록", systemImage: "list.bullet.rectangle")
                 }
 
             ShareTabView(viewModel: viewModel)
+                .environmentObject(runNoteStore)
                 .tabItem {
                     Label("공유", systemImage: "square.and.arrow.up")
                 }
 
             ShoesTabView(runs: viewModel.allRuns)
                 .environmentObject(shoeStore)
+                .environmentObject(runNoteStore)
                 .environmentObject(appSettings)
                 .tabItem {
                     Label("신발", systemImage: "shoeprints.fill")
@@ -89,6 +97,7 @@ struct ContentView: View {
 
             SettingsTabView()
                 .environmentObject(shoeStore)
+                .environmentObject(runNoteStore)
                 .environmentObject(appSettings)
                 .tabItem {
                     Label("설정", systemImage: "gearshape.fill")

@@ -302,6 +302,11 @@ enum RunDisplayFormatter {
         return number(displayedValue, fractionLength: 0) + " " + unit.elevationSymbol
     }
 
+    static func energyKilocalories(_ kilocalories: Double?) -> String? {
+        guard let kilocalories else { return nil }
+        return number(kilocalories, fractionLength: 0) + " kcal"
+    }
+
     // 리스트/상세/공유 화면은 각각 보는 맥락이 달라 날짜 포맷도 따로 둔다.
     static func recordDate(_ date: Date, locale: Locale = currentAppLocale) -> String {
         localizedDate(date, locale: locale, template: "M d E a h:mm")

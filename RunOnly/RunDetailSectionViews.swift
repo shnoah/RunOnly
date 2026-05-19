@@ -119,6 +119,7 @@ struct RunSplitSection: View {
 struct RunOverviewMetricsSection: View {
     let run: RunningWorkout
     let summary: RunSummaryMetrics?
+    let activeDuration: TimeInterval?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -172,6 +173,12 @@ struct RunOverviewMetricsSection: View {
                     ForEach(secondaryMetrics) { metric in
                         RunHeroSecondaryMetric(metric: metric)
                     }
+                }
+            }
+
+            HStack(spacing: 8) {
+                ForEach(detailMetrics) { metric in
+                    RunHeroSecondaryMetric(metric: metric)
                 }
             }
         }
@@ -238,6 +245,17 @@ struct RunOverviewMetricsSection: View {
         return metrics
     }
 
+    private var detailMetrics: [RunOverviewSecondaryMetric] {
+        [
+            RunOverviewSecondaryMetric(
+                title: "운동시간",
+                value: activeDuration.map(RunDisplayFormatter.duration) ?? "-"
+            ),
+            RunOverviewSecondaryMetric(title: "총경과", value: run.durationText),
+            RunOverviewSecondaryMetric(title: "칼로리", value: run.activeEnergyText)
+        ]
+    }
+
     private var averageHeartRateText: String {
         summary?.averageHeartRateText ?? "-"
     }
@@ -248,6 +266,114 @@ struct RunOverviewMetricsSection: View {
 
     private var elevationGainText: String {
         summary?.elevationGainText ?? "-"
+    }
+}
+
+struct RunNoteSection: View {
+    let run: RunningWorkout
+    let onEdit: () -> Void
+    @EnvironmentObject private var runNoteStore: RunNoteStore
+
+    private var note: RunNote? {
+        runNoteStore.note(for: run.id)
+    }
+
+    var body: some View {
+        DetailSection(title: "메모", systemImage: "note.text", tint: Color(red: 0.42, green: 0.76, blue: 1.0)) {
+            Button(action: onEdit) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: note == nil ? "square.and.pencil" : "text.alignleft")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Color(red: 0.42, green: 0.76, blue: 1.0))
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(note == nil ? "메모 추가" : "러닝 메모")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white)
+
+                        Text(note?.text ?? "오늘 컨디션, 코스 느낌, 다음에 기억할 점을 남겨두세요.")
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(note == nil ? 0.58 : 0.74))
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.44))
+                }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .fill(Color.black.opacity(0.16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+struct RunNoteEditorView: View {
+    let run: RunningWorkout
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var runNoteStore: RunNoteStore
+    @State private var text: String
+
+    init(run: RunningWorkout) {
+        self.run = run
+        _text = State(initialValue: "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(run.detailDateText)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(PNR2026.muted)
+
+                TextEditor(text: $text)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .foregroundStyle(PNR2026.ink)
+                    .padding(10)
+                    .frame(minHeight: 220)
+                    .background(
+                        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                            .fill(PNR2026.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                    .stroke(PNR2026.line, lineWidth: 1)
+                            )
+                    )
+            }
+            .padding(16)
+            .background(AppBackground())
+            .navigationTitle("러닝 메모")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("취소") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("저장") {
+                        runNoteStore.saveNote(text, for: run.id)
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                text = runNoteStore.note(for: run.id)?.text ?? ""
+            }
+        }
     }
 }
 
@@ -310,11 +436,16 @@ struct RunHeroMoodBadge: View {
 struct HeartRateZoneSection: View {
     let detail: RunDetail
     let loadState: RunDetailSupplementaryLoadState
+    @State private var selectedZoneIndex: Int?
     private let zoneRows: [HeartRateZoneRowModel]
+    private let appliedSettingsLabel: String?
 
     init(detail: RunDetail, loadState: RunDetailSupplementaryLoadState) {
         self.detail = detail
         self.loadState = loadState
+        self.appliedSettingsLabel = detail.heartRateZoneProfile == nil
+            ? nil
+            : HeartRateZoneSettings.load().kind.label
         self.zoneRows = HeartRateZoneRowModel.build(
             distribution: detail.heartRateZoneDistribution,
             heartRates: detail.heartRates,
@@ -324,7 +455,12 @@ struct HeartRateZoneSection: View {
     }
 
     var body: some View {
-        DetailSection(title: "심박", systemImage: "heart.fill", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
+        DetailSection(
+            title: "심박",
+            systemImage: "heart.fill",
+            tint: Color(red: 0.94, green: 0.41, blue: 0.45),
+            trailingTitle: appliedSettingsLabel
+        ) {
             if zoneRows.isEmpty, loadState == .loading || loadState == .idle {
                 HStack(spacing: 10) {
                     ProgressView()
@@ -341,7 +477,14 @@ struct HeartRateZoneSection: View {
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(zoneRows) { zone in
-                        HeartRateZoneRow(zone: zone)
+                        HeartRateZoneRow(
+                            zone: zone,
+                            isRangeVisible: selectedZoneIndex == zone.zoneIndex
+                        ) {
+                            guard zone.bpmRangeText != nil else { return }
+                            selectedZoneIndex = selectedZoneIndex == zone.zoneIndex ? nil : zone.zoneIndex
+                        }
+                        .zIndex(selectedZoneIndex == zone.zoneIndex ? 1 : 0)
                     }
 
                     if loadState == .provisional {
@@ -354,6 +497,9 @@ struct HeartRateZoneSection: View {
                         }
                         .padding(.top, 2)
                     }
+                }
+                .onChange(of: loadState) {
+                    selectedZoneIndex = nil
                 }
             }
         }
@@ -381,11 +527,13 @@ struct RunDataSourceSection: View {
 }
 
 struct HeartRateZoneRowModel: Identifiable {
-    let id = UUID()
+    var id: Int { zoneIndex }
+    let zoneIndex: Int
     let title: String
     let duration: TimeInterval
     let percentage: Double
     let color: Color
+    let bpmRangeText: String?
 
     static func build(
         distribution: HeartRateZoneDistribution?,
@@ -413,11 +561,26 @@ struct HeartRateZoneRowModel: Identifiable {
                 return nil
             }
             let displayRow = displayRows[entry.zoneIndex]
+            let bpmRangeText: String?
+            if let zoneProfile,
+               HeartRateZoneDistributionEntry.boundaries.indices.contains(entry.zoneIndex) {
+                let boundary = HeartRateZoneDistributionEntry.boundaries[entry.zoneIndex]
+                let range = zoneProfile.bpmRange(
+                    forZone: entry.zoneIndex,
+                    lowerFraction: boundary.lowerFraction,
+                    upperFraction: min(boundary.upperFraction, 1.0)
+                )
+                bpmRangeText = "\(range.lowerBound)-\(range.upperBound) bpm"
+            } else {
+                bpmRangeText = nil
+            }
             return HeartRateZoneRowModel(
+                zoneIndex: entry.zoneIndex,
                 title: displayRow.label,
                 duration: entry.duration,
                 percentage: entry.percentage,
-                color: displayRow.color
+                color: displayRow.color,
+                bpmRangeText: bpmRangeText
             )
         }
     }
@@ -425,6 +588,8 @@ struct HeartRateZoneRowModel: Identifiable {
 
 struct HeartRateZoneRow: View {
     let zone: HeartRateZoneRowModel
+    let isRangeVisible: Bool
+    let onTap: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -484,6 +649,41 @@ struct HeartRateZoneRow: View {
             }
             .frame(width: 92, alignment: .trailing)
         }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
+        .overlay(alignment: .topTrailing) {
+            if isRangeVisible, let bpmRangeText = zone.bpmRangeText {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.caption2.weight(.bold))
+                    Text(bpmRangeText)
+                        .font(.caption2.weight(.bold))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(.white.opacity(0.88))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Color.black.opacity(0.58))
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        )
+                )
+                .offset(y: -28)
+                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .trailing)))
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: isRangeVisible)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var accessibilityLabel: Text {
+        let range = zone.bpmRangeText.map { ", \($0)" } ?? ""
+        return Text("\(zone.title)\(range), \(formatDuration(zone.duration)), \(zone.percentageText)")
     }
 }
 

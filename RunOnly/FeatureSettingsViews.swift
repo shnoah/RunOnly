@@ -40,6 +40,17 @@ struct SettingsTabView: View {
                             }
                             .buttonStyle(.plain)
 
+                            NavigationLink {
+                                HeartRateZoneSettingsView()
+                            } label: {
+                                SettingSelectionRow(
+                                    title: "심박 존",
+                                    value: appSettings.heartRateZoneSettings.kind.label,
+                                    detail: "프리셋/수동 범위"
+                                )
+                            }
+                            .buttonStyle(.plain)
+
                             Toggle(isOn: $appSettings.defaultAppleOnlyFilter) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Apple 운동 앱 기록 기본 표시")
@@ -836,5 +847,229 @@ struct DistanceUnitSettingsView: View {
         .background(AppBackground())
         .navigationTitle("거리 단위")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct HeartRateZoneSettingsView: View {
+    @EnvironmentObject private var appSettings: AppSettingsStore
+    @State private var draft = HeartRateZoneSettings.default
+    @State private var statusMessage: String?
+
+    private var canSave: Bool {
+        draft.kind != .manual || draft.validationMessage == nil
+    }
+
+    private func detail(for option: HeartRateZoneSettingsKind) -> String {
+        switch option {
+        case .auto:
+            return "최근 1년 최대심박과 최근 6개월 안정시 심박을 우선 사용합니다."
+        case .maxHeartRatePercent:
+            return "입력한 최대심박의 50-100%를 5개 존으로 나눕니다."
+        case .lthrRunning:
+            return "러닝 역치 심박(LTHR)을 기준으로 Friel식 구간을 씁니다."
+        case .manual:
+            return "존 1부터 존 5까지 bpm 범위를 직접 입력합니다."
+        }
+    }
+
+    private func select(_ option: HeartRateZoneSettingsKind) {
+        draft.kind = option
+        if option == .manual, draft.manualRanges.count != 5 {
+            draft.manualRanges = draft.previewRanges
+        }
+        statusMessage = nil
+    }
+
+    private func save() {
+        guard canSave else {
+            statusMessage = draft.validationMessage
+            return
+        }
+        appSettings.heartRateZoneSettings = draft.normalized()
+        statusMessage = "심박 존 설정을 저장했습니다."
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                DetailSection(title: "현재 기준", systemImage: "heart.fill", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SettingInfoRow(title: "적용 방식", value: appSettings.heartRateZoneSettings.kind.label)
+                        HeartRateZonePreviewRows(ranges: appSettings.heartRateZoneSettings.previewRanges)
+                        Text("PNR 자동은 HealthKit에서 최근 최대심박과 안정시 심박을 읽어 HRR/Karvonen을 우선 적용하고, 데이터가 부족하면 최근 최대심박 또는 이번 러닝 관측 최고심박으로 임시 계산합니다.")
+                            .font(.caption)
+                            .foregroundStyle(PNR2026.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                DetailSection(title: "프리셋", systemImage: "slider.horizontal.3", tint: PNR2026.track) {
+                    VStack(spacing: 12) {
+                        ForEach(HeartRateZoneSettingsKind.allCases) { option in
+                            Button {
+                                select(option)
+                            } label: {
+                                SettingOptionRow(
+                                    title: option.label,
+                                    detail: detail(for: option),
+                                    isSelected: draft.kind == option
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                DetailSection(title: "입력", systemImage: "number", tint: Color(red: 0.45, green: 0.76, blue: 1.0)) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        switch draft.kind {
+                        case .auto:
+                            Text("자동 모드는 별도 입력 없이 현재 앱 기본값을 사용합니다. 데이터가 충분하면 HRR, 부족하면 최대심박 기준으로 계산합니다.")
+                                .font(.subheadline)
+                                .foregroundStyle(PNR2026.muted)
+                        case .maxHeartRatePercent:
+                            Stepper(value: $draft.maximumHeartRateBPM, in: 120...240, step: 1) {
+                                SettingInfoRow(title: "최대심박", value: "\(draft.maximumHeartRateBPM) bpm")
+                            }
+                        case .lthrRunning:
+                            Stepper(value: $draft.lactateThresholdBPM, in: 100...220, step: 1) {
+                                SettingInfoRow(title: "러닝 LTHR", value: "\(draft.lactateThresholdBPM) bpm")
+                            }
+                        case .manual:
+                            VStack(spacing: 12) {
+                                ForEach(draft.manualRanges.indices, id: \.self) { index in
+                                    HeartRateManualZoneEditor(
+                                        title: "존 \(index + 1)",
+                                        lowerBPM: Binding(
+                                            get: { draft.manualRanges[index].lowerBPM },
+                                            set: { draft.manualRanges[index].lowerBPM = $0 }
+                                        ),
+                                        upperBPM: Binding(
+                                            get: { draft.manualRanges[index].upperBPM },
+                                            set: { draft.manualRanges[index].upperBPM = $0 }
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        HeartRateZonePreviewRows(ranges: draft.previewRanges)
+
+                        if let message = draft.kind == .manual ? draft.validationMessage : nil {
+                            Text(message)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color(red: 0.94, green: 0.41, blue: 0.45))
+                        }
+
+                        Button {
+                            save()
+                        } label: {
+                            Text("저장")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(PNR2026.canvas)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                        .fill(canSave ? PNR2026.track : PNR2026.muted.opacity(0.35))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!canSave)
+
+                        if let statusMessage {
+                            Text(statusMessage)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(PNR2026.track)
+                        }
+
+                        Text("심박 존은 훈련 강도 참고용이며 의료 목적 지표가 아닙니다.")
+                            .font(.caption)
+                            .foregroundStyle(PNR2026.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(AppBackground())
+        .navigationTitle("심박 존")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            draft = appSettings.heartRateZoneSettings.normalized()
+        }
+    }
+}
+
+struct HeartRateManualZoneEditor: View {
+    let title: String
+    @Binding var lowerBPM: Int
+    @Binding var upperBPM: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(LocalizedStringKey(title))
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(PNR2026.ink)
+
+            Stepper(value: $lowerBPM, in: 1...240, step: 1) {
+                SettingInfoRow(title: "하한", value: "\(lowerBPM) bpm")
+            }
+
+            Stepper(value: $upperBPM, in: 1...240, step: 1) {
+                SettingInfoRow(title: "상한", value: "\(upperBPM) bpm")
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct HeartRateZonePreviewRows: View {
+    let ranges: [HeartRateZoneBPMRange]
+
+    private let colors: [Color] = [
+        Color(red: 0.42, green: 0.76, blue: 1.0),
+        Color(red: 0.45, green: 0.95, blue: 0.76),
+        Color(red: 0.95, green: 0.84, blue: 0.40),
+        Color(red: 0.95, green: 0.59, blue: 0.32),
+        Color(red: 0.94, green: 0.41, blue: 0.45)
+    ]
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ForEach(ranges.sorted { $0.zoneIndex < $1.zoneIndex }) { range in
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(colors[safe: range.zoneIndex] ?? PNR2026.track)
+                        .frame(width: 8, height: 8)
+                    Text("존 \(range.zoneIndex + 1)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(PNR2026.ink)
+                        .frame(width: 44, alignment: .leading)
+                    Capsule()
+                        .fill((colors[safe: range.zoneIndex] ?? PNR2026.track).opacity(0.74))
+                        .frame(height: 8)
+                    Text(range.displayText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PNR2026.muted)
+                        .monospacedDigit()
+                        .frame(width: 88, alignment: .trailing)
+                }
+            }
+        }
+    }
+}
+
+private extension Array {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

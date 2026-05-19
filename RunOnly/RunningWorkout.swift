@@ -11,6 +11,7 @@ struct RunningWorkout: Identifiable {
     let sourceName: String
     let sourceBundleIdentifier: String
     let appleEffort: WorkoutEffort?
+    let activeEnergyKilocalories: Double?
     private let indoorWorkoutOverride: Bool?
 
     init(workout: HKWorkout, appleEffort: WorkoutEffort? = nil) {
@@ -22,6 +23,7 @@ struct RunningWorkout: Identifiable {
         sourceName = workout.sourceRevision.source.name
         sourceBundleIdentifier = workout.sourceRevision.source.bundleIdentifier
         self.appleEffort = appleEffort
+        activeEnergyKilocalories = workout.totalEnergyBurned?.doubleValue(for: .kilocalorie())
         indoorWorkoutOverride = nil
     }
 
@@ -33,7 +35,8 @@ struct RunningWorkout: Identifiable {
         sourceName: String,
         sourceBundleIdentifier: String,
         isIndoorWorkout: Bool?,
-        appleEffort: WorkoutEffort? = nil
+        appleEffort: WorkoutEffort? = nil,
+        activeEnergyKilocalories: Double? = nil
     ) {
         self.id = id
         self.workout = nil
@@ -43,6 +46,7 @@ struct RunningWorkout: Identifiable {
         self.sourceName = sourceName
         self.sourceBundleIdentifier = sourceBundleIdentifier
         self.appleEffort = appleEffort
+        self.activeEnergyKilocalories = activeEnergyKilocalories
         self.indoorWorkoutOverride = isIndoorWorkout
     }
 
@@ -60,6 +64,10 @@ struct RunningWorkout: Identifiable {
 
     var paceText: String {
         RunDisplayFormatter.pace(duration: duration, distanceMeters: distanceInMeters)
+    }
+
+    var activeEnergyText: String {
+        RunDisplayFormatter.energyKilocalories(activeEnergyKilocalories) ?? "-"
     }
 
     var isAppleWorkout: Bool {
@@ -453,6 +461,9 @@ enum HeartRateZoneMethod: String, Codable {
     case heartRateReserve
     case maximumHeartRate
     case observedWorkoutMaximum
+    case maxHeartRatePercent
+    case lthrRunning
+    case manual
 
     var descriptionText: String {
         switch self {
@@ -462,6 +473,184 @@ enum HeartRateZoneMethod: String, Codable {
             return L10n.tr("최근 최대심박 기준")
         case .observedWorkoutMaximum:
             return L10n.tr("이번 러닝 관측 최고심박 기준")
+        case .maxHeartRatePercent:
+            return L10n.tr("최대심박 퍼센트 기준")
+        case .lthrRunning:
+            return L10n.tr("러닝 역치 심박 기준")
+        case .manual:
+            return L10n.tr("수동 심박존 기준")
+        }
+    }
+}
+
+struct HeartRateZoneBPMRange: Codable, Equatable, Identifiable {
+    let zoneIndex: Int
+    var lowerBPM: Int
+    var upperBPM: Int
+
+    var id: Int { zoneIndex }
+
+    var displayText: String {
+        "\(lowerBPM)-\(upperBPM) bpm"
+    }
+}
+
+enum HeartRateZoneSettingsKind: String, Codable, CaseIterable, Identifiable {
+    case auto
+    case maxHeartRatePercent
+    case lthrRunning
+    case manual
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .auto:
+            return L10n.tr("PNR 자동")
+        case .maxHeartRatePercent:
+            return L10n.tr("최대심박 기준")
+        case .lthrRunning:
+            return L10n.tr("러닝 역치 기준")
+        case .manual:
+            return L10n.tr("수동 설정")
+        }
+    }
+}
+
+struct HeartRateZoneSettings: Codable, Equatable {
+    var kind: HeartRateZoneSettingsKind
+    var maximumHeartRateBPM: Int
+    var lactateThresholdBPM: Int
+    var manualRanges: [HeartRateZoneBPMRange]
+
+    static let defaultsKey = "runonly.settings.heartRateZones"
+
+    static var `default`: HeartRateZoneSettings {
+        HeartRateZoneSettings(
+            kind: .auto,
+            maximumHeartRateBPM: 190,
+            lactateThresholdBPM: 170,
+            manualRanges: maxHeartRateRanges(maximumHeartRateBPM: 190)
+        )
+    }
+
+    var validationMessage: String? {
+        guard manualRanges.count == 5 else {
+            return L10n.tr("존 1-5를 모두 입력해 주세요.")
+        }
+
+        let sortedRanges = manualRanges.sorted { $0.zoneIndex < $1.zoneIndex }
+        for range in sortedRanges where range.lowerBPM <= 0 || range.upperBPM <= 0 {
+            return L10n.tr("심박은 1 bpm 이상으로 입력해 주세요.")
+        }
+
+        for range in sortedRanges where range.lowerBPM > range.upperBPM {
+            return L10n.tr("각 존의 하한은 상한보다 낮아야 합니다.")
+        }
+
+        for pair in zip(sortedRanges, sortedRanges.dropFirst()) where pair.0.upperBPM >= pair.1.lowerBPM {
+            return L10n.tr("심박 존 범위가 서로 겹치지 않게 입력해 주세요.")
+        }
+
+        return nil
+    }
+
+    var previewRanges: [HeartRateZoneBPMRange] {
+        switch kind {
+        case .auto:
+            return Self.maxHeartRateRanges(maximumHeartRateBPM: maximumHeartRateBPM)
+        case .maxHeartRatePercent:
+            return Self.maxHeartRateRanges(maximumHeartRateBPM: maximumHeartRateBPM)
+        case .lthrRunning:
+            return Self.lthrRunningRanges(lactateThresholdBPM: lactateThresholdBPM)
+        case .manual:
+            return manualRanges.sorted { $0.zoneIndex < $1.zoneIndex }
+        }
+    }
+
+    var resolvedFixedProfile: HeartRateZoneProfile? {
+        switch kind {
+        case .auto:
+            return nil
+        case .maxHeartRatePercent:
+            return HeartRateZoneProfile(
+                method: .maxHeartRatePercent,
+                restingHeartRateBPM: nil,
+                maximumHeartRateBPM: Double(maximumHeartRateBPM),
+                customRanges: Self.maxHeartRateRanges(maximumHeartRateBPM: maximumHeartRateBPM)
+            )
+        case .lthrRunning:
+            return HeartRateZoneProfile(
+                method: .lthrRunning,
+                restingHeartRateBPM: nil,
+                maximumHeartRateBPM: Double(lactateThresholdBPM),
+                customRanges: Self.lthrRunningRanges(lactateThresholdBPM: lactateThresholdBPM)
+            )
+        case .manual:
+            guard validationMessage == nil else { return nil }
+            return HeartRateZoneProfile(
+                method: .manual,
+                restingHeartRateBPM: nil,
+                maximumHeartRateBPM: Double(manualRanges.map(\.upperBPM).max() ?? maximumHeartRateBPM),
+                customRanges: manualRanges.sorted { $0.zoneIndex < $1.zoneIndex }
+            )
+        }
+    }
+
+    static func load(from defaults: UserDefaults = .standard) -> HeartRateZoneSettings {
+        guard
+            let data = defaults.data(forKey: defaultsKey),
+            let settings = try? JSONDecoder().decode(HeartRateZoneSettings.self, from: data)
+        else {
+            return .default
+        }
+        return settings.normalized()
+    }
+
+    func save(to defaults: UserDefaults = .standard) {
+        guard let data = try? JSONEncoder().encode(normalized()) else { return }
+        defaults.set(data, forKey: Self.defaultsKey)
+    }
+
+    func normalized() -> HeartRateZoneSettings {
+        var copy = self
+        if copy.maximumHeartRateBPM <= 0 {
+            copy.maximumHeartRateBPM = Self.default.maximumHeartRateBPM
+        }
+        if copy.lactateThresholdBPM <= 0 {
+            copy.lactateThresholdBPM = Self.default.lactateThresholdBPM
+        }
+        if copy.manualRanges.count != 5 {
+            copy.manualRanges = Self.maxHeartRateRanges(maximumHeartRateBPM: copy.maximumHeartRateBPM)
+        } else {
+            copy.manualRanges = copy.manualRanges.sorted { $0.zoneIndex < $1.zoneIndex }
+        }
+        return copy
+    }
+
+    static func maxHeartRateRanges(maximumHeartRateBPM: Int) -> [HeartRateZoneBPMRange] {
+        HeartRateZoneDistributionEntry.boundaries.enumerated().map { index, boundary in
+            let lower = Int((Double(maximumHeartRateBPM) * boundary.lowerFraction).rounded())
+            let upperFraction = min(boundary.upperFraction, 1.0)
+            let upper = Int((Double(maximumHeartRateBPM) * upperFraction).rounded())
+            return HeartRateZoneBPMRange(zoneIndex: index, lowerBPM: lower, upperBPM: max(lower, upper))
+        }
+    }
+
+    static func lthrRunningRanges(lactateThresholdBPM: Int) -> [HeartRateZoneBPMRange] {
+        let threshold = Double(lactateThresholdBPM)
+        let values = [
+            (0.01, 0.84),
+            (0.85, 0.89),
+            (0.90, 0.94),
+            (0.95, 0.99),
+            (1.00, 1.20)
+        ]
+
+        return values.enumerated().map { index, boundary in
+            let lower = index == 0 ? 1 : Int((threshold * boundary.0).rounded())
+            let upper = Int((threshold * boundary.1).rounded())
+            return HeartRateZoneBPMRange(zoneIndex: index, lowerBPM: lower, upperBPM: max(lower, upper))
         }
     }
 }
@@ -471,6 +660,19 @@ struct HeartRateZoneProfile: Codable {
     let method: HeartRateZoneMethod
     let restingHeartRateBPM: Double?
     let maximumHeartRateBPM: Double
+    let customRanges: [HeartRateZoneBPMRange]?
+
+    init(
+        method: HeartRateZoneMethod,
+        restingHeartRateBPM: Double?,
+        maximumHeartRateBPM: Double,
+        customRanges: [HeartRateZoneBPMRange]? = nil
+    ) {
+        self.method = method
+        self.restingHeartRateBPM = restingHeartRateBPM
+        self.maximumHeartRateBPM = maximumHeartRateBPM
+        self.customRanges = customRanges
+    }
 
     func bpmRange(lowerFraction: Double, upperFraction: Double) -> ClosedRange<Int> {
         switch method {
@@ -480,11 +682,22 @@ struct HeartRateZoneProfile: Codable {
             let lower = Int((resting + reserve * lowerFraction).rounded())
             let upper = Int((resting + reserve * upperFraction).rounded())
             return lower...max(lower, upper)
-        case .maximumHeartRate, .observedWorkoutMaximum:
+        case .maximumHeartRate, .observedWorkoutMaximum, .maxHeartRatePercent:
+            let lower = Int((maximumHeartRateBPM * lowerFraction).rounded())
+            let upper = Int((maximumHeartRateBPM * upperFraction).rounded())
+            return lower...max(lower, upper)
+        case .lthrRunning, .manual:
             let lower = Int((maximumHeartRateBPM * lowerFraction).rounded())
             let upper = Int((maximumHeartRateBPM * upperFraction).rounded())
             return lower...max(lower, upper)
         }
+    }
+
+    func bpmRange(forZone index: Int, lowerFraction: Double, upperFraction: Double) -> ClosedRange<Int> {
+        if let range = customRanges?.first(where: { $0.zoneIndex == index }) {
+            return range.lowerBPM...max(range.lowerBPM, range.upperBPM)
+        }
+        return bpmRange(lowerFraction: lowerFraction, upperFraction: upperFraction)
     }
 }
 
@@ -515,13 +728,14 @@ struct HeartRateZoneDistribution: Codable, Equatable {
             let sampleDuration = max(nextElapsed - currentElapsed, 0)
             guard sampleDuration > 0 else { continue }
 
-            if let zoneIndex = boundaries.firstIndex(where: {
+            if let zoneIndex = boundaries.enumerated().first(where: { index, boundary in
                 let bpmRange = zoneProfile.bpmRange(
-                    lowerFraction: $0.lowerFraction,
-                    upperFraction: min($0.upperFraction, 1.0)
+                    forZone: index,
+                    lowerFraction: boundary.lowerFraction,
+                    upperFraction: min(boundary.upperFraction, 1.0)
                 )
                 return current.bpm >= Double(bpmRange.lowerBound) && current.bpm < Double(bpmRange.upperBound + 1)
-            }) {
+            })?.offset {
                 durations[zoneIndex] += sampleDuration
             }
         }

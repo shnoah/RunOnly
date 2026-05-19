@@ -62,6 +62,9 @@ final class RunDetailViewModel: ObservableObject {
     private let initialScenario: DebugScenario?
     private var hasAppliedInitialScenario = false
     private var loadGeneration = 0
+    private var heartRateZoneSettings: HeartRateZoneSettings {
+        HeartRateZoneSettings.load()
+    }
 
     init(run: RunningWorkout, initialScenario: DebugScenario? = nil) {
         self.run = run
@@ -100,7 +103,8 @@ final class RunDetailViewModel: ObservableObject {
         resetSupplementaryLoadStates()
 
         let trace = RunDetailPerformanceTrace(runID: run.id)
-        let cachedProfile = heartRateZoneProfileCacheStore.freshProfile
+        let fixedProfile = heartRateZoneSettings.resolvedFixedProfile
+        let cachedProfile = fixedProfile ?? heartRateZoneProfileCacheStore.freshProfile
         if cachedProfile != nil {
             trace.mark("zone_profile_cache_hit")
         } else {
@@ -261,6 +265,18 @@ final class RunDetailViewModel: ObservableObject {
         if detail.heartRates.count < 2 {
             heartRateZoneLoadState = .unavailable
             trace?.mark("zone.unavailable", detail: "heartRates=\(detail.heartRates.count)")
+            return
+        }
+
+        if let fixedProfile = heartRateZoneSettings.resolvedFixedProfile {
+            heartRateZoneLoadState = .loaded
+            applySupplementaryUpdate(
+                route: [],
+                heartRateZoneProfile: fixedProfile,
+                generation: generation,
+                shouldSaveDetail: true
+            )
+            trace?.mark("zone.settings_profile_applied")
             return
         }
 

@@ -124,7 +124,8 @@ private struct AppStoreDetailChartsDemoView: View {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     RunOverviewMetricsSection(
                         run: AppStoreScreenshotFixtures.heroRun,
-                        summary: RunDetail.mockCompleteMetrics.summaryMetrics
+                        summary: RunDetail.mockCompleteMetrics.summaryMetrics,
+                        activeDuration: RunDetail.mockCompleteMetrics.activeDuration
                     )
                     PerformanceChartSection(
                         run: AppStoreScreenshotFixtures.heroRun,
@@ -148,7 +149,8 @@ private struct AppStoreRouteSplitsDemoView: View {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     RunOverviewMetricsSection(
                         run: AppStoreScreenshotFixtures.heroRun,
-                        summary: RunDetail.mockCompleteMetrics.summaryMetrics
+                        summary: RunDetail.mockCompleteMetrics.summaryMetrics,
+                        activeDuration: RunDetail.mockCompleteMetrics.activeDuration
                     )
                     RunRouteSection(detail: .mockCompleteMetrics, loadState: .loaded)
                     RunSplitSection(detail: .mockCompleteMetrics)

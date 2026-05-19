@@ -11,6 +11,7 @@ struct ShoesTabView: View {
     let runs: [RunningWorkout]
     @EnvironmentObject private var shoeStore: ShoeStore
     @State private var showingAddShoe = false
+    @State private var showingOrderEditor = false
 
     private var samplePreviewItems: [SampleShoePreview] {
         SampleShoePreview.items
@@ -36,6 +37,27 @@ struct ShoesTabView: View {
                         showingAddShoe = true
                     }
 
+                    if !shoeStore.shoes.isEmpty {
+                        Button {
+                            showingOrderEditor = true
+                        } label: {
+                            Label("순서 편집", systemImage: "arrow.up.arrow.down")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(PNR2026.ink)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                        .fill(PNR2026.surface)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                                .stroke(PNR2026.line, lineWidth: 1)
+                                        )
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     if shoeStore.shoes.isEmpty {
                         DetailSection(title: "러닝화 추가하기", systemImage: "shoeprints.fill", tint: Color(red: 0.91, green: 0.69, blue: 0.38)) {
                             VStack(alignment: .leading, spacing: 10) {
@@ -52,7 +74,8 @@ struct ShoesTabView: View {
                                 ForEach(samplePreviewItems) { item in
                                     ShoeSummaryCard(
                                         shoe: item.shoe,
-                                        distanceKilometers: item.distanceKilometers
+                                        distanceKilometers: item.distanceKilometers,
+                                        performanceSummary: item.performanceSummary
                                     )
                                 }
                             }
@@ -65,7 +88,8 @@ struct ShoesTabView: View {
                                 } label: {
                                     ShoeSummaryCard(
                                         shoe: shoe,
-                                        distanceKilometers: shoeStore.distance(for: shoe.id, runs: runs)
+                                        distanceKilometers: shoeStore.distance(for: shoe.id, runs: runs),
+                                        performanceSummary: shoeStore.performanceSummary(for: shoe.id, runs: runs)
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -81,6 +105,10 @@ struct ShoesTabView: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingAddShoe) {
                 AddShoeView()
+                    .environmentObject(shoeStore)
+            }
+            .sheet(isPresented: $showingOrderEditor) {
+                ShoeOrderEditView()
                     .environmentObject(shoeStore)
             }
         }
@@ -102,6 +130,7 @@ struct SampleShoePreview: Identifiable {
     let id = UUID()
     let shoe: RunningShoe
     let distanceKilometers: Double
+    let performanceSummary: ShoePerformanceSummary
 
     static let items: [SampleShoePreview] = [
         SampleShoePreview(
@@ -112,7 +141,8 @@ struct SampleShoePreview: Identifiable {
                 startMileageKilometers: 552.0,
                 retirementKilometers: 600
             ),
-            distanceKilometers: 7.6
+            distanceKilometers: 7.6,
+            performanceSummary: ShoePerformanceSummary(totalDuration: 2_880, totalDistanceMeters: 7_600, averageHeartRate: 148)
         ),
         SampleShoePreview(
             shoe: RunningShoe(
@@ -122,7 +152,8 @@ struct SampleShoePreview: Identifiable {
                 startMileageKilometers: 220.0,
                 retirementKilometers: 600
             ),
-            distanceKilometers: 35.8
+            distanceKilometers: 35.8,
+            performanceSummary: ShoePerformanceSummary(totalDuration: 11_520, totalDistanceMeters: 35_800, averageHeartRate: 154)
         )
     ]
 }
@@ -246,6 +277,7 @@ struct ShoesOverviewMetric: View {
 struct ShoeSummaryCard: View {
     let shoe: RunningShoe
     let distanceKilometers: Double
+    let performanceSummary: ShoePerformanceSummary
 
     private var totalKilometers: Double {
         shoe.startMileageKilometers + distanceKilometers
@@ -317,8 +349,13 @@ struct ShoeSummaryCard: View {
 
             ProgressView(value: usageRatio)
                 .tint(usageColor)
+
+            HStack(spacing: 8) {
+                ShoeCardMetric(title: "평페", value: performanceSummary.averagePaceText)
+                ShoeCardMetric(title: "평심", value: performanceSummary.averageHeartRateText)
+            }
         }
-        .frame(minHeight: 88)
+        .frame(minHeight: 116)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(
@@ -333,6 +370,34 @@ struct ShoeSummaryCard: View {
         .accessibilityLabel(Text(shoe.displayName))
         .accessibilityValue(Text(compactMetricsText))
         .accessibilityHint(Text("탭하면 신발 상세 정보를 볼 수 있습니다."))
+    }
+}
+
+struct ShoeCardMetric: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(LocalizedStringKey(title))
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(PNR2026.muted)
+                .lineLimit(1)
+            Text(value)
+                .font(.caption2.weight(.black))
+                .foregroundStyle(PNR2026.ink)
+                .monospacedDigit()
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(Color.black.opacity(0.12))
+        )
     }
 }
 
@@ -381,6 +446,10 @@ struct ShoeDetailView: View {
         return "아직 여유 있게 쓰고 있어요"
     }
 
+    private var performanceSummary: ShoePerformanceSummary {
+        shoeStore.performanceSummary(for: currentShoe.id, runs: runs)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -399,7 +468,9 @@ struct ShoeDetailView: View {
                     tint: usageColor,
                     totalDistanceText: formatKilometers(totalKilometers),
                     remainingDistanceText: formatKilometers(remainingKilometers),
-                    runsText: L10n.format("%d회", assignedRuns.count)
+                    runsText: L10n.format("%d회", assignedRuns.count),
+                    averagePaceText: performanceSummary.averagePaceText,
+                    averageHeartRateText: performanceSummary.averageHeartRateText
                 )
 
                 DetailSection(
@@ -448,6 +519,8 @@ struct ShoeDetailHeroCard: View {
     let totalDistanceText: String
     let remainingDistanceText: String
     let runsText: String
+    let averagePaceText: String
+    let averageHeartRateText: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -463,18 +536,18 @@ struct ShoeDetailHeroCard: View {
             ProgressView(value: progress)
                 .tint(tint)
 
-            ViewThatFits(in: .vertical) {
-                HStack(spacing: 10) {
-                    PNRMetricBlock(title: "누적", value: totalDistanceText, tint: tint)
-                    PNRMetricBlock(title: "남은 거리", value: remainingDistanceText, tint: tint)
-                    PNRMetricBlock(title: "착용", value: runsText, tint: tint)
-                }
-
-                VStack(spacing: 10) {
-                    PNRMetricBlock(title: "누적", value: totalDistanceText, tint: tint)
-                    PNRMetricBlock(title: "남은 거리", value: remainingDistanceText, tint: tint)
-                    PNRMetricBlock(title: "착용", value: runsText, tint: tint)
-                }
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 10),
+                    GridItem(.flexible(), spacing: 10)
+                ],
+                spacing: 10
+            ) {
+                PNRMetricBlock(title: "누적", value: totalDistanceText, tint: tint)
+                PNRMetricBlock(title: "남은 거리", value: remainingDistanceText, tint: tint)
+                PNRMetricBlock(title: "착용", value: runsText, tint: tint)
+                PNRMetricBlock(title: "평페", value: averagePaceText, tint: tint)
+                PNRMetricBlock(title: "평심", value: averageHeartRateText, tint: tint)
             }
         }
         .padding(16)
@@ -496,6 +569,41 @@ struct ShoeDetailHeroCard: View {
                         .stroke(PNR2026.line, lineWidth: 1)
                 )
         )
+    }
+}
+
+struct ShoeOrderEditView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var shoeStore: ShoeStore
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(shoeStore.shoes) { shoe in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(shoe.displayName)
+                            .font(.headline.weight(.semibold))
+                        if !shoe.brandModelText.isEmpty {
+                            Text(shoe.brandModelText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .onMove(perform: shoeStore.moveShoes)
+            }
+            .environment(\.editMode, .constant(.active))
+            .navigationTitle("신발 순서")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("완료") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 

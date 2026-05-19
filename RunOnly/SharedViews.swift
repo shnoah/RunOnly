@@ -401,36 +401,45 @@ struct DetailSection<Content: View>: View {
     let title: String
     let systemImage: String?
     let tint: Color
+    let trailingTitle: String?
     @ViewBuilder let content: Content
 
     init(
         title: String,
         systemImage: String? = nil,
         tint: Color = Color(red: 0.37, green: 0.58, blue: 0.88),
+        trailingTitle: String? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.systemImage = systemImage
         self.tint = tint
+        self.trailingTitle = trailingTitle
         self.content = content()
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let systemImage {
-                HStack(spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                if let systemImage {
                     Image(systemName: systemImage)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(tint)
-
-                    Text(LocalizedStringKey(title))
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(PNR2026.ink)
                 }
-            } else {
+
                 Text(LocalizedStringKey(title))
                     .font(.headline.weight(.bold))
                     .foregroundStyle(PNR2026.ink)
+
+                Spacer(minLength: 8)
+
+                if let trailingTitle, !trailingTitle.isEmpty {
+                    Text(LocalizedStringKey(trailingTitle))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PNR2026.muted.opacity(0.82))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
             }
             content
         }

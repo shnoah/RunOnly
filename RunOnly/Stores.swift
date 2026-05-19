@@ -10,6 +10,38 @@ struct RunShoeAssignmentDisplay: Equatable {
     }
 }
 
+struct ShoePerformanceSummary: Equatable {
+    let totalDuration: TimeInterval
+    let totalDistanceMeters: Double
+    let averageHeartRate: Double?
+
+    var averagePaceText: String {
+        RunDisplayFormatter.pace(duration: totalDuration, distanceMeters: totalDistanceMeters)
+    }
+
+    var averageHeartRateText: String {
+        RunDisplayFormatter.heartRate(averageHeartRate) ?? "-"
+    }
+
+    static func build(
+        runs: [RunningWorkout],
+        averageHeartRateForRun: (UUID) -> Double?
+    ) -> ShoePerformanceSummary {
+        let totalDistanceMeters = runs.reduce(0) { $0 + $1.distanceInMeters }
+        let totalDuration = runs.reduce(0) { $0 + $1.duration }
+        let heartRates = runs.compactMap { averageHeartRateForRun($0.id) }
+        let averageHeartRate = heartRates.isEmpty
+            ? nil
+            : heartRates.reduce(0, +) / Double(heartRates.count)
+
+        return ShoePerformanceSummary(
+            totalDuration: totalDuration,
+            totalDistanceMeters: totalDistanceMeters,
+            averageHeartRate: averageHeartRate
+        )
+    }
+}
+
 // 신발 목록, 러닝 연결, 백업/복원까지 신발 관련 로컬 상태를 한곳에서 관리한다.
 @MainActor
 final class ShoeStore: ObservableObject {
@@ -41,6 +73,12 @@ final class ShoeStore: ObservableObject {
     func updateShoe(_ shoe: RunningShoe) {
         guard let index = shoes.firstIndex(where: { $0.id == shoe.id }) else { return }
         shoes[index] = shoe
+        rebuildLookups()
+        save()
+    }
+
+    func moveShoes(from source: IndexSet, to destination: Int) {
+        shoes.move(fromOffsets: source, toOffset: destination)
         rebuildLookups()
         save()
     }
@@ -85,6 +123,12 @@ final class ShoeStore: ObservableObject {
         let runIDs = Set(assignments.filter { $0.shoeID == shoeID }.map(\.runID))
         guard !runIDs.isEmpty else { return [] }
         return runs.filter { runIDs.contains($0.id) }.sorted(by: { $0.startDate > $1.startDate })
+    }
+
+    func performanceSummary(for shoeID: UUID, runs allRuns: [RunningWorkout]) -> ShoePerformanceSummary {
+        ShoePerformanceSummary.build(runs: runs(for: shoeID, in: allRuns)) { runID in
+            RunSummaryCacheStore.shared.summary(for: runID)?.averageHeartRate
+        }
     }
 
     // 백업에는 앱이 계산 가능한 로컬 신발 데이터만 담고 HealthKit 원본은 넣지 않는다.
@@ -332,6 +376,13 @@ final class AppSettingsStore: ObservableObject {
         }
     }
 
+    @Published var heartRateZoneSettings: HeartRateZoneSettings {
+        didSet {
+            heartRateZoneSettings.save()
+            HeartRateZoneProfileCacheStore.shared.clearAllData()
+        }
+    }
+
     var appLocale: Locale {
         RunDisplayFormatter.locale(for: appLanguagePreference)
     }
@@ -359,6 +410,7 @@ final class AppSettingsStore: ObservableObject {
         self.distanceUnitPreference = DistanceUnitPreference(
             rawValue: UserDefaults.standard.string(forKey: Self.distanceUnitPreferenceKey) ?? ""
         ) ?? .system
+        self.heartRateZoneSettings = HeartRateZoneSettings.load()
     }
 
     // 설정 탭에서 권한 소개를 다시 열 수 있게 별도 presentation 상태를 둔다.
@@ -389,6 +441,86 @@ final class MileageGoalStore: ObservableObject {
             UserDefaults.standard.set(60.0, forKey: monthlyGoalKilometersKey)
         }
         self.monthlyGoalKilometers = UserDefaults.standard.double(forKey: monthlyGoalKilometersKey)
+    }
+}
+
+struct RunNote: Identifiable, Codable, Equatable {
+    let runID: UUID
+    let text: String
+    let updatedAt: Date
+
+    var id: UUID { runID }
+}
+
+private struct RunNoteStoreSnapshot: Codable {
+    let version: Int
+    let notes: [RunNote]
+}
+
+@MainActor
+final class RunNoteStore: ObservableObject {
+    @Published private(set) var notes: [RunNote] = []
+
+    private let storageFilename = "run-notes.json"
+    private let version = 1
+    private let persistsChanges: Bool
+    private var notesByRunID: [UUID: RunNote] = [:]
+
+    init(loadFromDisk: Bool = true, persistsChanges: Bool = true) {
+        self.persistsChanges = persistsChanges
+        if loadFromDisk {
+            load()
+        } else {
+            rebuildLookup()
+        }
+    }
+
+    func note(for runID: UUID) -> RunNote? {
+        notesByRunID[runID]
+    }
+
+    func saveNote(_ text: String, for runID: UUID) {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        notes.removeAll { $0.runID == runID }
+
+        if !trimmedText.isEmpty {
+            notes.append(RunNote(runID: runID, text: trimmedText, updatedAt: .now))
+        }
+
+        notes.sort { $0.updatedAt > $1.updatedAt }
+        rebuildLookup()
+        persist()
+    }
+
+    private func load() {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        guard
+            let snapshot = try? AppStorage.load(RunNoteStoreSnapshot.self, from: storageFilename, decoder: decoder),
+            snapshot.version == version
+        else {
+            notes = []
+            rebuildLookup()
+            return
+        }
+
+        notes = snapshot.notes.sorted { $0.updatedAt > $1.updatedAt }
+        rebuildLookup()
+    }
+
+    private func persist() {
+        guard persistsChanges else { return }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let snapshot = RunNoteStoreSnapshot(version: version, notes: notes)
+        try? AppStorage.save(snapshot, to: storageFilename, encoder: encoder)
+    }
+
+    private func rebuildLookup() {
+        notesByRunID = notes.reduce(into: [:]) { partial, note in
+            partial[note.runID] = note
+        }
     }
 }
 
@@ -513,7 +645,7 @@ final class RunDetailCacheStore {
     static let shared = RunDetailCacheStore()
 
     private let storageFilename = "run-detail-cache.json"
-    private let version = 1
+    private let version = 2
     private let maximumEntryCount = 100
     private var snapshotsByRunID: [UUID: RunDetailCacheSnapshot] = [:]
     private var cachedAtByRunID: [UUID: Date] = [:]

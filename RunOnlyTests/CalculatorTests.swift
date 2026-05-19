@@ -44,6 +44,186 @@ final class CalculatorTests: XCTestCase {
         XCTAssertGreaterThan(summary.weeklyRunFrequency, 0)
     }
 
+    func testShoePerformanceAveragePaceUsesTotalDurationAndDistance() {
+        let slowShort = makeRun(day: 2, duration: 600, distanceMeters: 1_000)
+        let steadyLong = makeRun(day: 3, duration: 2_400, distanceMeters: 8_000)
+
+        let summary = ShoePerformanceSummary.build(runs: [slowShort, steadyLong]) { _ in nil }
+
+        XCTAssertEqual(summary.totalDuration, 3_000, accuracy: 0.001)
+        XCTAssertEqual(summary.totalDistanceMeters, 9_000, accuracy: 0.001)
+        XCTAssertEqual(summary.averagePaceText, RunDisplayFormatter.pace(duration: 3_000, distanceMeters: 9_000))
+    }
+
+    func testShoePerformanceAverageHeartRateIgnoresMissingValues() {
+        let first = makeRun(day: 2, duration: 1_800, distanceMeters: 5_000)
+        let second = makeRun(day: 3, duration: 1_700, distanceMeters: 5_000)
+        let third = makeRun(day: 4, duration: 1_600, distanceMeters: 5_000)
+        let heartRates: [UUID: Double] = [
+            first.id: 140,
+            third.id: 160
+        ]
+
+        let summary = ShoePerformanceSummary.build(runs: [first, second, third]) { heartRates[$0] }
+
+        XCTAssertEqual(try XCTUnwrap(summary.averageHeartRate), 150, accuracy: 0.001)
+    }
+
+    func testHeartRateReserveProfileKeepsExistingZoneBoundaries() {
+        let profile = HeartRateZoneProfile(
+            method: .heartRateReserve,
+            restingHeartRateBPM: 50,
+            maximumHeartRateBPM: 190
+        )
+
+        XCTAssertEqual(profile.bpmRange(forZone: 0, lowerFraction: 0.50, upperFraction: 0.60), 120...134)
+        XCTAssertEqual(profile.bpmRange(forZone: 4, lowerFraction: 0.90, upperFraction: 1.0), 176...190)
+    }
+
+    func testHeartRateZoneRowModelIncludesBPMRangeText() {
+        let profile = HeartRateZoneProfile(
+            method: .maxHeartRatePercent,
+            restingHeartRateBPM: nil,
+            maximumHeartRateBPM: 200,
+            customRanges: HeartRateZoneSettings.maxHeartRateRanges(maximumHeartRateBPM: 200)
+        )
+        let distribution = HeartRateZoneDistribution(
+            entries: [
+                HeartRateZoneDistributionEntry(zoneIndex: 0, duration: 60, percentage: 0.1),
+                HeartRateZoneDistributionEntry(zoneIndex: 1, duration: 120, percentage: 0.2),
+                HeartRateZoneDistributionEntry(zoneIndex: 2, duration: 180, percentage: 0.3),
+                HeartRateZoneDistributionEntry(zoneIndex: 3, duration: 120, percentage: 0.2),
+                HeartRateZoneDistributionEntry(zoneIndex: 4, duration: 120, percentage: 0.2)
+            ]
+        )
+
+        let rows = HeartRateZoneRowModel.build(
+            distribution: distribution,
+            heartRates: [],
+            zoneProfile: profile,
+            activeDuration: 600
+        )
+
+        XCTAssertEqual(rows.map(\.bpmRangeText), [
+            "100-120 bpm",
+            "120-140 bpm",
+            "140-160 bpm",
+            "160-180 bpm",
+            "180-200 bpm"
+        ])
+    }
+
+    func testMaxHeartRatePresetBuildsFivePercentRanges() {
+        let settings = HeartRateZoneSettings(
+            kind: .maxHeartRatePercent,
+            maximumHeartRateBPM: 200,
+            lactateThresholdBPM: 170,
+            manualRanges: HeartRateZoneSettings.maxHeartRateRanges(maximumHeartRateBPM: 190)
+        )
+
+        XCTAssertEqual(settings.previewRanges.map(\.lowerBPM), [100, 120, 140, 160, 180])
+        XCTAssertEqual(settings.previewRanges.map(\.upperBPM), [120, 140, 160, 180, 200])
+        XCTAssertEqual(try XCTUnwrap(settings.resolvedFixedProfile).method, .maxHeartRatePercent)
+    }
+
+    func testRunningLTHRPresetUsesFrielStyleRanges() {
+        let settings = HeartRateZoneSettings(
+            kind: .lthrRunning,
+            maximumHeartRateBPM: 190,
+            lactateThresholdBPM: 170,
+            manualRanges: HeartRateZoneSettings.maxHeartRateRanges(maximumHeartRateBPM: 190)
+        )
+
+        XCTAssertEqual(settings.previewRanges.map(\.lowerBPM), [1, 145, 153, 162, 170])
+        XCTAssertEqual(settings.previewRanges.map(\.upperBPM), [143, 151, 160, 168, 204])
+        XCTAssertEqual(try XCTUnwrap(settings.resolvedFixedProfile).method, .lthrRunning)
+    }
+
+    func testManualHeartRateZoneValidationRejectsInvertedAndOverlappingRanges() {
+        var settings = HeartRateZoneSettings.default
+        settings.kind = .manual
+        settings.manualRanges[0].lowerBPM = 120
+        settings.manualRanges[0].upperBPM = 100
+
+        XCTAssertNotNil(settings.validationMessage)
+
+        settings.manualRanges = [
+            HeartRateZoneBPMRange(zoneIndex: 0, lowerBPM: 100, upperBPM: 120),
+            HeartRateZoneBPMRange(zoneIndex: 1, lowerBPM: 120, upperBPM: 140),
+            HeartRateZoneBPMRange(zoneIndex: 2, lowerBPM: 141, upperBPM: 160),
+            HeartRateZoneBPMRange(zoneIndex: 3, lowerBPM: 161, upperBPM: 180),
+            HeartRateZoneBPMRange(zoneIndex: 4, lowerBPM: 181, upperBPM: 200)
+        ]
+
+        XCTAssertNotNil(settings.validationMessage)
+
+        settings.manualRanges[1].lowerBPM = 121
+
+        XCTAssertNil(settings.validationMessage)
+        XCTAssertEqual(try XCTUnwrap(settings.resolvedFixedProfile).method, .manual)
+    }
+
+    @MainActor
+    func testHeartRateZoneSettingsChangeClearsProfileCache() {
+        let originalSettings = HeartRateZoneSettings.load()
+        defer {
+            originalSettings.save()
+            HeartRateZoneProfileCacheStore.shared.clearAllData()
+        }
+
+        let store = HeartRateZoneProfileCacheStore.shared
+        store.save(
+            HeartRateZoneProfile(
+                method: .maximumHeartRate,
+                restingHeartRateBPM: nil,
+                maximumHeartRateBPM: 190
+            )
+        )
+        XCTAssertNotNil(store.freshProfile)
+
+        let appSettings = AppSettingsStore()
+        appSettings.heartRateZoneSettings = HeartRateZoneSettings(
+            kind: .maxHeartRatePercent,
+            maximumHeartRateBPM: 200,
+            lactateThresholdBPM: 170,
+            manualRanges: HeartRateZoneSettings.maxHeartRateRanges(maximumHeartRateBPM: 190)
+        )
+
+        XCTAssertNil(store.freshProfile)
+    }
+
+    @MainActor
+    func testShoeStoreManualReorderingPersistsArrayOrderInMemory() {
+        let store = ShoeStore(loadFromDisk: false, persistsChanges: false)
+        let first = RunningShoe(nickname: "First", brand: "", model: "")
+        let second = RunningShoe(nickname: "Second", brand: "", model: "")
+        let third = RunningShoe(nickname: "Third", brand: "", model: "")
+        store.addShoe(third)
+        store.addShoe(second)
+        store.addShoe(first)
+
+        store.moveShoes(from: IndexSet(integer: 0), to: 3)
+
+        XCTAssertEqual(store.shoes.map(\.displayName), ["Second", "Third", "First"])
+    }
+
+    @MainActor
+    func testRunNoteStoreSavesUpdatesAndDeletesBlankNotes() {
+        let store = RunNoteStore(loadFromDisk: false, persistsChanges: false)
+        let runID = UUID()
+
+        store.saveNote("  Felt smooth today  ", for: runID)
+        XCTAssertEqual(store.note(for: runID)?.text, "Felt smooth today")
+
+        store.saveNote("Easy next time", for: runID)
+        XCTAssertEqual(store.note(for: runID)?.text, "Easy next time")
+        XCTAssertEqual(store.notes.count, 1)
+
+        store.saveNote("   ", for: runID)
+        XCTAssertNil(store.note(for: runID))
+        XCTAssertTrue(store.notes.isEmpty)
+    }
+
     func testRecoveryReadinessRequiresAtLeastThreeRecentRuns() {
         let now = date(day: 20, hour: 12)
         let runs = [
