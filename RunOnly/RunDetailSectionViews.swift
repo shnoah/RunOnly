@@ -74,14 +74,15 @@ struct RunSplitSection: View {
                 Text("스플릿을 계산할 경로 데이터가 없습니다.")
                     .foregroundStyle(.white.opacity(0.72))
             } else {
-                VStack(spacing: 0) {
+                Grid(alignment: .trailing, horizontalSpacing: SplitColumnLayout.spacing, verticalSpacing: 0) {
                     SplitTableHeader()
-                    ForEach(visibleSplits) { split in
+                    ForEach(Array(visibleSplits.enumerated()), id: \.element.id) { index, split in
                         SplitTableRow(split: split)
-                        if split.id != visibleSplits.last?.id {
+                        if index < visibleSplits.count - 1 {
                             Divider()
                                 .overlay(Color.white.opacity(0.06))
                                 .padding(.leading, 4)
+                                .gridCellColumns(4)
                         }
                     }
 
@@ -95,6 +96,7 @@ struct RunSplitSection: View {
                             }
                         }
                         .padding(.top, 8)
+                        .gridCellColumns(4)
                     }
                 }
                 .padding(.top, 4)
@@ -440,9 +442,10 @@ struct HeartRateZoneSection: View {
     private let zoneRows: [HeartRateZoneRowModel]
     private let appliedSettingsLabel: String?
 
-    init(detail: RunDetail, loadState: RunDetailSupplementaryLoadState) {
+    init(detail: RunDetail, loadState: RunDetailSupplementaryLoadState, initialSelectedZoneIndex: Int? = nil) {
         self.detail = detail
         self.loadState = loadState
+        _selectedZoneIndex = State(initialValue: initialSelectedZoneIndex)
         self.appliedSettingsLabel = detail.heartRateZoneProfile == nil
             ? nil
             : HeartRateZoneSettings.load().kind.label
@@ -651,28 +654,11 @@ struct HeartRateZoneRow: View {
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: .leading) {
             if isRangeVisible, let bpmRangeText = zone.bpmRangeText {
-                HStack(spacing: 6) {
-                    Image(systemName: "info.circle.fill")
-                        .font(.caption2.weight(.bold))
-                    Text(bpmRangeText)
-                        .font(.caption2.weight(.bold))
-                        .monospacedDigit()
-                }
-                .foregroundStyle(.white.opacity(0.88))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(Color.black.opacity(0.58))
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                        )
-                )
-                .offset(y: -28)
-                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .trailing)))
+                HeartRateZoneRangeCallout(text: bpmRangeText)
+                    .offset(x: 76)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .leading)))
             }
         }
         .animation(.easeOut(duration: 0.16), value: isRangeVisible)
@@ -684,6 +670,30 @@ struct HeartRateZoneRow: View {
     private var accessibilityLabel: Text {
         let range = zone.bpmRangeText.map { ", \($0)" } ?? ""
         return Text("\(zone.title)\(range), \(formatDuration(zone.duration)), \(zone.percentageText)")
+    }
+}
+
+private struct HeartRateZoneRangeCallout: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.bold))
+            .monospacedDigit()
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+        .foregroundStyle(.white.opacity(0.9))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(Color.black.opacity(0.92))
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+        )
+        .shadow(color: Color.black.opacity(0.16), radius: 8, y: 4)
     }
 }
 
@@ -831,21 +841,22 @@ struct AdditionalMetricChart: View {
 
 struct SplitTableHeader: View {
     var body: some View {
-        HStack(spacing: SplitColumnLayout.spacing) {
-            splitColumnTitle("거리", width: SplitColumnLayout.distanceWidth, alignment: .leading)
-            splitColumnTitle("페이스", width: SplitColumnLayout.paceWidth, alignment: .trailing)
-            splitColumnTitle("심박", width: SplitColumnLayout.heartWidth, alignment: .trailing)
-            splitColumnTitle("케이던스", width: SplitColumnLayout.cadenceWidth, alignment: .trailing)
+        GridRow {
+            splitColumnTitle("거리", alignment: .leading)
+                .gridColumnAlignment(.leading)
+            splitColumnTitle("페이스", alignment: .trailing)
+            splitColumnTitle("심박", alignment: .trailing)
+            splitColumnTitle("케이던스", alignment: .trailing)
         }
         .padding(.horizontal, 4)
         .padding(.bottom, 10)
     }
 
-    private func splitColumnTitle(_ title: String, width: CGFloat, alignment: Alignment) -> some View {
+    private func splitColumnTitle(_ title: String, alignment: Alignment) -> some View {
         Text(LocalizedStringKey(title))
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.white.opacity(0.45))
-            .frame(width: width, alignment: alignment)
+            .frame(minWidth: SplitColumnLayout.minimumColumnWidth(for: title), alignment: alignment)
     }
 }
 
@@ -853,33 +864,33 @@ struct SplitTableRow: View {
     let split: RunSplit
 
     var body: some View {
-        HStack(spacing: SplitColumnLayout.spacing) {
+        GridRow {
             Text(split.titleText)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(.white)
-                .frame(width: SplitColumnLayout.distanceWidth, alignment: .leading)
+                .frame(minWidth: SplitColumnLayout.distanceWidth, alignment: .leading)
+                .gridColumnAlignment(.leading)
 
             Text(split.paceText)
                 .font(.system(.subheadline, design: .rounded).weight(.bold))
                 .foregroundStyle(.white)
-                .frame(width: SplitColumnLayout.paceWidth, alignment: .trailing)
+                .frame(minWidth: SplitColumnLayout.paceWidth, alignment: .trailing)
                 .monospacedDigit()
 
             Text(split.heartRateText)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(split.averageHeartRate == nil ? .white.opacity(0.45) : .white.opacity(0.78))
-                .frame(width: SplitColumnLayout.heartWidth, alignment: .trailing)
+                .frame(minWidth: SplitColumnLayout.heartWidth, alignment: .trailing)
                 .monospacedDigit()
 
             Text(split.cadenceText)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(split.averageCadence == nil ? .white.opacity(0.45) : .white.opacity(0.78))
-                .frame(width: SplitColumnLayout.cadenceWidth, alignment: .trailing)
+                .frame(minWidth: SplitColumnLayout.cadenceWidth, alignment: .trailing)
                 .monospacedDigit()
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -926,6 +937,19 @@ enum SplitColumnLayout {
     static let paceWidth: CGFloat = 88
     static let heartWidth: CGFloat = 72
     static let cadenceWidth: CGFloat = 82
+
+    static func minimumColumnWidth(for title: String) -> CGFloat {
+        switch title {
+        case "거리":
+            return distanceWidth
+        case "페이스":
+            return paceWidth
+        case "심박":
+            return heartWidth
+        default:
+            return cadenceWidth
+        }
+    }
 }
 
 struct RouteMapView: View {

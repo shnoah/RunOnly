@@ -365,10 +365,10 @@ struct PerformanceChartSection: View {
     }
 
     var body: some View {
-        DetailSection(title: "흐름", systemImage: "chart.line.uptrend.xyaxis", tint: Color(red: 0.95, green: 0.59, blue: 0.32)) {
+        DetailSection(title: "흐름", systemImage: "chart.line.uptrend.xyaxis", tint: PNR2026.heat) {
             if availableMetrics.isEmpty {
                 Text("그래프를 그릴 경로 또는 심박 데이터가 없습니다.")
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(PNR2026.muted)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                     PerformanceMetricPicker(metrics: availableMetrics, selectedMetric: $selectedMetric)
@@ -380,7 +380,7 @@ struct PerformanceChartSection: View {
                         Spacer()
                         Text(activeMetricHeadlineText)
                             .font(.headline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(PNR2026.ink)
                             .monospacedDigit()
                     }
                     .padding(.horizontal, 2)
@@ -589,13 +589,13 @@ enum PerformanceChartMetric: String, CaseIterable, Identifiable {
     var tint: Color {
         switch self {
         case .pace:
-            return .orange
+            return PNR2026.heat
         case .heartRate:
-            return Color(red: 0.45, green: 0.95, blue: 0.76)
+            return PNR2026.rose
         case .cadence:
-            return Color(red: 0.42, green: 0.76, blue: 1.0)
+            return PNR2026.water
         case .altitude:
-            return Color(red: 0.68, green: 0.60, blue: 0.96)
+            return PNR2026.track
         }
     }
 
@@ -636,13 +636,13 @@ struct PerformanceMetricPicker: View {
                             .frame(minWidth: 76)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 10)
-                            .foregroundStyle(metric == selectedMetric ? .white : .white.opacity(0.64))
+                            .foregroundStyle(metric == selectedMetric ? PNR2026.ink : PNR2026.muted)
                             .background(
                                 Capsule()
-                                    .fill(metric == selectedMetric ? metric.tint.opacity(0.2) : Color.white.opacity(0.05))
+                                    .fill(metric == selectedMetric ? metric.tint.opacity(0.18) : PNR2026.surface)
                                     .overlay(
                                         Capsule()
-                                            .stroke(metric == selectedMetric ? metric.tint.opacity(0.55) : Color.white.opacity(0.08), lineWidth: 1)
+                                            .stroke(metric == selectedMetric ? metric.tint.opacity(0.48) : PNR2026.line, lineWidth: 1)
                                     )
                             )
                     }
@@ -678,8 +678,8 @@ struct RunMetricChartPlot: View {
                     .foregroundStyle(
                         LinearGradient(
                             colors: [
-                                Color.white.opacity(0.14),
-                                Color.white.opacity(0.02)
+                                PNR2026.muted.opacity(0.10),
+                                PNR2026.muted.opacity(0.00)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -699,8 +699,8 @@ struct RunMetricChartPlot: View {
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
-                            metric.tint.opacity(0.22),
-                            metric.tint.opacity(0.02)
+                            metric.tint.opacity(0.14),
+                            metric.tint.opacity(0.00)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -716,6 +716,15 @@ struct RunMetricChartPlot: View {
                 .foregroundStyle(metric.tint)
                 .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(interpolationMethod)
+
+                if showsAllPoints {
+                    PointMark(
+                        x: .value("포인트 거리", point.distanceKilometers),
+                        y: .value("포인트 값", displayedValue(point.value))
+                    )
+                    .foregroundStyle(metric.tint)
+                    .symbolSize(32)
+                }
             }
 
             if let averageValue {
@@ -742,25 +751,19 @@ struct RunMetricChartPlot: View {
         .chartYScale(domain: chartYDomain)
         .chartPlotStyle { plotArea in
             plotArea
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.white.opacity(0.03))
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                }
+                .background(FeatureChartPlotBackground(tint: metric.tint))
+                .clipShape(RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous))
         }
         .chartXAxis {
             AxisMarks(values: strideValues) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                    .foregroundStyle(.white.opacity(0.12))
+                    .foregroundStyle(PNR2026.line)
                 AxisTick()
-                    .foregroundStyle(.white.opacity(0.35))
+                    .foregroundStyle(PNR2026.muted.opacity(0.5))
                 AxisValueLabel {
                     if let distance = value.as(Double.self) {
                         Text(formatAxisDistance(distance))
-                            .foregroundStyle(.white.opacity(0.68))
+                            .foregroundStyle(PNR2026.muted)
                     }
                 }
             }
@@ -775,6 +778,10 @@ struct RunMetricChartPlot: View {
         case .heartRate, .cadence, .altitude:
             return valueRange.lowerBound
         }
+    }
+
+    private var showsAllPoints: Bool {
+        points.count <= 3
     }
 
     private var chartYDomain: ClosedRange<Double> {

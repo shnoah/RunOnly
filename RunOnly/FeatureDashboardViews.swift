@@ -641,6 +641,12 @@ struct MileageGoalEditorView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    PNRPageHeader(
+                        eyebrow: "GOAL",
+                        title: "목표 마일리지",
+                        subtitle: "이번 달 누적 목표와 남은 거리를 같은 기준으로 조정합니다."
+                    )
+
                     MileageGoalHeroCard(
                         monthText: RunDisplayFormatter.monthOnly(Date()),
                         progress: goalProgress,
@@ -653,7 +659,7 @@ struct MileageGoalEditorView: View {
                     DetailSection(
                         title: "월간 목표 설정",
                         systemImage: "target",
-                        tint: Color(red: 0.29, green: 0.88, blue: 0.63)
+                        tint: PNR2026.track
                     ) {
                         VStack(alignment: .leading, spacing: 14) {
                             FeatureFormFieldCard(
@@ -662,7 +668,7 @@ struct MileageGoalEditorView: View {
                                     "단위는 %@입니다. 원하는 한 달 누적 거리를 바로 조정할 수 있어요.",
                                     displayUnit.distanceInputSuffix
                                 ),
-                                tint: Color(red: 0.29, green: 0.88, blue: 0.63)
+                                tint: PNR2026.track
                             ) {
                                 HStack(spacing: 10) {
                                     TextField(
@@ -673,18 +679,18 @@ struct MileageGoalEditorView: View {
                                     .keyboardType(.decimalPad)
                                     .textFieldStyle(.plain)
                                     .font(.system(size: 24, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(PNR2026.ink)
 
                                     Text(displayUnit.distanceInputSuffix)
                                         .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.white.opacity(0.5))
+                                        .foregroundStyle(PNR2026.muted)
                                 }
                             }
 
                             FeatureFormFieldCard(
                                 title: "미세 조정",
                                 caption: L10n.format("%d %@ 단위로 가볍게 올리거나 내릴 수 있어요.", 5, displayUnit.distanceInputSuffix),
-                                tint: Color(red: 0.42, green: 0.76, blue: 1.0)
+                                tint: PNR2026.water
                             ) {
                                 Stepper(
                                     value: displayedGoalBinding,
@@ -694,20 +700,20 @@ struct MileageGoalEditorView: View {
                                     HStack {
                                         Text("현재 설정")
                                             .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(.white.opacity(0.74))
+                                            .foregroundStyle(PNR2026.muted)
                                         Spacer()
                                         Text(displayDistanceText(draftGoalKilometers))
                                             .font(.system(.headline, design: .rounded).weight(.bold))
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(PNR2026.ink)
                                             .monospacedDigit()
                                     }
                                 }
-                                .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+                                .tint(PNR2026.track)
                             }
 
                             Text("빠른 선택")
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.72))
+                                .foregroundStyle(PNR2026.muted)
 
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 72))], spacing: 10) {
                                 ForEach(presetGoals, id: \.self) { goal in
@@ -722,19 +728,19 @@ struct MileageGoalEditorView: View {
                                             )
                                         )
                                             .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(goal == roundedGoal ? .black : PNR2026.ink)
                                             .frame(maxWidth: .infinity)
                                             .padding(.vertical, 10)
                                             .background(
                                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                                                     .fill(
                                                         goal == roundedGoal
-                                                            ? Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.22)
-                                                            : Color.black.opacity(0.18)
+                                                            ? PNR2026.track
+                                                            : PNR2026.surfaceHigh
                                                     )
                                                     .overlay(
                                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                                            .stroke(Color.white.opacity(goal == roundedGoal ? 0.1 : 0.06), lineWidth: 1)
+                                                            .stroke(goal == roundedGoal ? PNR2026.track.opacity(0.34) : PNR2026.line, lineWidth: 1)
                                                     )
                                             )
                                     }
@@ -744,10 +750,10 @@ struct MileageGoalEditorView: View {
 
                             HStack(alignment: .top, spacing: 10) {
                                 Image(systemName: "info.circle.fill")
-                                    .foregroundStyle(Color(red: 0.42, green: 0.76, blue: 1.0))
+                                    .foregroundStyle(PNR2026.water)
                                 Text("목표는 이번 달 전체에 공통으로 적용됩니다. 지금은 빠르게 한 달 흐름만 관리하는 방식으로 두었어요.")
                                     .font(.footnote)
-                                    .foregroundStyle(.white.opacity(0.58))
+                                    .foregroundStyle(PNR2026.muted)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -756,7 +762,7 @@ struct MileageGoalEditorView: View {
                 .padding(16)
             }
             .background(AppBackground())
-            .navigationTitle("목표 마일리지")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -811,68 +817,31 @@ struct MileageGoalHeroCard: View {
     let remainingDistanceText: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                FeatureToneBadge(
-                    text: "목표",
-                    tint: Color(red: 0.29, green: 0.88, blue: 0.63),
-                    foreground: Color(red: 0.76, green: 1.0, blue: 0.88)
-                )
-
-                Spacer()
-
-                Text(monthText)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.54))
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("이번 달 페이스를 정리해볼까요")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-
-                Text(statusText)
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.7))
-            }
-
+        MetricDetailHeroCard(
+            primaryBadge: "목표",
+            secondaryBadge: monthText,
+            title: "이번 달 페이스를 정리해볼까요",
+            subtitle: statusText,
+            tint: PNR2026.track,
+            secondaryTint: PNR2026.water
+        ) {
             ProgressView(value: progress)
-                .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+                .tint(PNR2026.track)
 
             ViewThatFits(in: .vertical) {
                 HStack(spacing: 10) {
-                    FeatureMiniStatCard(title: "진행", value: currentDistanceText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
-                    FeatureMiniStatCard(title: "목표", value: goalDistanceText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
-                    FeatureMiniStatCard(title: "남은 거리", value: remainingDistanceText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
+                    FeatureMiniStatCard(title: "진행", value: currentDistanceText, tint: PNR2026.water)
+                    FeatureMiniStatCard(title: "목표", value: goalDistanceText, tint: PNR2026.track)
+                    FeatureMiniStatCard(title: "남은 거리", value: remainingDistanceText, tint: PNR2026.heat)
                 }
 
                 VStack(spacing: 10) {
-                    FeatureMiniStatCard(title: "진행", value: currentDistanceText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
-                    FeatureMiniStatCard(title: "목표", value: goalDistanceText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
-                    FeatureMiniStatCard(title: "남은 거리", value: remainingDistanceText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
+                    FeatureMiniStatCard(title: "진행", value: currentDistanceText, tint: PNR2026.water)
+                    FeatureMiniStatCard(title: "목표", value: goalDistanceText, tint: PNR2026.track)
+                    FeatureMiniStatCard(title: "남은 거리", value: remainingDistanceText, tint: PNR2026.heat)
                 }
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.10, green: 0.18, blue: 0.16),
-                            Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.18),
-                            Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.12)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
-        )
     }
 }
 

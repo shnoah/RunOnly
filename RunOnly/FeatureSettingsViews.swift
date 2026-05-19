@@ -854,9 +854,19 @@ struct HeartRateZoneSettingsView: View {
     @EnvironmentObject private var appSettings: AppSettingsStore
     @State private var draft = HeartRateZoneSettings.default
     @State private var statusMessage: String?
+    private let initialSettings: HeartRateZoneSettings?
+
+    init(initialSettings: HeartRateZoneSettings? = nil) {
+        self.initialSettings = initialSettings
+        _draft = State(initialValue: initialSettings?.normalized() ?? .default)
+    }
 
     private var canSave: Bool {
         draft.kind != .manual || draft.validationMessage == nil
+    }
+
+    private var currentSettings: HeartRateZoneSettings {
+        (initialSettings ?? appSettings.heartRateZoneSettings).normalized()
     }
 
     private func detail(for option: HeartRateZoneSettingsKind) -> String {
@@ -892,10 +902,16 @@ struct HeartRateZoneSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                PNRPageHeader(
+                    eyebrow: "EFFORT",
+                    title: "심박 존",
+                    subtitle: "러닝 강도 기준과 수동 bpm 범위를 설정합니다."
+                )
+
                 DetailSection(title: "현재 기준", systemImage: "heart.fill", tint: Color(red: 0.94, green: 0.41, blue: 0.45)) {
                     VStack(alignment: .leading, spacing: 12) {
-                        SettingInfoRow(title: "적용 방식", value: appSettings.heartRateZoneSettings.kind.label)
-                        HeartRateZonePreviewRows(ranges: appSettings.heartRateZoneSettings.previewRanges)
+                        SettingInfoRow(title: "적용 방식", value: currentSettings.kind.label)
+                        HeartRateZonePreviewRows(ranges: currentSettings.previewRanges)
                         Text("PNR 자동은 HealthKit에서 최근 최대심박과 안정시 심박을 읽어 HRR/Karvonen을 우선 적용하고, 데이터가 부족하면 최근 최대심박 또는 이번 러닝 관측 최고심박으로 임시 계산합니다.")
                             .font(.caption)
                             .foregroundStyle(PNR2026.muted)
@@ -976,6 +992,8 @@ struct HeartRateZoneSettingsView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(!canSave)
+                        .accessibilityLabel(Text("심박 존 설정 저장"))
+                        .accessibilityHint(Text(canSave ? "현재 심박 존 기준을 저장합니다." : "수동 심박 존 범위를 먼저 확인해 주세요."))
 
                         if let statusMessage {
                             Text(statusMessage)
@@ -993,10 +1011,11 @@ struct HeartRateZoneSettingsView: View {
             .padding(16)
         }
         .background(AppBackground())
-        .navigationTitle("심박 존")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            draft = appSettings.heartRateZoneSettings.normalized()
+            let settings = (initialSettings ?? appSettings.heartRateZoneSettings).normalized()
+            draft = settings
         }
     }
 }
@@ -1015,10 +1034,14 @@ struct HeartRateManualZoneEditor: View {
             Stepper(value: $lowerBPM, in: 1...240, step: 1) {
                 SettingInfoRow(title: "하한", value: "\(lowerBPM) bpm")
             }
+            .accessibilityLabel(Text("\(title) 하한"))
+            .accessibilityValue(Text("\(lowerBPM) bpm"))
 
             Stepper(value: $upperBPM, in: 1...240, step: 1) {
                 SettingInfoRow(title: "상한", value: "\(upperBPM) bpm")
             }
+            .accessibilityLabel(Text("\(title) 상한"))
+            .accessibilityValue(Text("\(upperBPM) bpm"))
         }
         .padding(12)
         .background(
@@ -1029,6 +1052,7 @@ struct HeartRateManualZoneEditor: View {
                         .stroke(PNR2026.line, lineWidth: 1)
                 )
         )
+        .accessibilityElement(children: .contain)
     }
 }
 

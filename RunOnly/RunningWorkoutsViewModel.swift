@@ -320,11 +320,15 @@ final class RunningWorkoutsViewModel: ObservableObject {
         await refreshPersonalRecords(forceFullRebuild: false)
     }
 
+    #if DEBUG
     // TEST-ONLY PR TOOL: 기록 관리 화면의 임시 버튼에서 PR 캐시를 비우고 HealthKit 기록을 다시 스캔한다.
     // 안정화 후 이 함수와 PersonalRecordsManagementView의 테스트 섹션을 함께 제거하면 된다.
     func resetAndReloadPersonalRecords() async {
         await refreshPersonalRecords(forceFullRebuild: true)
     }
+    #else
+    func resetAndReloadPersonalRecords() async {}
+    #endif
 
     private func refreshPersonalRecords(forceFullRebuild: Bool) async {
         guard !isRefreshingPersonalRecords else { return }
@@ -388,7 +392,9 @@ final class RunningWorkoutsViewModel: ObservableObject {
             personalRecordHistory = snapshot.history
             personalRecordStore.save(snapshot)
         } catch {
+            #if DEBUG
             print("Personal record refresh failed: \(error.localizedDescription)")
+            #endif
         }
     }
 

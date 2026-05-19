@@ -163,6 +163,40 @@ final class CalculatorTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(settings.resolvedFixedProfile).method, .manual)
     }
 
+    func testManualHeartRateZoneValidationRequiresExactlyFiveRanges() {
+        var settings = HeartRateZoneSettings.default
+        settings.kind = .manual
+        settings.manualRanges = Array(settings.manualRanges.prefix(4))
+
+        XCTAssertNotNil(settings.validationMessage)
+        XCTAssertNil(settings.resolvedFixedProfile)
+
+        settings.manualRanges = HeartRateZoneSettings.maxHeartRateRanges(maximumHeartRateBPM: 190) + [
+            HeartRateZoneBPMRange(zoneIndex: 5, lowerBPM: 191, upperBPM: 205)
+        ]
+
+        XCTAssertNotNil(settings.validationMessage)
+        XCTAssertNil(settings.resolvedFixedProfile)
+    }
+
+    func testManualHeartRateZoneResolvedProfileKeepsCustomBPMRanges() throws {
+        var settings = HeartRateZoneSettings.default
+        settings.kind = .manual
+        settings.manualRanges = [
+            HeartRateZoneBPMRange(zoneIndex: 0, lowerBPM: 95, upperBPM: 119),
+            HeartRateZoneBPMRange(zoneIndex: 1, lowerBPM: 120, upperBPM: 139),
+            HeartRateZoneBPMRange(zoneIndex: 2, lowerBPM: 140, upperBPM: 159),
+            HeartRateZoneBPMRange(zoneIndex: 3, lowerBPM: 160, upperBPM: 179),
+            HeartRateZoneBPMRange(zoneIndex: 4, lowerBPM: 180, upperBPM: 198)
+        ]
+
+        let profile = try XCTUnwrap(settings.resolvedFixedProfile)
+
+        XCTAssertEqual(profile.method, .manual)
+        XCTAssertEqual(profile.bpmRange(forZone: 0, lowerFraction: 0.5, upperFraction: 0.6), 95...119)
+        XCTAssertEqual(profile.bpmRange(forZone: 4, lowerFraction: 0.9, upperFraction: 1.0), 180...198)
+    }
+
     @MainActor
     func testHeartRateZoneSettingsChangeClearsProfileCache() {
         let originalSettings = HeartRateZoneSettings.load()
@@ -560,6 +594,27 @@ final class CalculatorTests: XCTestCase {
         XCTAssertEqual(summary.monthDistanceKilometers, 13, accuracy: 0.001)
         XCTAssertEqual(summary.yearDistanceKilometers, 17, accuracy: 0.001)
         XCTAssertEqual(summary.vo2MaxText, "-")
+    }
+
+    func testAppStoreScreenshotFixturesCoverMetricDetailGraphs() {
+        let runs = AppStoreScreenshotFixtures.runs
+        let monthlyMileage = MileageAggregator.monthlyPeriods(from: runs)
+        let yearlyMileage = MileageAggregator.yearlyPeriods(from: runs)
+        let halfPredictionPoints = PredictionTrendPoint.build(for: .half, runs: runs)
+        let vo2Samples = AppStoreScreenshotFixtures.vo2MaxSamples
+
+        XCTAssertGreaterThanOrEqual(runs.count, 24)
+        XCTAssertGreaterThanOrEqual(monthlyMileage.count, 10)
+        XCTAssertGreaterThanOrEqual(yearlyMileage.count, 2)
+        XCTAssertGreaterThanOrEqual(halfPredictionPoints.count, 10)
+        XCTAssertGreaterThanOrEqual(vo2Samples.count, 10)
+    }
+
+    func testVO2TrendRangeUsesLatestSampleAsAnchor() {
+        let samples = AppStoreScreenshotFixtures.vo2MaxSamples
+
+        XCTAssertEqual(VO2TrendRange.all.filtered(samples).count, samples.count)
+        XCTAssertGreaterThanOrEqual(VO2TrendRange.oneYear.filtered(samples).count, 10)
     }
 
     private func makeRun(

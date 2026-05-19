@@ -757,7 +757,9 @@ struct PersonalRecordsManagementView: View {
     let onDismissCandidate: (PersonalRecordDistance) -> Void
     let onResetAndReloadRecords: () async -> Void
 
+    #if DEBUG
     @State private var isResettingRecords = false
+    #endif
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -818,6 +820,7 @@ struct PersonalRecordsManagementView: View {
                     }
                 }
 
+                #if DEBUG
                 // TEST-ONLY PR TOOL: 최고 기록 계산 안정화 확인용 임시 UI다.
                 // 안정화 후 이 DetailSection과 관련 initializer 인자를 함께 제거하면 된다.
                 DetailSection(title: "테스트 도구") {
@@ -851,6 +854,7 @@ struct PersonalRecordsManagementView: View {
                         .disabled(isRefreshingRecords || isResettingRecords)
                     }
                 }
+                #endif
             }
             .padding(16)
         }

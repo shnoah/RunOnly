@@ -16,12 +16,102 @@ struct FeatureToneBadge: View {
         Text(text)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(foreground)
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
             .padding(.horizontal, 9)
             .padding(.vertical, 6)
             .background(
                 Capsule()
                     .fill(tint.opacity(0.18))
+                    .overlay(
+                        Capsule()
+                            .stroke(tint.opacity(0.28), lineWidth: 1)
+                    )
             )
+    }
+}
+
+struct MetricDetailHeroCard<Content: View>: View {
+    let primaryBadge: String
+    let secondaryBadge: String?
+    let title: String
+    let subtitle: String
+    let tint: Color
+    let secondaryTint: Color
+    let titleFont: Font
+    @ViewBuilder let content: Content
+
+    init(
+        primaryBadge: String,
+        secondaryBadge: String? = nil,
+        title: String,
+        subtitle: String,
+        tint: Color = PNR2026.track,
+        secondaryTint: Color = PNR2026.water,
+        titleFont: Font = .system(size: 30, weight: .bold, design: .rounded),
+        @ViewBuilder content: () -> Content
+    ) {
+        self.primaryBadge = primaryBadge
+        self.secondaryBadge = secondaryBadge
+        self.title = title
+        self.subtitle = subtitle
+        self.tint = tint
+        self.secondaryTint = secondaryTint
+        self.titleFont = titleFont
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 10) {
+                FeatureToneBadge(
+                    text: primaryBadge,
+                    tint: tint,
+                    foreground: PNR2026.ink.opacity(0.92)
+                )
+
+                Spacer(minLength: 8)
+
+                if let secondaryBadge, !secondaryBadge.isEmpty {
+                    FeatureToneBadge(
+                        text: secondaryBadge,
+                        tint: secondaryTint,
+                        foreground: PNR2026.ink.opacity(0.88)
+                    )
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(LocalizedStringKey(title))
+                    .font(titleFont)
+                    .foregroundStyle(PNR2026.ink)
+                    .monospacedDigit()
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+
+                Text(LocalizedStringKey(subtitle))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(PNR2026.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            content
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(PNR2026.surfaceHigh)
+                .overlay(
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
+                )
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(tint)
+                        .frame(width: 3)
+                        .padding(.vertical, 18)
+                }
+        )
     }
 }
 
@@ -79,21 +169,18 @@ struct FeatureFormFieldCard<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.black.opacity(0.18),
-                            tint.opacity(0.12)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                .fill(PNR2026.surfaceHigh)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .stroke(PNR2026.line, lineWidth: 1)
                 )
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(tint)
+                        .frame(width: 3)
+                        .padding(.vertical, 12)
+                }
         )
     }
 }
@@ -138,19 +225,10 @@ struct FeatureChartCallout: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.black.opacity(0.24),
-                            tint.opacity(0.2)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(PNR2026.surfaceHigh)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                        .stroke(tint.opacity(0.26), lineWidth: 1)
                 )
         )
         .fixedSize()

@@ -200,18 +200,50 @@ struct PredictionMethodView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text(L10n.tr("현재 예측 기록은 최근 120일 안에서 목표 거리와 충분히 가까운 러닝만 골라 계산합니다."))
-                    Text(L10n.tr("각 러닝에 Riegel 공식을 적용한 뒤, 너무 낙관적인 한 번의 기록 대신 상위 후보들의 중앙값에 가까운 값을 사용합니다."))
-                    Text(L10n.tr("공식: 예측시간 = 기록시간 × (목표거리 / 기록거리)^1.06"))
-                    Text(PredictionModel.eligibilitySummaryText)
-                    Text(L10n.tr("정확한 레이스 예측이라기보다, 최근 러닝 폼을 빠르게 보는 참고값으로 보는 편이 맞습니다."))
+                    PNRPageHeader(
+                        eyebrow: "PREDICTION",
+                        title: L10n.tr("예측 방식"),
+                        subtitle: L10n.tr("최근 러닝 폼을 거리별 참고 기록으로 바꿔 보여줍니다.")
+                    )
+
+                    DetailSection(
+                        title: L10n.tr("계산 기준"),
+                        systemImage: "checklist",
+                        tint: PNR2026.heat
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            PredictionMethodRow(text: L10n.tr("최근 120일 안에서 목표 거리와 충분히 가까운 러닝만 골라 계산합니다."))
+                            PredictionMethodRow(text: L10n.tr("너무 낙관적인 한 번의 기록 대신 상위 후보들의 중앙값에 가까운 값을 사용합니다."))
+                            PredictionMethodRow(text: PredictionModel.eligibilitySummaryText)
+                        }
+                    }
+
+                    DetailSection(
+                        title: L10n.tr("공식"),
+                        systemImage: "function",
+                        tint: PNR2026.water
+                    ) {
+                        Text(L10n.tr("예측시간 = 기록시간 × (목표거리 / 기록거리)^1.06"))
+                            .font(.system(.callout, design: .rounded).weight(.bold))
+                            .foregroundStyle(PNR2026.ink)
+                            .monospacedDigit()
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    DetailSection(
+                        title: L10n.tr("해석"),
+                        systemImage: "info.circle.fill",
+                        tint: PNR2026.track
+                    ) {
+                        Text(L10n.tr("정확한 레이스 예측이라기보다, 최근 러닝 폼을 빠르게 보는 참고값으로 보는 편이 맞습니다."))
+                            .foregroundStyle(PNR2026.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.82))
-                .padding(20)
+                .padding(16)
             }
             .background(AppBackground())
-            .navigationTitle(L10n.tr("예측 방식"))
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -220,6 +252,23 @@ struct PredictionMethodView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+private struct PredictionMethodRow: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle()
+                .fill(PNR2026.heat)
+                .frame(width: 7, height: 7)
+                .padding(.top, 6)
+
+            Text(text)
+                .foregroundStyle(PNR2026.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

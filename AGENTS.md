@@ -10,7 +10,7 @@ This file is the quick-start guide for coding agents and collaborators working i
 - Xcode project: `RunOnly.xcodeproj`
 - Main source folder: `RunOnly/`
 - Helper assets/scripts: `tools/`
-- There are currently no separate test targets in this repo.
+- Test target: `RunOnlyTests/` with calculation-focused XCTest coverage.
 
 ## Read First
 

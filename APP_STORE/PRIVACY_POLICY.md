@@ -1,6 +1,6 @@
 # PNR Run Privacy Policy
 
-Last updated: May 13, 2026
+Last updated: May 19, 2026
 
 ## Overview
 
@@ -23,16 +23,17 @@ When you allow Apple Health access, PNR Run may read:
 - Step count
 - Workout effort when available on supported iOS/watchOS versions
 
-PNR Run reads these items only to render summaries, running readiness, detailed charts, personal record tracking, shoe assignment views, and sharing layouts inside the app.
+PNR Run reads these items only to render summaries, running readiness, heart rate zones, detailed charts, personal record tracking, shoe assignment views, and sharing layouts inside the app.
 
 ## Data Stored On Device
 
 PNR Run stores the following data locally on the iPhone:
 
 - App settings
+- Heart rate zone preferences
 - Shoe names, models, mileage targets, and shoe-to-run assignments
 - Personal record review results
-- Derived summary cache values such as average heart rate, average cadence, and elevation gain
+- Derived summary and detail cache values such as average heart rate, average cadence, elevation gain, chart data, and heart rate zone profile cache
 
 These local support files are stored in the app container and excluded from automatic iCloud/Finder backup when applicable.
 
@@ -44,7 +45,7 @@ PNR Run does not currently upload the following to a server:
 - Workout route coordinates
 - Heart rate samples
 - Pace or split history
-- Derived summary cache values
+- Derived summary and detail cache values
 
 ## Data Sharing
 

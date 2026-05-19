@@ -12,6 +12,11 @@ struct VO2MaxTrendView: View {
     @State private var selectedRange: VO2TrendRange = .oneYear
     @State private var selectedSampleDate: Date?
 
+    init(samples: [VO2MaxSample], initialRange: VO2TrendRange = .oneYear) {
+        self.samples = samples
+        _selectedRange = State(initialValue: initialRange)
+    }
+
     private var filteredSamples: [VO2MaxSample] {
         selectedRange.filtered(samples)
     }
@@ -28,6 +33,25 @@ struct VO2MaxTrendView: View {
         guard let first = filteredSamples.first, let latest else { return "-" }
         return String(format: "%+.1f", latest.value - first.value)
     }
+    private var chartYDomain: ClosedRange<Double> {
+        let values = filteredSamples.map(\.value).filter(\.isFinite)
+        guard let minimum = values.min(), let maximum = values.max() else {
+            return 0...1
+        }
+        let padding = max((maximum - minimum) * 0.18, 0.8)
+        return max(minimum - padding, 0)...(maximum + padding)
+    }
+    private var chartXDomain: ClosedRange<Date> {
+        let dates = filteredSamples.map(\.date).sorted()
+        guard let start = dates.first, let end = dates.last else {
+            let now = Date()
+            return now...now
+        }
+
+        let span = end.timeIntervalSince(start)
+        let padding = max(span * 0.04, 14 * 24 * 60 * 60)
+        return start.addingTimeInterval(-padding)...end.addingTimeInterval(padding)
+    }
     private var subtitleText: String {
         guard let focusedSample else {
             return "VO2 Max 데이터가 쌓이면 회복과 지구력 흐름이 더 선명하게 보여요."
@@ -38,6 +62,12 @@ struct VO2MaxTrendView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                PNRPageHeader(
+                    eyebrow: "ENDURANCE",
+                    title: "VO2 Max",
+                    subtitle: "지구력 흐름을 기간별로 확인합니다."
+                )
+
                 VO2TrendHeroCard(
                     selectedRangeLabel: selectedRange.label,
                     subtitleText: subtitleText,
@@ -49,7 +79,7 @@ struct VO2MaxTrendView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("비교 기간")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.58))
+                        .foregroundStyle(PNR2026.muted)
 
                     Picker("기간", selection: $selectedRange) {
                         ForEach(VO2TrendRange.allCases) { range in
@@ -57,47 +87,39 @@ struct VO2MaxTrendView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .tint(Color(red: 0.29, green: 0.88, blue: 0.63))
+                    .tint(PNR2026.track)
                 }
                 .padding(16)
                 .background(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.06),
-                                    Color(red: 0.94, green: 0.41, blue: 0.45).opacity(0.1)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .fill(PNR2026.surface)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                .stroke(PNR2026.line, lineWidth: 1)
                         )
                 )
 
                 DetailSection(
                     title: "VO2 Max 흐름",
                     systemImage: "heart.circle.fill",
-                    tint: Color(red: 0.94, green: 0.41, blue: 0.45)
+                    tint: PNR2026.rose
                 ) {
                     if filteredSamples.isEmpty {
                         Text("VO2 Max 데이터가 없습니다.")
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(PNR2026.muted)
                     } else {
                         Chart(filteredSamples, id: \.date) { sample in
                             AreaMark(
                                 x: .value("날짜", sample.date),
-                                y: .value("VO2 Max", sample.value)
+                                yStart: .value("VO2 Max 기준", chartYDomain.lowerBound),
+                                yEnd: .value("VO2 Max", sample.value)
                             )
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(
                                 LinearGradient(
                                     colors: [
-                                        Color(red: 0.94, green: 0.41, blue: 0.45).opacity(0.28),
-                                        Color(red: 0.29, green: 0.88, blue: 0.63).opacity(0.04)
+                                        PNR2026.rose.opacity(0.14),
+                                        PNR2026.rose.opacity(0.00)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -108,16 +130,7 @@ struct VO2MaxTrendView: View {
                                 x: .value("날짜", sample.date),
                                 y: .value("VO2 Max", sample.value)
                             )
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0.94, green: 0.41, blue: 0.45),
-                                        Color(red: 0.29, green: 0.88, blue: 0.63)
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
+                            .foregroundStyle(PNR2026.rose)
                             .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                             .interpolationMethod(.catmullRom)
 
@@ -137,37 +150,40 @@ struct VO2MaxTrendView: View {
                                             title: "선택 값",
                                             value: String(format: "%.1f", sample.value),
                                             detail: sample.date.formatted(date: .abbreviated, time: .omitted),
-                                            tint: Color(red: 0.94, green: 0.41, blue: 0.45)
+                                            tint: PNR2026.rose
                                         )
                                     }
                             }
                         }
                         .frame(height: 240)
                         .chartXSelection(value: $selectedSampleDate)
+                        .chartXScale(domain: chartXDomain)
+                        .chartYScale(domain: chartYDomain)
                         .chartYAxis {
                             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
                                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
-                                    .foregroundStyle(.white.opacity(0.08))
+                                    .foregroundStyle(PNR2026.line)
                                 AxisValueLabel {
                                     if let number = value.as(Double.self) {
                                         Text(String(format: "%.1f", number))
                                             .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(.white.opacity(0.58))
+                                            .foregroundStyle(PNR2026.muted)
                                     }
                                 }
                             }
                         }
                         .chartXAxis {
-                            AxisMarks(values: .stride(by: .month)) { _ in
-                                AxisGridLine().foregroundStyle(.white.opacity(0.08))
+                            AxisMarks(values: .automatic(desiredCount: 5)) { _ in
+                                AxisGridLine().foregroundStyle(PNR2026.line)
                                 AxisValueLabel(format: .dateTime.month(.abbreviated))
                                     .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.white.opacity(0.55))
+                                    .foregroundStyle(PNR2026.muted)
                             }
                         }
                         .chartPlotStyle { plotArea in
                             plotArea
-                                .background(FeatureChartPlotBackground(tint: Color(red: 0.94, green: 0.41, blue: 0.45)))
+                                .background(FeatureChartPlotBackground(tint: PNR2026.rose))
+                                .clipShape(RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous))
                         }
                     }
                 }
@@ -175,7 +191,7 @@ struct VO2MaxTrendView: View {
             .padding(16)
         }
         .background(AppBackground())
-        .navigationTitle("VO2 Max")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -188,68 +204,28 @@ struct VO2TrendHeroCard: View {
     let changeText: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                FeatureToneBadge(
-                    text: "VO2 Max",
-                    tint: Color(red: 0.94, green: 0.41, blue: 0.45),
-                    foreground: Color(red: 1.0, green: 0.84, blue: 0.86)
-                )
-
-                Spacer()
-
-                FeatureToneBadge(
-                    text: selectedRangeLabel,
-                    tint: Color(red: 0.42, green: 0.76, blue: 1.0),
-                    foreground: Color(red: 0.74, green: 0.9, blue: 1.0)
-                )
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("지구력 흐름")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-
-                Text(subtitleText)
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
+        MetricDetailHeroCard(
+            primaryBadge: "VO2 Max",
+            secondaryBadge: selectedRangeLabel,
+            title: "지구력 흐름",
+            subtitle: subtitleText,
+            tint: PNR2026.rose,
+            secondaryTint: PNR2026.water
+        ) {
             ViewThatFits(in: .vertical) {
                 HStack(spacing: 10) {
-                    FeatureMiniStatCard(title: "현재", value: currentText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
-                    FeatureMiniStatCard(title: "최고", value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
-                    FeatureMiniStatCard(title: "변화", value: changeText, tint: Color(red: 0.94, green: 0.41, blue: 0.45))
+                    FeatureMiniStatCard(title: "현재", value: currentText, tint: PNR2026.water)
+                    FeatureMiniStatCard(title: "최고", value: bestText, tint: PNR2026.track)
+                    FeatureMiniStatCard(title: "변화", value: changeText, tint: PNR2026.rose)
                 }
 
                 VStack(spacing: 10) {
-                    FeatureMiniStatCard(title: "현재", value: currentText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
-                    FeatureMiniStatCard(title: "최고", value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
-                    FeatureMiniStatCard(title: "변화", value: changeText, tint: Color(red: 0.94, green: 0.41, blue: 0.45))
+                    FeatureMiniStatCard(title: "현재", value: currentText, tint: PNR2026.water)
+                    FeatureMiniStatCard(title: "최고", value: bestText, tint: PNR2026.track)
+                    FeatureMiniStatCard(title: "변화", value: changeText, tint: PNR2026.rose)
                 }
             }
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.17, green: 0.14, blue: 0.2),
-                            Color(red: 0.94, green: 0.41, blue: 0.45).opacity(0.18),
-                            Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.12)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
-        )
     }
 }
 
@@ -270,11 +246,13 @@ enum VO2TrendRange: String, CaseIterable, Identifiable {
     }
 
     func filtered(_ samples: [VO2MaxSample]) -> [VO2MaxSample] {
-        guard self != .all else { return samples }
+        let sortedSamples = samples.sorted { $0.date < $1.date }
+        guard self != .all else { return sortedSamples }
 
         let days = self == .sixMonths ? -180 : -365
-        let startDate = Calendar.current.date(byAdding: .day, value: days, to: Date()) ?? .distantPast
-        return samples.filter { $0.date >= startDate }
+        let anchorDate = sortedSamples.last?.date ?? Date()
+        let startDate = Calendar.current.date(byAdding: .day, value: days, to: anchorDate) ?? .distantPast
+        return sortedSamples.filter { $0.date >= startDate }
     }
 }
 
@@ -285,40 +263,36 @@ struct RecoveryReadinessView: View {
 
     private var primaryTint: Color {
         guard readiness.isDataSufficient, let score = readiness.score else {
-            return Color(red: 0.42, green: 0.76, blue: 1.0)
+            return PNR2026.water
         }
 
         switch score {
         case 82...:
-            return Color(red: 0.29, green: 0.88, blue: 0.63)
+            return PNR2026.track
         case 63..<82:
-            return Color(red: 0.42, green: 0.76, blue: 1.0)
+            return PNR2026.water
         case 45..<63:
-            return Color(red: 0.95, green: 0.59, blue: 0.32)
+            return PNR2026.heat
         default:
-            return Color(red: 0.94, green: 0.41, blue: 0.45)
+            return PNR2026.rose
         }
     }
 
     private var secondaryTint: Color {
         guard readiness.isDataSufficient, let score = readiness.score else {
-            return Color(red: 0.29, green: 0.88, blue: 0.63)
+            return PNR2026.track
         }
 
         switch score {
         case 82...:
-            return Color(red: 0.42, green: 0.76, blue: 1.0)
+            return PNR2026.water
         case 63..<82:
-            return Color(red: 0.29, green: 0.88, blue: 0.63)
+            return PNR2026.track
         case 45..<63:
-            return Color(red: 0.42, green: 0.76, blue: 1.0)
+            return PNR2026.water
         default:
-            return Color(red: 0.95, green: 0.59, blue: 0.32)
+            return PNR2026.heat
         }
-    }
-
-    private var badgeForeground: Color {
-        Color.white.opacity(0.92)
     }
 
     private var focusedLoadPoint: RecoveryLoadPoint? {
@@ -338,11 +312,16 @@ struct RecoveryReadinessView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                PNRPageHeader(
+                    eyebrow: "READINESS",
+                    title: L10n.tr("러닝 준비도"),
+                    subtitle: L10n.tr("최근 부하와 회복 간격을 같은 기준으로 확인합니다.")
+                )
+
                 RecoveryReadinessHeroCard(
                     readiness: readiness,
                     primaryTint: primaryTint,
-                    secondaryTint: secondaryTint,
-                    badgeForeground: badgeForeground
+                    secondaryTint: secondaryTint
                 )
 
                 DetailSection(
@@ -415,25 +394,16 @@ struct RecoveryReadinessView: View {
                             .font(.caption.weight(.bold))
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(PNR2026.ink)
                     .padding(.vertical, 12)
                     .padding(.horizontal, 16)
                     .frame(maxWidth: .infinity)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.07),
-                                        secondaryTint.opacity(0.16)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                            .fill(PNR2026.surfaceHigh)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                    .stroke(PNR2026.line, lineWidth: 1)
                             )
                     )
                 }
@@ -442,7 +412,7 @@ struct RecoveryReadinessView: View {
             .padding(16)
         }
         .background(AppBackground())
-        .navigationTitle(L10n.tr("러닝 준비도"))
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingEvidence) {
             ReadinessEvidenceView()
@@ -454,39 +424,18 @@ struct RecoveryReadinessHeroCard: View {
     let readiness: RecoveryReadiness
     let primaryTint: Color
     let secondaryTint: Color
-    let badgeForeground: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                FeatureToneBadge(
-                    text: L10n.tr("러닝 준비도"),
-                    tint: primaryTint,
-                    foreground: badgeForeground
-                )
-
-                Spacer()
-
-                FeatureToneBadge(
-                    text: readiness.status,
-                    tint: secondaryTint,
-                    foreground: badgeForeground
-                )
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(readiness.scoreText)
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .monospacedDigit()
-
-                Text(readiness.detail)
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.74))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            ViewThatFits(in: .vertical) {
+        MetricDetailHeroCard(
+            primaryBadge: L10n.tr("러닝 준비도"),
+            secondaryBadge: readiness.status,
+            title: readiness.scoreText,
+            subtitle: readiness.detail,
+            tint: primaryTint,
+            secondaryTint: secondaryTint,
+            titleFont: .system(size: 48, weight: .bold, design: .rounded)
+        ) {
+            VStack(spacing: 10) {
                 HStack(spacing: 10) {
                     FeatureMiniStatCard(
                         title: L10n.tr("최근 부하"),
@@ -500,56 +449,16 @@ struct RecoveryReadinessHeroCard: View {
                         detail: readiness.isDataSufficient ? L10n.tr("회복 간격") : L10n.tr("최근 기록 기준"),
                         tint: secondaryTint
                     )
-                    FeatureMiniStatCard(
-                        title: readiness.restingHeartRateText == nil ? L10n.tr("기준") : L10n.tr("안정시 심박"),
-                        value: readiness.restingHeartRateText ?? readiness.confidenceText,
-                        detail: readiness.restingHeartRateText == nil ? L10n.tr("현재 계산 방식") : L10n.tr("기준 대비 변화"),
-                        tint: Color(red: 0.95, green: 0.59, blue: 0.32)
-                    )
                 }
 
-                VStack(spacing: 10) {
-                    FeatureMiniStatCard(
-                        title: L10n.tr("최근 부하"),
-                        value: readiness.recentLoadText,
-                        detail: readiness.effortBasisText ?? readiness.loadRatioText ?? L10n.tr("최근 7일 기준"),
-                        tint: primaryTint
-                    )
-                    FeatureMiniStatCard(
-                        title: L10n.tr("마지막 러닝"),
-                        value: readiness.lastRunText,
-                        detail: readiness.isDataSufficient ? L10n.tr("회복 간격") : L10n.tr("최근 기록 기준"),
-                        tint: secondaryTint
-                    )
-                    FeatureMiniStatCard(
-                        title: readiness.restingHeartRateText == nil ? L10n.tr("기준") : L10n.tr("안정시 심박"),
-                        value: readiness.restingHeartRateText ?? readiness.confidenceText,
-                        detail: readiness.restingHeartRateText == nil ? L10n.tr("현재 계산 방식") : L10n.tr("기준 대비 변화"),
-                        tint: Color(red: 0.95, green: 0.59, blue: 0.32)
-                    )
-                }
+                FeatureMiniStatCard(
+                    title: readiness.restingHeartRateText == nil ? L10n.tr("기준") : L10n.tr("안정시 심박"),
+                    value: readiness.restingHeartRateText ?? readiness.confidenceText,
+                    detail: readiness.restingHeartRateText == nil ? L10n.tr("현재 계산 방식") : L10n.tr("기준 대비 변화"),
+                    tint: PNR2026.heat
+                )
             }
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.12, green: 0.17, blue: 0.24),
-                            primaryTint.opacity(0.18),
-                            secondaryTint.opacity(0.14)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
-        )
     }
 }
 
@@ -640,6 +549,7 @@ struct RecoveryLoadChartCard: View {
         .chartPlotStyle { plotArea in
             plotArea
                 .background(FeatureChartPlotBackground(tint: tint))
+                .clipShape(RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous))
         }
     }
 }
@@ -649,10 +559,16 @@ struct ReadinessEvidenceView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    PNRPageHeader(
+                        eyebrow: "EVIDENCE",
+                        title: L10n.tr("준비도 근거"),
+                        subtitle: L10n.tr("준비도 계산에 쓰는 신호와 한계를 확인합니다.")
+                    )
+
                     DetailSection(
                         title: L10n.tr("이 점수는 무엇인가요"),
                         systemImage: "heart.text.square.fill",
-                        tint: Color(red: 0.42, green: 0.76, blue: 1.0)
+                        tint: PNR2026.water
                     ) {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(L10n.tr("러닝 준비도는 몸 상태를 진단하는 의료 점수가 아니라, 최근 러닝 부하와 회복 간격을 바탕으로 오늘 러닝 강도를 가볍게 가이드하는 점수예요."))
@@ -665,7 +581,7 @@ struct ReadinessEvidenceView: View {
                     DetailSection(
                         title: L10n.tr("참고 문헌"),
                         systemImage: "book.fill",
-                        tint: Color(red: 0.29, green: 0.88, blue: 0.63)
+                        tint: PNR2026.track
                     ) {
                         VStack(alignment: .leading, spacing: 12) {
                             ReadinessEvidenceLinkRow(
@@ -694,7 +610,7 @@ struct ReadinessEvidenceView: View {
                     DetailSection(
                         title: L10n.tr("한계"),
                         systemImage: "exclamationmark.triangle.fill",
-                        tint: Color(red: 0.95, green: 0.59, blue: 0.32)
+                        tint: PNR2026.heat
                     ) {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(L10n.tr("수면, HRV, 스트레스 같은 데이터는 아직 반영하지 않아 실제 회복 상태를 완전히 대변하지는 못합니다."))
@@ -707,7 +623,7 @@ struct ReadinessEvidenceView: View {
                 .padding(16)
             }
             .background(AppBackground())
-            .navigationTitle(L10n.tr("준비도 근거"))
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -724,18 +640,18 @@ struct ReadinessEvidenceLinkRow: View {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "arrow.up.right.square")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.white.opacity(0.72))
+                        .foregroundStyle(PNR2026.muted)
                         .padding(.top, 2)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(title)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(PNR2026.ink)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Text(subtitle)
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.58))
+                            .foregroundStyle(PNR2026.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -743,11 +659,11 @@ struct ReadinessEvidenceLinkRow: View {
                 }
                 .padding(12)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.white.opacity(0.04))
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .fill(PNR2026.surfaceHigh)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                .stroke(PNR2026.line, lineWidth: 1)
                         )
                 )
             }

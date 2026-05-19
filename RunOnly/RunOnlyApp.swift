@@ -34,12 +34,13 @@ enum AppMetadata {
             L10n.tr("심박"),
             L10n.tr("안정시 심박"),
             L10n.tr("VO2 Max"),
-            L10n.tr("거리 및 걸음 수")
+            L10n.tr("거리 및 걸음 수"),
+            L10n.tr("운동 노력")
         ]
     }
 
     static var healthUsageSummary: String {
-        L10n.tr("Apple 건강의 러닝 기록, 경로, 심박, VO2 Max 같은 데이터를 iPhone 안에서 보기 쉽게 정리합니다.")
+        L10n.tr("Apple 건강의 러닝 기록, 경로, 심박, VO2 Max, 운동 노력 같은 데이터를 iPhone 안에서 보기 쉽게 정리합니다.")
     }
 
     static var onboardingFeatureHighlights: [String] {

@@ -14,8 +14,9 @@ struct PredictionTrendView: View {
     @State private var selectedPredictionDate: Date?
     @State private var cachedPointsByDistance: [PredictionDistance: [PredictionTrendPoint]]
 
-    init(runs: [RunningWorkout]) {
+    init(runs: [RunningWorkout], initialDistance: PredictionDistance = .fiveK) {
         self.runs = runs
+        _selectedDistance = State(initialValue: initialDistance)
         _cachedPointsByDistance = State(initialValue: Self.buildPointCache(for: runs))
     }
 
@@ -49,9 +50,36 @@ struct PredictionTrendView: View {
         points.isEmpty ? L10n.tr("데이터 준비 중") : L10n.format("%d개 포인트", points.count)
     }
 
+    private var chartYDomain: ClosedRange<Double> {
+        let values = points.map(\.seconds).filter(\.isFinite)
+        guard let minimum = values.min(), let maximum = values.max() else {
+            return 0...1
+        }
+        let padding = max((maximum - minimum) * 0.18, 30)
+        return max(minimum - padding, 0)...(maximum + padding)
+    }
+
+    private var chartXDomain: ClosedRange<Date> {
+        let dates = points.map(\.date).sorted()
+        guard let start = dates.first, let end = dates.last else {
+            let now = Date()
+            return now...now
+        }
+
+        let span = end.timeIntervalSince(start)
+        let padding = max(span * 0.04, 14 * 24 * 60 * 60)
+        return start.addingTimeInterval(-padding)...end.addingTimeInterval(padding)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                PNRPageHeader(
+                    eyebrow: "PREDICTION",
+                    title: L10n.tr("예상 기록"),
+                    subtitle: L10n.tr("거리별 예상 기록 흐름을 같은 기준선에서 확인합니다.")
+                )
+
                 PredictionTrendHeroCard(
                     selectedDistance: selectedDistance,
                     subtitle: heroSubtitle,
@@ -64,7 +92,7 @@ struct PredictionTrendView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(L10n.tr("비교 거리"))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.58))
+                        .foregroundStyle(PNR2026.muted)
 
                     Picker(L10n.tr("거리"), selection: $selectedDistance) {
                         ForEach(PredictionDistance.allCases) { distance in
@@ -72,47 +100,39 @@ struct PredictionTrendView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .tint(Color(red: 0.95, green: 0.59, blue: 0.32))
+                    .tint(PNR2026.heat)
                 }
                 .padding(16)
                 .background(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.06),
-                                    Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.1)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .fill(PNR2026.surface)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                .stroke(PNR2026.line, lineWidth: 1)
                         )
                 )
 
                 DetailSection(
                     title: L10n.tr("예상 흐름"),
                     systemImage: "chart.line.uptrend.xyaxis",
-                    tint: Color(red: 0.95, green: 0.59, blue: 0.32)
+                    tint: PNR2026.heat
                 ) {
                     if points.isEmpty {
                         Text(L10n.tr("추세를 계산할 러닝 데이터가 부족합니다."))
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(PNR2026.muted)
                     } else {
                         Chart(points) { point in
                             AreaMark(
                                 x: .value("날짜", point.date),
-                                y: .value("예상 기록", point.seconds)
+                                yStart: .value("예상 기록 기준", chartYDomain.lowerBound),
+                                yEnd: .value("예상 기록", point.seconds)
                             )
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(
                                 LinearGradient(
                                     colors: [
-                                        Color(red: 0.95, green: 0.59, blue: 0.32).opacity(0.28),
-                                        Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.04)
+                                        PNR2026.heat.opacity(0.14),
+                                        PNR2026.heat.opacity(0.00)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -123,16 +143,7 @@ struct PredictionTrendView: View {
                                 x: .value("날짜", point.date),
                                 y: .value("예상 기록", point.seconds)
                             )
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0.95, green: 0.59, blue: 0.32),
-                                        Color(red: 0.42, green: 0.76, blue: 1.0)
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
+                            .foregroundStyle(PNR2026.heat)
                             .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                             .interpolationMethod(.catmullRom)
 
@@ -152,37 +163,40 @@ struct PredictionTrendView: View {
                                             title: selectedDistance.label,
                                             value: formatDuration(point.seconds),
                                             detail: point.date.formatted(date: .abbreviated, time: .omitted),
-                                            tint: Color(red: 0.95, green: 0.59, blue: 0.32)
+                                            tint: PNR2026.heat
                                         )
                                     }
                             }
                         }
                         .frame(height: 240)
                         .chartXSelection(value: $selectedPredictionDate)
+                        .chartXScale(domain: chartXDomain)
+                        .chartYScale(domain: chartYDomain)
                         .chartYAxis {
                             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
                                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
-                                    .foregroundStyle(.white.opacity(0.08))
+                                    .foregroundStyle(PNR2026.line)
                                 AxisValueLabel {
                                     if let seconds = value.as(Double.self) {
                                         Text(formatDuration(seconds))
                                             .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(.white.opacity(0.58))
+                                            .foregroundStyle(PNR2026.muted)
                                     }
                                 }
                             }
                         }
                         .chartXAxis {
-                            AxisMarks(values: .stride(by: .month)) { _ in
-                                AxisGridLine().foregroundStyle(.white.opacity(0.08))
+                            AxisMarks(values: .automatic(desiredCount: 5)) { _ in
+                                AxisGridLine().foregroundStyle(PNR2026.line)
                                 AxisValueLabel(format: .dateTime.month(.abbreviated))
                                     .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.white.opacity(0.55))
+                                    .foregroundStyle(PNR2026.muted)
                             }
                         }
                         .chartPlotStyle { plotArea in
                             plotArea
-                                .background(FeatureChartPlotBackground(tint: Color(red: 0.95, green: 0.59, blue: 0.32)))
+                                .background(FeatureChartPlotBackground(tint: PNR2026.heat))
+                                .clipShape(RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous))
                         }
                     }
                 }
@@ -198,25 +212,16 @@ struct PredictionTrendView: View {
                             .font(.caption.weight(.bold))
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(PNR2026.ink)
                     .padding(.vertical, 12)
                     .padding(.horizontal, 16)
                     .frame(maxWidth: .infinity)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.07),
-                                        Color(red: 0.95, green: 0.59, blue: 0.32).opacity(0.12)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                        RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                            .fill(PNR2026.surfaceHigh)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                    .stroke(PNR2026.line, lineWidth: 1)
                             )
                     )
                 }
@@ -225,7 +230,7 @@ struct PredictionTrendView: View {
             .padding(16)
         }
         .background(AppBackground())
-        .navigationTitle(L10n.tr("예상 기록"))
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: runsCacheKey) {
             rebuildPointCache()
@@ -263,68 +268,28 @@ struct PredictionTrendHeroCard: View {
     let changeText: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                FeatureToneBadge(
-                    text: L10n.tr("예상 기록"),
-                    tint: Color(red: 0.95, green: 0.59, blue: 0.32),
-                    foreground: Color(red: 1.0, green: 0.86, blue: 0.76)
-                )
-
-                Spacer()
-
-                FeatureToneBadge(
-                    text: badgeText,
-                    tint: Color(red: 0.42, green: 0.76, blue: 1.0),
-                    foreground: Color(red: 0.74, green: 0.90, blue: 1.0)
-                )
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(L10n.format("%@ 흐름", selectedDistance.label))
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
+        MetricDetailHeroCard(
+            primaryBadge: L10n.tr("예상 기록"),
+            secondaryBadge: badgeText,
+            title: L10n.format("%@ 흐름", selectedDistance.label),
+            subtitle: subtitle,
+            tint: PNR2026.heat,
+            secondaryTint: PNR2026.water
+        ) {
             ViewThatFits(in: .vertical) {
                 HStack(spacing: 10) {
-                    FeatureMiniStatCard(title: L10n.tr("현재"), value: latestText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
-                    FeatureMiniStatCard(title: L10n.tr("최고"), value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
-                    FeatureMiniStatCard(title: L10n.tr("변화"), value: changeText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
+                    FeatureMiniStatCard(title: L10n.tr("현재"), value: latestText, tint: PNR2026.water)
+                    FeatureMiniStatCard(title: L10n.tr("최고"), value: bestText, tint: PNR2026.track)
+                    FeatureMiniStatCard(title: L10n.tr("변화"), value: changeText, tint: PNR2026.heat)
                 }
 
                 VStack(spacing: 10) {
-                    FeatureMiniStatCard(title: L10n.tr("현재"), value: latestText, tint: Color(red: 0.42, green: 0.76, blue: 1.0))
-                    FeatureMiniStatCard(title: L10n.tr("최고"), value: bestText, tint: Color(red: 0.29, green: 0.88, blue: 0.63))
-                    FeatureMiniStatCard(title: L10n.tr("변화"), value: changeText, tint: Color(red: 0.95, green: 0.59, blue: 0.32))
+                    FeatureMiniStatCard(title: L10n.tr("현재"), value: latestText, tint: PNR2026.water)
+                    FeatureMiniStatCard(title: L10n.tr("최고"), value: bestText, tint: PNR2026.track)
+                    FeatureMiniStatCard(title: L10n.tr("변화"), value: changeText, tint: PNR2026.heat)
                 }
             }
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.12, green: 0.17, blue: 0.27),
-                            Color(red: 0.95, green: 0.59, blue: 0.32).opacity(0.16),
-                            Color(red: 0.42, green: 0.76, blue: 1.0).opacity(0.14)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.16), radius: 18, y: 10)
-        )
     }
 }
 
@@ -390,6 +355,11 @@ struct MileageBreakdownView: View {
     @ObservedObject var viewModel: RunningWorkoutsViewModel
     @State private var selectedRange: MileageHistoryRange = .currentYear
 
+    init(viewModel: RunningWorkoutsViewModel, initialRange: MileageHistoryRange = .currentYear) {
+        self.viewModel = viewModel
+        _selectedRange = State(initialValue: initialRange)
+    }
+
     private var summary: MileageRangeSummary {
         viewModel.mileageSummary(for: selectedRange)
     }
@@ -405,10 +375,16 @@ struct MileageBreakdownView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                PNRPageHeader(
+                    eyebrow: "MILEAGE",
+                    title: "마일리지",
+                    subtitle: "월별, 연별 누적 거리를 같은 기준으로 확인합니다."
+                )
+
                 VStack(alignment: .leading, spacing: 12) {
                     Text("범위")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(PNR2026.muted)
 
                     Picker("마일리지 범위", selection: $selectedRange) {
                         ForEach(MileageHistoryRange.allCases) { range in
@@ -417,6 +393,15 @@ struct MileageBreakdownView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                        .fill(PNR2026.surface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                .stroke(PNR2026.line, lineWidth: 1)
+                        )
+                )
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     SummaryCard(
@@ -439,10 +424,10 @@ struct MileageBreakdownView: View {
                         if selectedRange != .currentYear && viewModel.isPreparingMileageHistory {
                             HStack(spacing: 10) {
                                 ProgressView()
-                                    .tint(.white)
+                                    .tint(PNR2026.track)
                                 Text("과거 마일리지 데이터를 불러오는 중")
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white.opacity(0.82))
+                                    .foregroundStyle(PNR2026.muted)
                             }
                         }
                     }
@@ -453,18 +438,8 @@ struct MileageBreakdownView: View {
             }
             .padding(16)
         }
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.12, green: 0.14, blue: 0.20),
-                    Color.black
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-        )
-        .navigationTitle("마일리지")
+        .background(AppBackground())
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: selectedRange) {
             await viewModel.prepareMileageHistory(for: selectedRange)
@@ -481,7 +456,7 @@ struct MileageSection: View {
         DetailSection(title: title) {
             if periods.isEmpty {
                 Text("불러온 러닝 데이터가 없습니다.")
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(PNR2026.muted)
             } else {
                 VStack(spacing: 10) {
                     ForEach(periods) { period in
@@ -489,18 +464,26 @@ struct MileageSection: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(period.title)
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(PNR2026.ink)
                                 Text(period.subtitle)
                                     .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.55))
+                                    .foregroundStyle(PNR2026.muted)
                             }
                             Spacer()
                             Text(period.distanceText)
                                 .font(.system(.title3, design: .rounded).weight(.bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(PNR2026.ink)
                                 .monospacedDigit()
                         }
-                        .padding(.vertical, 4)
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                .fill(PNR2026.surfaceHigh)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: PNR2026.radius, style: .continuous)
+                                        .stroke(PNR2026.line, lineWidth: 1)
+                                )
+                        )
                     }
                 }
             }

@@ -136,6 +136,11 @@ struct RunShareComposerView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
+                        PNRPageHeader(
+                            eyebrow: "SHARE",
+                            title: "공유 이미지",
+                            subtitle: "러닝을 템플릿 이미지로 확인하고 저장합니다."
+                        )
                         compactEditorDashboard(availableWidth: availableWidth)
                         exportFeedbackPanel
                     }
@@ -144,7 +149,7 @@ struct RunShareComposerView: View {
                 }
             }
             .background(AppBackground())
-            .navigationTitle("공유 이미지")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .task {
                 RunShareTemplate.allCases.forEach { template in
@@ -400,8 +405,9 @@ struct RunShareComposerView: View {
 
     @ViewBuilder
     private func compactEditorDashboard(availableWidth: CGFloat) -> some View {
+        let previewAvailableWidth = max(availableWidth - 48, 220)
         VStack(alignment: .leading, spacing: 12) {
-            previewPanel(availableWidth: availableWidth)
+            previewPanel(availableWidth: previewAvailableWidth)
             if showsTemplateSelector {
                 templateSelectorPanel
             }
@@ -453,53 +459,50 @@ struct RunShareComposerView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(PNR2026.ink)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(RunShareTemplate.allCases) { template in
-                        Button {
-                            selectedTemplate = template
-                        } label: {
-                            VStack(alignment: .leading, spacing: 5) {
-                                HStack(spacing: 6) {
-                                    Text(template.label)
-                                        .font(.subheadline.weight(.bold))
-                                        .foregroundStyle(PNR2026.ink)
-                                        .lineLimit(1)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 8)], spacing: 8) {
+                ForEach(RunShareTemplate.allCases) { template in
+                    Button {
+                        selectedTemplate = template
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(template.label)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(PNR2026.ink)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.86)
 
-                                    Text(template.useCaseLabel)
-                                        .font(.caption2.weight(.black))
-                                        .foregroundStyle(selectedTemplate == template ? .black : PNR2026.muted)
-                                        .lineLimit(1)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 3)
-                                        .background(
-                                            Capsule(style: .continuous)
-                                                .fill(selectedTemplate == template ? artworkStyle.accentColor : PNR2026.surfaceHigh)
-                                        )
-                                }
-                            }
-                            .frame(width: 116, alignment: .leading)
-                            .padding(10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(
-                                        selectedTemplate == template
-                                            ? artworkStyle.accentColor.opacity(0.16)
-                                            : PNR2026.surfaceHigh.opacity(0.74)
-                                    )
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(
-                                        selectedTemplate == template
-                                            ? artworkStyle.accentColor.opacity(0.42)
-                                            : PNR2026.line,
-                                        lineWidth: 1
-                                    )
-                            )
+                            Text(template.useCaseLabel)
+                                .font(.caption2.weight(.black))
+                                .foregroundStyle(selectedTemplate == template ? .black : PNR2026.muted)
+                                .lineLimit(1)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(selectedTemplate == template ? artworkStyle.accentColor : PNR2026.surfaceHigh)
+                                )
                         }
-                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(
+                                    selectedTemplate == template
+                                        ? artworkStyle.accentColor.opacity(0.16)
+                                        : PNR2026.surfaceHigh.opacity(0.74)
+                                )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(
+                                    selectedTemplate == template
+                                        ? artworkStyle.accentColor.opacity(0.42)
+                                        : PNR2026.line,
+                                    lineWidth: 1
+                                )
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -930,6 +933,12 @@ struct RunShareComposerView: View {
 
     @ViewBuilder
     private func shareCanvasView(canvasSize: CGSize, interactive: Bool) -> some View {
+        let safeInset = selectedTemplate.edgeSafeInset
+        let artworkSize = CGSize(
+            width: max(selectedTemplate.canvasSize.width - safeInset * 2, 1),
+            height: selectedTemplate.canvasSize.height
+        )
+
         ZStack {
             if selectedTemplate.isTransparentStickerTemplate, interactive {
                 TransparentPreviewBackground()
@@ -944,9 +953,11 @@ struct RunShareComposerView: View {
                 style: artworkStyle
             )
             .frame(
-                width: selectedTemplate.canvasSize.width,
-                height: selectedTemplate.canvasSize.height
+                width: artworkSize.width,
+                height: artworkSize.height
             )
+            .padding(.horizontal, safeInset)
+            .frame(width: selectedTemplate.canvasSize.width, height: selectedTemplate.canvasSize.height)
             .scaleEffect(canvasSize.width / selectedTemplate.canvasSize.width, anchor: .topLeading)
             .frame(
                 width: canvasSize.width,

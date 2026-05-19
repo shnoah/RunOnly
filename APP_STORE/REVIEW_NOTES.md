@@ -8,7 +8,7 @@ It reads running workouts recorded on Apple devices and shows:
 
 - Monthly and yearly mileage summaries
 - Detailed run charts and route view
-- Heart rate and advanced running metrics
+- Heart rate zones, cadence, elevation, splits, and route context
 - Personal record tracking
 - Shoe assignment and mileage tracking
 - Share-ready run summary layouts
@@ -32,7 +32,7 @@ If the review device does not have running data:
 
 ## Permissions
 
-- Apple Health read permission is requested to read running workouts, routes, heart rate, VO2 Max, workout effort when available, and related running metrics
+- Apple Health read permission is requested to read running workouts, routes, heart rate, resting heart rate, VO2 Max, distance/steps, workout effort when available, and related running metrics
 - Photo Library add-only permission is requested only when the user saves a generated share image to Photos
 
 ## Network / Accounts

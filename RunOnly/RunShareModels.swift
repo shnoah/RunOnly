@@ -131,6 +131,17 @@ enum RunShareTemplate: String, CaseIterable, Identifiable {
         true
     }
 
+    var edgeSafeInset: CGFloat {
+        switch self {
+        case .style1:
+            return 18
+        case .microInline, .glassPills:
+            return 12
+        case .sticker, .minimalStack, .serifCaption, .raceLabel:
+            return 0
+        }
+    }
+
     var defaultEnabledFields: Set<RunShareField> {
         switch self {
         case .sticker:
